@@ -1,0 +1,48 @@
+server:
+  port: 9981
+
+spring:
+  application:
+    name: hotel-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/hotel_db
+    username: postgres
+    password: 123
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: Asia/Ho_Chi_Minh
+
+  main:
+    allow-circular-references: true
+
+  # Cấu hình upload file
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Đường dẫn lưu file upload
+upload:
+  path: uploads
+
+jwt:
+  secret: your-super-secret-key-change-in-production-1234567890
+  expiration: 86400000
+
+logging:
+  level:
+    com.hotel: DEBUG
