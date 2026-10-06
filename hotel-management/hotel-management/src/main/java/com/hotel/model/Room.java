@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "rooms")
@@ -42,4 +44,9 @@ public class Room {
 
     @Column(columnDefinition = "TEXT")
     private String amenities;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @JoinColumn(name = "room_id")
+    @OrderBy("displayOrder ASC")
+    private List<RoomImage> images = new ArrayList<>();
 }

@@ -7,16 +7,17 @@ import {
     Select, Chip, Alert, Stepper, Step, StepLabel,
     CircularProgress, Divider, Avatar, List, ListItem,
     ListItemText, ListItemAvatar, IconButton, Tooltip,
-    LinearProgress
+    LinearProgress, Radio, RadioGroup, FormControlLabel
 } from '@mui/material';
 import {
     ArrowBack, CheckCircle, CalendarToday,
     Person, Room, AttachMoney, Bed, People,
     Event, Info, Cancel, Phone, Email, LocalOffer,
-    Check, Close
+    Check, Close, CreditCard
 } from '@mui/icons-material';
 import { bookingAPI } from '../api/booking';
 import { roomAPI } from '../api/room';
+import { paymentAPI } from '../api/payment';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
@@ -49,6 +50,9 @@ const CreateBooking = () => {
     const [appliedPromotion, setAppliedPromotion] = useState(null);
     const [availablePromotions, setAvailablePromotions] = useState([]);
     const [showPromotions, setShowPromotions] = useState(false);
+
+    // Payment states
+    const [payOption, setPayOption] = useState('VNPAY');
 
     const steps = [
         i18n.language === 'vi' ? 'Chọn phòng' : 'Select Room',
@@ -261,7 +265,32 @@ const CreateBooking = () => {
 
             const response = await bookingAPI.create(bookingData);
             console.log('✅ Booking response:', response.data);
-            
+            const createdBooking = response.data;
+
+            // ===== Thanh toán ngay qua VNPay =====
+            if (payOption === 'VNPAY' && createdBooking?.id) {
+                try {
+                    const payRes = await paymentAPI.pay(createdBooking.id, 'VNPAY');
+                    const { paymentUrl, mock, payment } = payRes.data;
+                    if (paymentUrl) {
+                        toast.success(i18n.language === 'vi' ? '✅ Đặt phòng thành công! Đang chuyển đến thanh toán...' : '✅ Booking created! Redirecting to payment...');
+                        if (mock) {
+                            navigate(`/payment/mock?paymentId=${payment?.id}&bookingId=${createdBooking.id}&amount=${calculateTotal()}`);
+                        } else {
+                            window.location.href = paymentUrl;
+                        }
+                        return;
+                    }
+                } catch (payError) {
+                    console.error('❌ Init payment error:', payError);
+                    toast.error(
+                        i18n.language === 'vi'
+                            ? 'Đặt phòng thành công nhưng chưa khởi tạo được VNPay - bạn có thể thanh toán lại trong "Đặt phòng của tôi"'
+                            : 'Booking created but payment init failed - you can pay later in My Bookings'
+                    );
+                }
+            }
+
             toast.success(i18n.language === 'vi' ? '✅ Đặt phòng thành công!' : '✅ Booking created successfully!');
             navigate('/my-bookings');
         } catch (error) {
@@ -668,6 +697,41 @@ const CreateBooking = () => {
                                     )}
                                 </Box>
                             </Box>
+
+                            {/* ===== Chọn phương thức thanh toán ===== */}
+                            <Divider sx={{ my: 3 }} />
+                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                                <CreditCard color="primary" />
+                                <Typography variant="subtitle1" fontWeight={600}>
+                                    {i18n.language === 'vi' ? '💳 Phương thức thanh toán' : '💳 Payment Method'}
+                                </Typography>
+                            </Box>
+                            <RadioGroup
+                                value={payOption}
+                                onChange={(e) => setPayOption(e.target.value)}
+                            >
+                                <FormControlLabel
+                                    value="VNPAY"
+                                    control={<Radio />}
+                                    label={i18n.language === 'vi'
+                                        ? '🏦 Thanh toán ngay qua VNPay (QR / thẻ ATM / thẻ quốc tế) - tự động xác nhận đặt phòng'
+                                        : '🏦 Pay now with VNPay (QR / ATM card) - booking auto-confirmed'}
+                                />
+                                <FormControlLabel
+                                    value="LATER"
+                                    control={<Radio />}
+                                    label={i18n.language === 'vi'
+                                        ? '🏨 Thanh toán sau: chuyển khoản ngân hàng hoặc tiền mặt tại quầy'
+                                        : '🏨 Pay later: bank transfer or cash at reception'}
+                                />
+                            </RadioGroup>
+                            {payOption === 'LATER' && (
+                                <Alert severity="info" sx={{ mt: 1 }}>
+                                    {i18n.language === 'vi'
+                                        ? 'Sau khi đặt phòng, vào "Đặt phòng của tôi" và bấm nút Thanh toán để chuyển khoản hoặc ghi nhận thanh toán tại quầy.'
+                                        : 'After booking, go to "My Bookings" and press Pay to transfer or record a desk payment.'}
+                                </Alert>
+                            )}
                         </Paper>
                     </Box>
                 );

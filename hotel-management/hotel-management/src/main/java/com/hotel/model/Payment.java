@@ -35,9 +35,23 @@ public class Payment {
     @Column(name = "payment_date", updatable = false)
     private LocalDateTime paymentDate;
 
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
     @Column(name = "transaction_id", length = 100)
     private String transactionId;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    // ============ HẰNG SỐ PHƯƠNG THỨC / TRẠNG THÁI ============
+    public static final String METHOD_VNPAY = "VNPAY";
+    public static final String METHOD_BANK_TRANSFER = "BANK_TRANSFER";
+    public static final String METHOD_CASH = "CASH";
+
+    public static final String STATUS_PENDING = "PENDING";
+    public static final String STATUS_COMPLETED = "COMPLETED";
+    public static final String STATUS_FAILED = "FAILED";
+    public static final String STATUS_CANCELLED = "CANCELLED";
+    public static final String STATUS_REFUNDED = "REFUNDED";
 }

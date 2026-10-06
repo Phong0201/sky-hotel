@@ -11,7 +11,7 @@ import {
     Logout, ChevronLeft, AccountCircle, BookOnline,
     Home as HomeIcon, RateReview, Translate,
     Settings as SettingsIcon, Notifications as NotificationsIcon,
-    LocalOffer, Chat as ChatIcon
+    LocalOffer, Chat as ChatIcon, Payments as PaymentsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from './NotificationBell';
@@ -56,6 +56,7 @@ const Layout = () => {
         { text: '🔔 Thông báo', icon: <NotificationsIcon />, path: '/notifications' },
         { text: '⭐ Quản lý đánh giá', icon: <RateReview />, path: '/admin/reviews' },
         { text: '📋 Quản lý đặt phòng', icon: <Hotel />, path: '/bookings' },
+        { text: '💳 Quản lý thanh toán', icon: <PaymentsIcon />, path: '/payments' },
         { text: '👤 Người dùng', icon: <People />, path: '/users' },
     ];
 

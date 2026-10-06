@@ -32,10 +32,10 @@ public class ChatMessage {
     private Boolean isRead = false;
 
     @Column(name = "is_deleted")
-    private Boolean isDeleted = false;  // 👉 KHỞI TẠO MẶC ĐỊNH false
+    private Boolean isDeleted = false;  //  KHỞI TẠO MẶC ĐỊNH false
 
     @Column(name = "is_recalled")
-    private Boolean isRecalled = false; // 👉 KHỞI TẠO MẶC ĐỊNH false
+    private Boolean isRecalled = false; //  KHỞI TẠO MẶC ĐỊNH false
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

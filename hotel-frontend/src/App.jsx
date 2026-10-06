@@ -23,6 +23,9 @@ import Settings from './pages/Settings';
 import AdminPromotions from './pages/AdminPromotions';
 import BookingDetail from './pages/BookingDetail';
 import Chat from './pages/Chat';
+import Payments from './pages/Payments';
+import PaymentResult from './pages/PaymentResult';
+import PaymentMock from './pages/PaymentMock';
 import theme from './styles/theme';
 import './i18n';
 
@@ -49,13 +52,18 @@ function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/chat" element={<Chat />} />
-                
+
                 <Route path="/bookings" element={<PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}><Bookings /></PrivateRoute>} />
                 <Route path="/users" element={<PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}><Users /></PrivateRoute>} />
+                <Route path="/payments" element={<PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}><Payments /></PrivateRoute>} />
                 <Route path="/admin/reviews" element={<PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}><AdminReviews /></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute allowedRoles={['ADMIN']}><Settings /></PrivateRoute>} />
                 <Route path="/admin/promotions" element={<PrivateRoute allowedRoles={['ADMIN']}><AdminPromotions /></PrivateRoute>} />
               </Route>
+
+              {/* Luồng thanh toán - cần đăng nhập nhưng toàn màn hình (giả lập cổng ngoài) */}
+              <Route path="/payment/mock" element={<PrivateRoute><PaymentMock /></PrivateRoute>} />
+              <Route path="/payment/result" element={<PrivateRoute><PaymentResult /></PrivateRoute>} />
             </Routes>
           </ChatProvider>
         </AuthProvider>

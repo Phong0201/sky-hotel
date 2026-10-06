@@ -25,6 +25,7 @@ import { bookingAPI } from '../api/booking';
 import { reviewAPI } from '../api/review';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/common/Logo';
+import FloatingChatWidget from '../components/common/FloatingChatWidget';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
@@ -779,18 +780,21 @@ const Home = () => {
         <Grid container spacing={3}>
           {filteredRooms.map((room) => (
             <Grid item xs={12} sm={6} md={4} key={room.id}>
-              <Card sx={{
-                borderRadius: 3,
-                overflow: 'hidden',
-                transition: '0.3s',
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                '&:hover': {
-                  transform: 'translateY(-8px)',
-                  boxShadow: 8
-                }
-              }}>
+              <Card
+                onClick={() => navigate(`/rooms/${room.id}`)}
+                sx={{
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  transition: '0.3s',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: 8
+                  }
+                }}>
                 <Box sx={{
                   height: 220,
                   position: 'relative',
@@ -882,7 +886,10 @@ const Home = () => {
                     <Button
                       variant="contained"
                       disabled={room.status !== 'AVAILABLE'}
-                      onClick={() => handleBookNow(room)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBookNow(room);
+                      }}
                       fullWidth
                       sx={{
                         bgcolor: room.status === 'AVAILABLE' ? '#007bff' : '#6c757d',
@@ -1307,6 +1314,9 @@ const Home = () => {
           <SupportAgent sx={{ fontSize: 28 }} />
         </Fab>
       </Box>
+
+      {/* ✅ MỚI: Box chat nổi - chỉ hiện cho user thường đã đăng nhập, không hiện cho admin */}
+      {isAuthenticated && user?.role !== 'ADMIN' && <FloatingChatWidget />}
 
       {/* 👉 THÊM ANIMATION CSS */}
       <style>

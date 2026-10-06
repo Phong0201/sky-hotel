@@ -5,16 +5,19 @@ import {
     Box, Typography, Paper, Grid, Chip, Button,
     Divider, Avatar, List, ListItem, ListItemText,
     ListItemAvatar, LinearProgress, Alert,
-    Card, CardContent, Stack, Tooltip
+    Card, CardContent, Stack, Tooltip,
+    TextField, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import {
     ArrowBack, Room, Person, CalendarToday,
     AttachMoney, People, Phone, Email,
     CheckCircle, Pending, Cancel, Info,
     AccessTime, LocalOffer, Delete,
-    Chat as ChatIcon
+    Chat as ChatIcon, Payments as PaymentsIcon, ReceiptLong
 } from '@mui/icons-material';
 import { bookingAPI } from '../api/booking';
+import { paymentAPI, PAYMENT_METHOD_COLORS, PAYMENT_STATUS_COLORS, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS } from '../api/payment';
+import PaymentDialog from '../components/payment/PaymentDialog';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -27,7 +30,25 @@ const BookingDetail = () => {
     const [loading, setLoading] = useState(true);
     const [cancelling, setCancelling] = useState(false);
 
+    // Payment states
+    const [payments, setPayments] = useState([]);
+    const [payDialogOpen, setPayDialogOpen] = useState(false);
+    const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+    const [recordMethod, setRecordMethod] = useState('CASH');
+    const [recordTxnId, setRecordTxnId] = useState('');
+    const [recordNotes, setRecordNotes] = useState('');
+    const [recording, setRecording] = useState(false);
+
     const canManage = isAdmin || isReceptionist;
+
+    const fetchPayments = async (bookingId) => {
+        try {
+            const res = await paymentAPI.getByBooking(bookingId);
+            setPayments(res.data || []);
+        } catch (e) {
+            console.error('❌ Fetch payments error:', e);
+        }
+    };
 
     // 👉 HÀM CHUYỂN ĐẾN CHAT
     const handleChat = () => {
@@ -125,12 +146,35 @@ const BookingDetail = () => {
             const res = await bookingAPI.getById(id);
             console.log('📥 Booking detail response:', res.data);
             setBooking(res.data);
+            fetchPayments(id);
         } catch (error) {
             console.error('❌ Fetch booking detail error:', error);
             toast.error(i18n.language === 'vi' ? 'Không thể tải chi tiết đặt phòng' : 'Cannot load booking detail');
             navigate('/bookings');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Lễ tân ghi nhận đã nhận tiền (tiền mặt / chuyển khoản)
+    const handleRecordPayment = async () => {
+        setRecording(true);
+        try {
+            // 1. Tạo giao dịch
+            const payRes = await paymentAPI.pay(booking.id, recordMethod, recordNotes || undefined);
+            const payment = payRes.data?.payment;
+            if (!payment?.id) throw new Error('Không tạo được giao dịch');
+            // 2. Xác nhận đã nhận tiền
+            await paymentAPI.confirm(payment.id, { transactionId: recordTxnId, notes: recordNotes });
+            toast.success(i18n.language === 'vi' ? '✅ Đã ghi nhận thanh toán!' : '✅ Payment recorded!');
+            setRecordDialogOpen(false);
+            setRecordTxnId(''); setRecordNotes('');
+            fetchBookingDetail();
+        } catch (e) {
+            console.error('❌ Record payment error:', e);
+            toast.error(e.response?.data || (i18n.language === 'vi' ? 'Ghi nhận thanh toán thất bại' : 'Record payment failed'));
+        } finally {
+            setRecording(false);
         }
     };
 
@@ -476,6 +520,112 @@ const BookingDetail = () => {
                     </Paper>
                 </Grid>
 
+                {/* ===== SECTION THANH TOÁN ===== */}
+                <Grid item xs={12}>
+                    <Paper sx={{ p: 3, borderRadius: 3 }}>
+                        <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                            <Typography variant="h6" fontWeight={600} gutterBottom>
+                                💳 {i18n.language === 'vi' ? 'Thông tin thanh toán' : 'Payment Information'}
+                            </Typography>
+                            {payments.some(p => p.paymentStatus === 'COMPLETED') ? (
+                                <Chip color="success" label={i18n.language === 'vi' ? '💰 Đã thanh toán đầy đủ' : '💰 Fully paid'} />
+                            ) : payments.some(p => p.paymentStatus === 'PENDING') ? (
+                                <Chip color="warning" label={i18n.language === 'vi' ? '⏳ Có giao dịch đang chờ' : '⏳ Pending transaction'} />
+                            ) : (
+                                <Chip variant="outlined" label={i18n.language === 'vi' ? '💳 Chưa thanh toán' : '💳 Not paid yet'} />
+                            )}
+                        </Box>
+                        <Divider sx={{ mb: 2 }} />
+
+                        {payments.length === 0 ? (
+                            <Typography color="textSecondary" py={2}>
+                                {i18n.language === 'vi'
+                                    ? 'Chưa có giao dịch thanh toán nào cho đặt phòng này.'
+                                    : 'No payment transactions for this booking yet.'}
+                            </Typography>
+                        ) : (
+                            <Grid container spacing={2} mb={2}>
+                                {payments.map(p => (
+                                    <Grid item xs={12} sm={6} md={4} key={p.id}>
+                                        <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
+                                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                                <Typography variant="subtitle2" fontWeight={600}>
+                                                    <ReceiptLong sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
+                                                    GD #{p.id}
+                                                </Typography>
+                                                <Chip size="small"
+                                                    label={PAYMENT_STATUS_LABELS[p.paymentStatus] || p.paymentStatus}
+                                                    color={PAYMENT_STATUS_COLORS[p.paymentStatus] || 'default'} />
+                                            </Box>
+                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {i18n.language === 'vi' ? 'Số tiền' : 'Amount'}
+                                                </Typography>
+                                                <Typography variant="body2" fontWeight={700} color={p.paymentStatus === 'COMPLETED' ? 'success.main' : 'text.primary'}>
+                                                    {formatCurrency(p.amount)}
+                                                </Typography>
+                                            </Box>
+                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {i18n.language === 'vi' ? 'Phương thức' : 'Method'}
+                                                </Typography>
+                                                <Chip size="small" variant="outlined"
+                                                    label={p.paymentMethod}
+                                                    color={PAYMENT_METHOD_COLORS[p.paymentMethod] || 'default'} />
+                                            </Box>
+                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                <Typography variant="caption" color="textSecondary">Mã GD</Typography>
+                                                <Typography variant="caption" noWrap sx={{ maxWidth: 140 }}>
+                                                    {p.transactionId || '—'}
+                                                </Typography>
+                                            </Box>
+                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                <Typography variant="caption" color="textSecondary">
+                                                    {i18n.language === 'vi' ? 'Tạo lúc' : 'Created'}
+                                                </Typography>
+                                                <Typography variant="caption">{formatDateTime(p.paymentDate)}</Typography>
+                                            </Box>
+                                            {p.completedAt && (
+                                                <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'Hoàn tất' : 'Completed'}
+                                                    </Typography>
+                                                    <Typography variant="caption">{formatDateTime(p.completedAt)}</Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        )}
+
+                        {/* Nút thao tác */}
+                        {['PENDING', 'CONFIRMED'].includes(booking.status) && !payments.some(p => p.paymentStatus === 'COMPLETED') && (
+                            <Box display="flex" gap={1.5} flexWrap="wrap">
+                                <Button
+                                    variant="contained"
+                                    startIcon={<PaymentsIcon />}
+                                    onClick={() => setPayDialogOpen(true)}
+                                    sx={{ borderRadius: 2 }}
+                                >
+                                    {i18n.language === 'vi' ? '💳 Thanh toán ngay' : '💳 Pay now'}
+                                </Button>
+                                {canManage && (
+                                    <Button
+                                        variant="outlined"
+                                        color="success"
+                                        startIcon={<ReceiptLong />}
+                                        onClick={() => setRecordDialogOpen(true)}
+                                        sx={{ borderRadius: 2 }}
+                                    >
+                                        {i18n.language === 'vi' ? 'Ghi nhận đã nhận tiền' : 'Record received payment'}
+                                    </Button>
+                                )}
+                            </Box>
+                        )}
+                    </Paper>
+                </Grid>
+
                 {booking.specialRequests && (
                     <Grid item xs={12}>
                         <Paper sx={{ p: 3, borderRadius: 3, bgcolor: '#fff8e1' }}>
@@ -489,6 +639,62 @@ const BookingDetail = () => {
                     </Grid>
                 )}
             </Grid>
+
+            {/* Dialog thanh toán (khách / admin thao tác qua VNPay-chuyển khoản-tiền mặt) */}
+            <PaymentDialog
+                open={payDialogOpen}
+                onClose={() => setPayDialogOpen(false)}
+                booking={booking}
+                onUpdated={() => { fetchBookingDetail(); }}
+            />
+
+            {/* Dialog lễ tân ghi nhận đã nhận tiền */}
+            <Dialog open={recordDialogOpen} onClose={() => setRecordDialogOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    🧾 {i18n.language === 'vi' ? 'Ghi nhận thanh toán' : 'Record payment'} - Booking #{booking?.id}
+                </DialogTitle>
+                <DialogContent>
+                    <Alert severity="info" sx={{ mt: 1, mb: 2 }}>
+                        {i18n.language === 'vi'
+                            ? `Ghi nhận giao dịch đã nhận tiền cho booking #${booking?.id}. Booking sẽ tự động chuyển sang ĐÃ XÁC NHẬN.`
+                            : `Record a received payment for booking #${booking?.id}. Booking will be auto-confirmed.`}
+                    </Alert>
+                    <TextField
+                        select
+                        label={i18n.language === 'vi' ? 'Phương thức' : 'Method'}
+                        fullWidth
+                        margin="dense"
+                        value={recordMethod}
+                        onChange={(e) => setRecordMethod(e.target.value)}
+                    >
+                        <MenuItem value="CASH">💵 {i18n.language === 'vi' ? 'Tiền mặt' : 'Cash'}</MenuItem>
+                        <MenuItem value="BANK_TRANSFER">🏧 {i18n.language === 'vi' ? 'Chuyển khoản' : 'Bank transfer'}</MenuItem>
+                        <MenuItem value="VNPAY">🏦 VNPay</MenuItem>
+                    </TextField>
+                    <TextField
+                        label={i18n.language === 'vi' ? 'Mã giao dịch / biên lai (không bắt buộc)' : 'Transaction / receipt no. (optional)'}
+                        fullWidth margin="dense" value={recordTxnId}
+                        onChange={(e) => setRecordTxnId(e.target.value)}
+                    />
+                    <TextField
+                        label={i18n.language === 'vi' ? 'Ghi chú' : 'Notes'}
+                        fullWidth margin="dense" multiline minRows={2} value={recordNotes}
+                        onChange={(e) => setRecordNotes(e.target.value)}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setRecordDialogOpen(false)}>
+                        {i18n.language === 'vi' ? 'Đóng' : 'Close'}
+                    </Button>
+                    <Button
+                        variant="contained" color="success" onClick={handleRecordPayment} disabled={recording}
+                    >
+                        {recording
+                            ? (i18n.language === 'vi' ? 'Đang ghi nhận...' : 'Recording...')
+                            : (i18n.language === 'vi' ? '✅ Xác nhận đã nhận tiền' : '✅ Confirm received')}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

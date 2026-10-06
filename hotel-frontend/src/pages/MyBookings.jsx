@@ -5,6 +5,8 @@ import {
     DialogContent, DialogActions, Alert
 } from '@mui/material';
 import { bookingAPI } from '../api/booking';
+import { paymentAPI } from '../api/payment';
+import PaymentDialog from '../components/payment/PaymentDialog';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -14,6 +16,9 @@ const MyBookings = () => {
     const [loading, setLoading] = useState(true);
     const [cancelId, setCancelId] = useState(null);
     const [openDialog, setOpenDialog] = useState(false);
+    const [payBooking, setPayBooking] = useState(null);
+    const [payDialogOpen, setPayDialogOpen] = useState(false);
+    const [paymentStatuses, setPaymentStatuses] = useState({});
 
     useEffect(() => {
         if (isAuthenticated && user) {
@@ -31,12 +36,39 @@ const MyBookings = () => {
             const response = await bookingAPI.getMyBookings(user.id);
             console.log('📥 My bookings:', response.data);
             setBookings(response.data);
+
+            // Lấy trạng thái thanh toán của từng booking (song song)
+            try {
+                const paymentLists = await Promise.all(
+                    response.data.map(b =>
+                        paymentAPI.getByBooking(b.id)
+                            .then(r => r.data || [])
+                            .catch(() => [])
+                    )
+                );
+                const map = {};
+                response.data.forEach((b, i) => {
+                    const pays = paymentLists[i] || [];
+                    map[b.id] = {
+                        paid: pays.some(p => p.paymentStatus === 'COMPLETED'),
+                        pending: pays.some(p => p.paymentStatus === 'PENDING'),
+                    };
+                });
+                setPaymentStatuses(map);
+            } catch (e) {
+                console.log('⚠️ Không lấy được trạng thái thanh toán:', e?.message);
+            }
         } catch (error) {
             console.error('Error fetching bookings:', error);
             toast.error('Không thể tải danh sách đặt phòng');
         } finally {
             setLoading(false);
         }
+    };
+
+    const openPayDialog = (booking) => {
+        setPayBooking(booking);
+        setPayDialogOpen(true);
     };
 
     const handleCancel = async (id) => {
@@ -170,24 +202,57 @@ const MyBookings = () => {
                                     </Typography>
                                 )}
 
-                                {/* Chỉ hiển thị nút hủy khi status = PENDING */}
-                                {booking.status === 'PENDING' && (
-                                    <Button
-                                        variant="outlined"
-                                        color="error"
-                                        size="small"
-                                        startIcon={<span>✕</span>}
-                                        onClick={() => openCancelDialog(booking.id)}
-                                        sx={{ mt: 2 }}
-                                    >
-                                        Hủy đặt phòng
-                                    </Button>
-                                )}
+                                {/* Trạng thái thanh toán */}
+                                <Box mt={2}>
+                                    {paymentStatuses[booking.id]?.paid ? (
+                                        <Chip size="small" color="success" label="💰 Đã thanh toán" />
+                                    ) : paymentStatuses[booking.id]?.pending ? (
+                                        <Chip size="small" color="warning" label="⏳ Chờ xác nhận thanh toán" />
+                                    ) : (
+                                        <Chip size="small" color="default" variant="outlined" label="💳 Chưa thanh toán" />
+                                    )}
+                                </Box>
+
+                                <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    {/* Nút thanh toán khi chưa trả tiền */}
+                                    {['PENDING', 'CONFIRMED'].includes(booking.status) && !paymentStatuses[booking.id]?.paid && (
+                                        <Button
+                                            variant="contained"
+                                            color="primary"
+                                            size="small"
+                                            startIcon={<span>💳</span>}
+                                            onClick={() => openPayDialog(booking)}
+                                        >
+                                            Thanh toán
+                                        </Button>
+                                    )}
+
+                                    {/* Chỉ hiển thị nút hủy khi status = PENDING */}
+                                    {booking.status === 'PENDING' && (
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
+                                            size="small"
+                                            startIcon={<span>✕</span>}
+                                            onClick={() => openCancelDialog(booking.id)}
+                                        >
+                                            Hủy đặt phòng
+                                        </Button>
+                                    )}
+                                </Box>
                             </CardContent>
                         </Card>
                     </Grid>
                 ))}
             </Grid>
+
+            {/* Dialog thanh toán */}
+            <PaymentDialog
+                open={payDialogOpen}
+                onClose={() => setPayDialogOpen(false)}
+                booking={payBooking}
+                onUpdated={fetchMyBookings}
+            />
 
             {/* Dialog xác nhận hủy */}
             <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>

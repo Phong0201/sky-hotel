@@ -35,6 +35,23 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
 
+  # ============ CẤU HÌNH GỬI EMAIL (Gmail SMTP) ============
+  # Bắt buộc điền đúng 2 dòng dưới nếu dùng EmailService:
+  #   username: Gmail của bạn
+  #   password: App Password 16 ký tự (tại https://myaccount.google.com/apppasswords)
+  #             KHÔNG phải mật khẩu đăng nhập Gmail thường!
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: your-email@gmail.com
+    password: xxxx-xxxx-xxxx-xxxx
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 # Đường dẫn lưu file upload
 upload:
   path: uploads
@@ -42,6 +59,24 @@ upload:
 jwt:
   secret: your-super-secret-key-change-in-production-1234567890
   expiration: 86400000
+
+# ============ CẤU HÌNH THANH TOÁN VNPAY (SANDBOX) ============
+# 1. Đăng ký tài khoản test tại: https://sandbox.vnpayment.vn/devreg/
+# 2. VNPAY gửi email chứa vnp_TmnCode và vnp_HashSecret => điền vào 2 dòng bên dưới
+# 3. Để trống => hệ thống dùng trang MÔ PHỎNG thanh toán (test luồng ngay)
+# Thẻ test: NCB - 9704198526191432198 - NGUYEN VAN A - 07/15 - OTP 123456
+vnpay:
+  pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+  tmn-code: ""      # mã TMN của bạn (VD: ABC1234)
+  hash-secret: ""   # chuỗi bí mật VNPAY gửi qua email
+  return-url: http://localhost:9981/api/payments/vnpay/return
+  version: 2.1.0
+  curr-code: VND
+  locale: vn
+  order-type: other
+
+app:
+  frontend-url: http://localhost:5173
 
 logging:
   level:

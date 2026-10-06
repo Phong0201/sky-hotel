@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS payments
     payment_method VARCHAR(20),
     payment_status VARCHAR(20) DEFAULT 'PENDING',
     payment_date   TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+    completed_at   TIMESTAMP,
     transaction_id VARCHAR(100),
     notes          TEXT
 );

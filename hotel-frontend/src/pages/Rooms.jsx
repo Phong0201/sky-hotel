@@ -13,7 +13,9 @@ import { BookOnline, Add, Edit, Delete, Close, CloudUpload } from '@mui/icons-ma
 import { roomAPI } from '../api/room';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+// ❌ Đã xóa: import axios from 'axios';
+// ✅ Dùng instance đã có sẵn interceptor gắn token
+import api from '../api/axiosConfig';
 
 const API_BASE_URL = 'http://localhost:9981';
 
@@ -29,6 +31,10 @@ const Rooms = () => {
     const [editingRoom, setEditingRoom] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
+    // ✅ MỚI: state cho gallery nhiều ảnh
+    // galleryItems: mảng các item hiển thị, mỗi item là
+    //   { url: string (để preview), file: File | null (null nếu là ảnh cũ đã có), isExisting: boolean }
+    const [galleryItems, setGalleryItems] = useState([]);
     const [formData, setFormData] = useState({
         roomNumber: '',
         roomType: 'SINGLE',
@@ -129,6 +135,14 @@ const Rooms = () => {
             });
             setImagePreview(room.imageUrl ? `${API_BASE_URL}${room.imageUrl}` : null);
             setSelectedFile(null);
+            // ✅ Nạp gallery ảnh cũ (nếu có) khi sửa phòng
+            const existingImages = (room.images || []).map((img) => ({
+                url: `${API_BASE_URL}${img.imageUrl}`,
+                imageUrl: img.imageUrl,
+                file: null,
+                isExisting: true
+            }));
+            setGalleryItems(existingImages);
         } else {
             setEditingRoom(null);
             setFormData({
@@ -144,6 +158,7 @@ const Rooms = () => {
             });
             setImagePreview(null);
             setSelectedFile(null);
+            setGalleryItems([]);
         }
         setOpenDialog(true);
         navigate('/rooms', { replace: true });
@@ -154,25 +169,72 @@ const Rooms = () => {
         setEditingRoom(null);
         setImagePreview(null);
         setSelectedFile(null);
+        setGalleryItems([]);
         navigate('/rooms', { replace: true });
     };
 
-    // Upload ảnh lên server
+    // ✅ Upload ảnh lên server - dùng chung instance `api` để tự động có token
     const uploadImage = async (file) => {
         const formData = new FormData();
         formData.append('image', file);
 
         try {
-            const response = await axios.post(`${API_BASE_URL}/api/upload/image`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
+            // Không tự set Content-Type để axios tự thêm boundary chính xác
+            // Lưu ý: baseURL của `api` đã là 'http://localhost:9981/api'
+            // nên ở đây chỉ cần path còn lại, KHÔNG lặp lại '/api'
+            const response = await api.post('/upload/image', formData);
             return response.data.url;
         } catch (error) {
             console.error('Upload error:', error);
             throw new Error('Upload failed');
         }
+    };
+
+    // ✅ MỚI: Upload NHIỀU ảnh gallery cùng lúc, trả về mảng url tương đối
+    const uploadGalleryImages = async (files) => {
+        const formData = new FormData();
+        files.forEach((file) => {
+            formData.append('images', file);
+        });
+
+        try {
+            const response = await api.post('/upload/images', formData);
+            return response.data.urls || [];
+        } catch (error) {
+            console.error('Gallery upload error:', error);
+            throw new Error('Gallery upload failed');
+        }
+    };
+
+    // ✅ MỚI: Chọn thêm ảnh cho gallery (có thể chọn nhiều file cùng lúc)
+    const handleGallerySelect = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const oversized = files.find(f => f.size > 5 * 1024 * 1024);
+        if (oversized) {
+            toast.error('Có ảnh vượt quá 5MB, vui lòng chọn ảnh nhỏ hơn');
+            return;
+        }
+        const notImage = files.find(f => !f.type.startsWith('image/'));
+        if (notImage) {
+            toast.error('Vui lòng chỉ chọn file ảnh');
+            return;
+        }
+
+        const newItems = files.map((file) => ({
+            url: URL.createObjectURL(file),
+            file,
+            isExisting: false
+        }));
+
+        setGalleryItems(prev => [...prev, ...newItems]);
+        e.target.value = ''; // reset input để chọn lại cùng file vẫn hoạt động
+    };
+
+    // ✅ MỚI: Xóa 1 ảnh khỏi gallery (áp dụng cho cả ảnh cũ và ảnh mới chọn)
+    const removeGalleryItem = (index) => {
+        setGalleryItems(prev => prev.filter((_, i) => i !== index));
     };
 
     // Xử lý chọn file
@@ -261,6 +323,26 @@ const Rooms = () => {
                 }
             }
 
+            // ✅ MỚI: Upload các ảnh gallery mới chọn (nếu có), giữ lại ảnh cũ chưa xóa
+            let finalGalleryUrls = galleryItems
+                .filter(item => item.isExisting)
+                .map(item => item.imageUrl);
+
+            const newGalleryFiles = galleryItems
+                .filter(item => !item.isExisting && item.file)
+                .map(item => item.file);
+
+            if (newGalleryFiles.length > 0) {
+                try {
+                    const uploadedUrls = await uploadGalleryImages(newGalleryFiles);
+                    finalGalleryUrls = [...finalGalleryUrls, ...uploadedUrls];
+                } catch (error) {
+                    toast.error('Upload ảnh gallery thất bại');
+                    setUploading(false);
+                    return;
+                }
+            }
+
             // Chuẩn bị dữ liệu
             const roomData = {
                 roomNumber: trimmedRoomNumber,
@@ -271,7 +353,8 @@ const Rooms = () => {
                 status: formData.status || 'AVAILABLE',
                 description: formData.description || '',
                 imageUrl: imageUrl || '',
-                amenities: formData.amenities || ''
+                amenities: formData.amenities || '',
+                images: finalGalleryUrls.map((url, idx) => ({ imageUrl: url, displayOrder: idx }))
             };
 
             console.log('📤 Sending room data:', roomData);
@@ -656,6 +739,83 @@ const Rooms = () => {
                                 {i18n.language === 'vi'
                                     ? 'Hỗ trợ JPG, PNG, GIF. Tối đa 5MB'
                                     : 'Supports JPG, PNG, GIF. Max 5MB'}
+                            </Typography>
+                        </Box>
+
+                        {/* ✅ MỚI: Gallery nhiều ảnh chi tiết */}
+                        <Box>
+                            <Typography variant="body2" fontWeight={500} gutterBottom>
+                                🖼️ Thư viện ảnh chi tiết (hiển thị ở trang chi tiết phòng)
+                            </Typography>
+
+                            {galleryItems.length > 0 && (
+                                <Box sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
+                                    gap: 1,
+                                    mt: 1,
+                                    mb: 1.5
+                                }}>
+                                    {galleryItems.map((item, index) => (
+                                        <Box key={index} sx={{ position: 'relative' }}>
+                                            <img
+                                                src={item.url}
+                                                alt={`Gallery ${index}`}
+                                                style={{
+                                                    width: '100%',
+                                                    height: 90,
+                                                    objectFit: 'cover',
+                                                    borderRadius: 8
+                                                }}
+                                            />
+                                            <IconButton
+                                                size="small"
+                                                sx={{
+                                                    position: 'absolute',
+                                                    top: 2,
+                                                    right: 2,
+                                                    bgcolor: 'rgba(0,0,0,0.6)',
+                                                    p: 0.3,
+                                                    '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' }
+                                                }}
+                                                onClick={() => removeGalleryItem(index)}
+                                                disabled={uploading}
+                                            >
+                                                <Close sx={{ color: 'white', fontSize: 14 }} />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            )}
+
+                            <Button
+                                variant="outlined"
+                                component="label"
+                                fullWidth
+                                startIcon={<CloudUpload />}
+                                disabled={uploading}
+                                sx={{
+                                    py: 1.5,
+                                    borderStyle: 'dashed',
+                                    borderWidth: 2,
+                                    '&:hover': {
+                                        borderStyle: 'dashed',
+                                        borderWidth: 2
+                                    }
+                                }}
+                            >
+                                📤 Thêm ảnh vào thư viện (chọn được nhiều ảnh)
+                                <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleGallerySelect}
+                                    disabled={uploading}
+                                />
+                            </Button>
+                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                                Có thể chọn nhiều ảnh cùng lúc. Ảnh này khác với ảnh đại diện ở trên.
                             </Typography>
                         </Box>
                     </Box>

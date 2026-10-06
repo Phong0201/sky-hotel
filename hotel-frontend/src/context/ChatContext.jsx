@@ -19,7 +19,8 @@ export const ChatProvider = ({ children }) => {
     const [activeChatUserId, setActiveChatUserId] = useState(null);
     const [loading, setLoading] = useState(false);
     const [isConnected, setIsConnected] = useState(true);
-    
+    const [unreadCount, setUnreadCount] = useState(0);
+
     const API_BASE_URL = 'http://localhost:9981';
     const ADMIN_ID = 1;
 
@@ -29,7 +30,26 @@ export const ChatProvider = ({ children }) => {
         }
     }, [user]);
 
-    // Polling
+    // MOI: heartbeat bao "toi dang online" moi 30s, dung cho tinh nang trang thai online/offline
+    useEffect(() => {
+        if (!user?.id) return;
+
+        const sendHeartbeat = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                await axios.post(`${API_BASE_URL}/api/presence/heartbeat`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            } catch (error) {
+                // im lang, khong lam phien user neu loi tam thoi
+            }
+        };
+
+        sendHeartbeat();
+        const interval = setInterval(sendHeartbeat, 30000);
+        return () => clearInterval(interval);
+    }, [user?.id]);
+
     useEffect(() => {
         if (!user?.id || !activeChatUserId) return;
 
@@ -52,6 +72,46 @@ export const ChatProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [user?.id, activeChatUserId]);
 
+    useEffect(() => {
+        if (!user?.id || user.role === 'ADMIN') {
+            setUnreadCount(0);
+            return;
+        }
+
+        const fetchUnread = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.get(`${API_BASE_URL}/api/chat/unread/${user.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const unread = (res.data || []).filter(
+                    (m) => m.senderId !== user.id && (m.isRead === false || m.isRead === null)
+                );
+                setUnreadCount(unread.length);
+            } catch (error) {
+                console.error('Fetch unread error:', error);
+            }
+        };
+
+        fetchUnread();
+        const interval = setInterval(fetchUnread, 3000);
+        return () => clearInterval(interval);
+    }, [user?.id, user?.role]);
+
+    const markAsRead = async (targetUserIdOverride) => {
+        const idToUse = targetUserIdOverride || user?.id;
+        if (!idToUse) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.put(`${API_BASE_URL}/api/chat/read/${idToUse}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!targetUserIdOverride) setUnreadCount(0);
+        } catch (error) {
+            console.error('Mark as read error:', error);
+        }
+    };
+
     const sendMessage = async (messageText) => {
         if (!messageText.trim()) return;
         if (!user?.id) {
@@ -63,7 +123,7 @@ export const ChatProvider = ({ children }) => {
         if (user.role !== 'ADMIN') {
             targetUserId = ADMIN_ID;
         }
-        
+
         if (!targetUserId) {
             toast.error('Chưa chọn người nhận');
             return;
@@ -81,17 +141,14 @@ export const ChatProvider = ({ children }) => {
             await axios.post(`${API_BASE_URL}/api/chat/send`, msg, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
-            // Cập nhật ngay
+
             const url = `${API_BASE_URL}/api/chat/history/${user.id}/${targetUserId}`;
             const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setMessages(res.data || []);
-            
-            toast.success('Đã gửi tin nhắn');
         } catch (error) {
-            console.error('❌ Send error:', error);
+            console.error('Send error:', error);
             toast.error('Gửi tin nhắn thất bại');
         }
     };
@@ -102,7 +159,7 @@ export const ChatProvider = ({ children }) => {
 
     const loadChatHistory = async () => {
         if (!user?.id || !activeChatUserId) return;
-        
+
         try {
             const token = localStorage.getItem('token');
             const url = `${API_BASE_URL}/api/chat/history/${user.id}/${activeChatUserId}`;
@@ -126,6 +183,8 @@ export const ChatProvider = ({ children }) => {
         isUser: user?.role !== 'ADMIN',
         adminId: ADMIN_ID,
         loadChatHistory,
+        unreadCount,
+        markAsRead,
     };
 
     return (

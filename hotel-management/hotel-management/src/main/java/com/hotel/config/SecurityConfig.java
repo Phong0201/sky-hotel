@@ -11,6 +11,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -103,6 +104,10 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/api/promotions").permitAll()
                         .requestMatchers("/api/promotions/**").permitAll()
 
+                        // 👉 VNPAY CALLBACK - cổng thanh toán gọi về (không kèm JWT)
+                        .requestMatchers("/api/payments/vnpay/return").permitAll()
+                        .requestMatchers("/api/payments/vnpay/ipn").permitAll()
+
                         // 👉 WEBSOCKET - Cho phép tất cả
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/ws/chat/**").permitAll()
@@ -117,6 +122,14 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/api/bookings/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/promotions/apply").authenticated()
+
+                        // 👉 KHÁCH THANH TOÁN BOOKING CỦA MÌNH
+                        .requestMatchers("/api/payments/booking/**").authenticated()
+                        .requestMatchers("/api/payments/mock/**").authenticated()
+
+                        // 👉 KHÁCH XEM CHI TIẾT 1 GIAO DỊCH CỦA MÌNH (trang kết quả thanh toán)
+                        .requestMatchers("/api/payments/stats").hasAnyRole("ADMIN", "RECEPTIONIST")
+                        .requestMatchers(HttpMethod.GET, "/api/payments/{id}").authenticated()
 
                         // ============ ADMIN + RECEPTIONIST ============
                         .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "RECEPTIONIST")
