@@ -2,6 +2,7 @@ package com.hotel.controller;
 
 import com.hotel.dto.request.BookingRequest;
 import com.hotel.model.Booking;
+import com.hotel.repository.BookingRepository;
 import com.hotel.model.Notification;
 import com.hotel.service.ServiceInterfaces.BookingService;
 import com.hotel.service.ServiceInterfaces.NotificationService;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +26,9 @@ public class BookingController {
 
     @Autowired
     private NotificationService notificationService; // THÊM DÒNG NÀY
+
+    @Autowired
+    private BookingRepository bookingRepository;
 
     @GetMapping
     public ResponseEntity<?> getAllBookings() {
@@ -59,6 +64,27 @@ public class BookingController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("Error fetching bookings: " + e.getMessage());
+        }
+    }
+
+    // 🔍 KIỂM TRA PHÒNG TRỐNG THEO KHOẢNG NGÀY (trang đặt phòng gọi khi user đổi ngày)
+    @GetMapping("/check-availability")
+    public ResponseEntity<?> checkAvailability(@RequestParam Long roomId,
+                                               @RequestParam String checkIn,
+                                               @RequestParam String checkOut) {
+        try {
+            LocalDate checkInDate = LocalDate.parse(checkIn);
+            LocalDate checkOutDate = LocalDate.parse(checkOut);
+            List<Booking> conflicts = bookingRepository.findConflictingBookings(roomId, checkInDate, checkOutDate);
+            if (conflicts.isEmpty()) {
+                return ResponseEntity.ok(Map.of("available", true,
+                        "message", "Phòng trống trong khoảng ngày này"));
+            }
+            Booking c = conflicts.get(0);
+            return ResponseEntity.ok(Map.of("available", false,
+                    "message", "Phòng đã có khách đặt từ " + c.getCheckInDate() + " đến " + c.getCheckOutDate()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 

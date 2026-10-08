@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
  
@@ -23,9 +23,11 @@ const fieldSx = {
  
 const Login = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { login } = useAuth();
     const [formData, setFormData] = useState({ username: '', password: '' });
     const [error, setError] = useState('');
+    const [successMsg, setSuccessMsg] = useState(location.state?.resetSuccess || '');
     const [loading, setLoading] = useState(false);
  
     const [isOn, setIsOn] = useState(false);
@@ -238,6 +240,22 @@ const Login = () => {
                             </Typography>
                         </Box>
  
+                        {/* Thong bao khi dat lai mat khau thanh cong */}
+                        {successMsg && (
+                            <Alert
+                                severity="success"
+                                icon={false}
+                                sx={{
+                                    mb: 2.5, borderRadius: '2px',
+                                    bgcolor: '#EDF5EC', color: '#3E6B45', border: '1px solid #C4D9C4',
+                                    fontFamily: "'Inter', sans-serif", fontSize: '0.85rem',
+                                    '& .MuiAlert-message': { fontFamily: "'Inter', sans-serif" },
+                                }}
+                            >
+                                {successMsg}
+                            </Alert>
+                        )}
+
                         {/* MOI: canh bao loi dung mau terracotta am thay vi do MUI mac dinh, hop tong voi trang */}
                         {error && (
                             <Alert

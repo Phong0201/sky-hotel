@@ -71,6 +71,21 @@ const MyBookings = () => {
         setPayDialogOpen(true);
     };
 
+    // Format tiền tệ VND
+    const formatCurrency = (amount) => {
+        if (amount == null) return '0 ₫';
+        return new Intl.NumberFormat('vi-VN', {
+            style: 'currency', currency: 'VND',
+            maximumFractionDigits: 0,
+        }).format(Number(amount));
+    };
+
+    // Giá phải trả sau khi giảm giá
+    const getFinalPrice = (booking) => {
+        if (booking.finalPrice != null) return booking.finalPrice;
+        return (booking.totalPrice || 0) - (booking.discountAmount || 0);
+    };
+
     const handleCancel = async (id) => {
         try {
             await bookingAPI.cancel(id);
@@ -172,7 +187,7 @@ const MyBookings = () => {
                                 </Box>
 
                                 <Typography variant="body2" color="textSecondary" gutterBottom>
-                                    {booking.room?.roomType || 'N/A'} • ${booking.room?.pricePerNight || 0}/đêm
+                                    {booking.room?.roomType || 'N/A'} • {formatCurrency(booking.room?.pricePerNight || 0)}/đêm
                                 </Typography>
 
                                 <Box sx={{ mt: 2 }}>
@@ -190,9 +205,16 @@ const MyBookings = () => {
                                     </Box>
                                     <Box display="flex" justifyContent="space-between" py={0.5}>
                                         <Typography color="textSecondary">Tổng tiền</Typography>
-                                        <Typography fontWeight={600} color="primary">
-                                            ${booking.totalPrice}
-                                        </Typography>
+                                        <Box textAlign="right">
+                                            {booking.discountAmount > 0 && (
+                                                <Typography variant="caption" color="textSecondary" component="div" sx={{ textDecoration: 'line-through' }}>
+                                                    {formatCurrency(booking.totalPrice)}
+                                                </Typography>
+                                            )}
+                                            <Typography fontWeight={600} color="primary">
+                                                {formatCurrency(getFinalPrice(booking))}
+                                            </Typography>
+                                        </Box>
                                     </Box>
                                 </Box>
 

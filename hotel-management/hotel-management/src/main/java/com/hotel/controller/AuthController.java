@@ -106,11 +106,11 @@ public class AuthController {
             System.out.println("Register attempt: " + username);
 
             if (userRepository.findByUsername(username).isPresent()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Username already exists"));
+                return ResponseEntity.badRequest().body(Map.of("message", "Tên đăng nhập đã tồn tại"));
             }
 
             if (email != null && !email.isEmpty() && userRepository.findByEmail(email).isPresent()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Email already exists"));
+                return ResponseEntity.badRequest().body(Map.of("message", "Email đã được sử dụng"));
             }
 
             User user = new User();
@@ -161,6 +161,21 @@ public class AuthController {
             ));
         }
 
+        // ===== CHỐNG SPAM: mỗi 60 giây mới được gửi lại mã =====
+        Optional<PasswordResetOtp> lastOpt = otpRepository.findTopByEmailOrderByIdDesc(email);
+        if (lastOpt.isPresent() && lastOpt.get().getCreatedAt() != null
+                && lastOpt.get().getCreatedAt().isAfter(LocalDateTime.now().minusSeconds(60))) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "message", "Bạn vừa yêu cầu mã xác nhận. Vui lòng đợi 1 phút rồi thử lại."
+            ));
+        }
+
+        // ===== Vô hiệu hóa các mã OTP cũ chưa dùng (chỉ mã mới nhất có hiệu lực) =====
+        otpRepository.findAllByEmailAndUsedFalse(email).forEach(oldOtp -> {
+            oldOtp.setUsed(true);
+            otpRepository.save(oldOtp);
+        });
+
         // Sinh ma OTP 6 chu so
         String otp = String.format("%06d", new Random().nextInt(1_000_000));
 
@@ -177,7 +192,7 @@ public class AuthController {
             System.err.println("Send OTP email error: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of(
-                    "message", "Không thể gửi email lúc này, vui lòng thử lại sau."
+                    "message", "Hệ thống gửi email hiện đang lỗi (kiểm tra cấu hình spring.mail trong application.yaml). Vui lòng thử lại sau."
             ));
         }
 

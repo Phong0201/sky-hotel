@@ -22,7 +22,8 @@ import {
     AttachMoney as RevenueIcon, Person, Room as RoomIcon,
     RateReview, Favorite, Notifications, Support,
     Payment, ReceiptLong, Print, Download,
-    Email, Phone, LocationOn, Star, VolunteerActivism
+    Email, Phone, LocationOn, Star, VolunteerActivism,
+    Chat as ChatIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { bookingAPI } from '../api/booking';
@@ -1165,6 +1166,8 @@ const Dashboard = () => {
                                     <Paper
                                         sx={{
                                             p: 2,
+                                            bgcolor: '#fffaf0',
+                                            borderTop: '4px solid #ed6c02',
                                             borderRadius: 3,
                                             textAlign: 'center',
                                             cursor: 'pointer',
@@ -1188,6 +1191,8 @@ const Dashboard = () => {
                                     <Paper
                                         sx={{
                                             p: 2,
+                                            bgcolor: '#f4faf5',
+                                            borderTop: '4px solid #2e7d32',
                                             borderRadius: 3,
                                             textAlign: 'center',
                                             cursor: 'pointer',
@@ -1211,6 +1216,8 @@ const Dashboard = () => {
                                     <Paper
                                         sx={{
                                             p: 2,
+                                            bgcolor: '#f2f9fd',
+                                            borderTop: '4px solid #0288d1',
                                             borderRadius: 3,
                                             textAlign: 'center',
                                             cursor: 'pointer',
@@ -1234,6 +1241,8 @@ const Dashboard = () => {
                                     <Paper
                                         sx={{
                                             p: 2,
+                                            bgcolor: '#f6f8f9',
+                                            borderTop: '4px solid #546e7a',
                                             borderRadius: 3,
                                             textAlign: 'center',
                                             cursor: 'pointer',
@@ -1257,6 +1266,8 @@ const Dashboard = () => {
                                     <Paper
                                         sx={{
                                             p: 2,
+                                            bgcolor: '#fdf5f5',
+                                            borderTop: '4px solid #d32f2f',
                                             borderRadius: 3,
                                             textAlign: 'center',
                                             cursor: 'pointer',
@@ -1284,47 +1295,43 @@ const Dashboard = () => {
                                     {i18n.language === 'vi' ? '🚀 Thao tác nhanh' : '🚀 Quick Actions'}
                                 </Typography>
                                 <Grid container spacing={2}>
-                                    <Grid item xs={12} sm={6} md={3}>
-                                        <Button
-                                            fullWidth
-                                            variant="contained"
-                                            startIcon={<BookOnline />}
-                                            onClick={() => navigate('/bookings/create')}
-                                            sx={{ bgcolor: '#007bff' }}
-                                        >
-                                            {i18n.language === 'vi' ? 'Đặt phòng' : 'Book Room'}
-                                        </Button>
-                                    </Grid>
-                                    <Grid item xs={12} sm={6} md={3}>
-                                        <Button
-                                            fullWidth
-                                            variant="outlined"
-                                            startIcon={<History />}
-                                            onClick={() => navigate('/bookings')}
-                                        >
-                                            {i18n.language === 'vi' ? 'Quản lý đặt phòng' : 'Manage Bookings'}
-                                        </Button>
-                                    </Grid>
-                                    <Grid item xs={12} sm={6} md={3}>
-                                        <Button
-                                            fullWidth
-                                            variant="outlined"
-                                            startIcon={<MeetingRoom />}
-                                            onClick={() => navigate('/rooms')}
-                                        >
-                                            {i18n.language === 'vi' ? 'Quản lý phòng' : 'Manage Rooms'}
-                                        </Button>
-                                    </Grid>
-                                    <Grid item xs={12} sm={6} md={3}>
-                                        <Button
-                                            fullWidth
-                                            variant="outlined"
-                                            startIcon={<People />}
-                                            onClick={() => navigate('/users')}
-                                        >
-                                            {i18n.language === 'vi' ? 'Quản lý người dùng' : 'Manage Users'}
-                                        </Button>
-                                    </Grid>
+                                    {[
+                                        { icon: <BookOnline />, label: 'Đặt phòng', labelEn: 'Book Room', desc: 'Tạo booking cho khách', path: '/bookings/create', color: '#1967d2', bg: '#e8f0fe' },
+                                        { icon: <History />, label: 'Quản lý đặt phòng', labelEn: 'Manage Bookings', desc: 'Duyệt, check-in/out', path: '/bookings', color: '#2e7d32', bg: '#e8f5e9' },
+                                        { icon: <MeetingRoom />, label: 'Quản lý phòng', labelEn: 'Manage Rooms', desc: 'Thêm/sửa phòng, ảnh', path: '/rooms', color: '#6a1fa2', bg: '#f3e5f5' },
+                                        { icon: <Payment />, label: 'Quản lý thanh toán', labelEn: 'Manage Payments', desc: 'Đối soát, xác nhận GD', path: '/payments', color: '#c1790b', bg: '#fff4e0' },
+                                        { icon: <People />, label: 'Quản lý người dùng', labelEn: 'Manage Users', desc: 'Tài khoản, vai trò', path: '/users', color: '#d32f2f', bg: '#fdecea' },
+                                        { icon: <ChatIcon />, label: 'Chat với khách', labelEn: 'Chat', desc: 'Trả lời tin nhắn', path: '/chat', color: '#00796b', bg: '#e0f2f1' },
+                                    ].map((a) => (
+                                        <Grid item xs={12} sm={6} md={4} key={a.path + a.label}>
+                                            <Paper
+                                                onClick={() => navigate(a.path)}
+                                                sx={{
+                                                    p: 2, borderRadius: 3, cursor: 'pointer', height: '100%',
+                                                    display: 'flex', alignItems: 'center', gap: 1.5,
+                                                    transition: 'all 0.22s ease',
+                                                    border: '1px solid transparent',
+                                                    '&:hover': {
+                                                        transform: 'translateY(-4px)',
+                                                        boxShadow: '0 10px 24px rgba(0,0,0,0.1)',
+                                                        bgcolor: a.bg, borderColor: a.color + '66',
+                                                    },
+                                                }}
+                                            >
+                                                <Avatar sx={{ bgcolor: a.bg, color: a.color, borderRadius: 2 }}>
+                                                    {a.icon}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight={700}>
+                                                        {i18n.language === 'vi' ? a.label : a.labelEn}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {a.desc}
+                                                    </Typography>
+                                                </Box>
+                                            </Paper>
+                                        </Grid>
+                                    ))}
                                 </Grid>
                             </Paper>
 

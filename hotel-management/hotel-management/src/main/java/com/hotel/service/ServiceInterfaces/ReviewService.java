@@ -10,6 +10,7 @@ public interface ReviewService {
     Review getReviewById(Long id);
     List<Review> getReviewsByBooking(Long bookingId);
     List<Review> getReviewsByUser(Long userId);
+    List<Review> getReviewsByRoom(Long roomId);
     Review createReview(ReviewRequest request, Long userId);
     Review replyReview(Long id, String reply, Long userId);
     void deleteReview(Long id, Long userId, boolean isAdmin);

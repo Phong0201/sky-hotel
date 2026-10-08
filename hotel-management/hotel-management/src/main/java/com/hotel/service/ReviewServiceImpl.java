@@ -71,6 +71,17 @@ public class ReviewServiceImpl implements ReviewService {
         review.setCreatedAt(LocalDateTime.now());
         return reviewRepository.save(review);
     }
+    // Đánh giá theo phòng (lọc qua booking -> room, mới nhất lên đầu)
+    @Override
+    public List<Review> getReviewsByRoom(Long roomId) {
+        return reviewRepository.findAll().stream()
+                .filter(r -> r.getBooking() != null && r.getBooking().getRoom() != null
+                        && roomId.equals(r.getBooking().getRoom().getId()))
+                .sorted((a, b) -> Long.compare(
+                        b.getId() == null ? 0 : b.getId(),
+                        a.getId() == null ? 0 : a.getId()))
+                .toList();
+    }
 
     @Override
     public Review replyReview(Long id, String reply, Long userId) {

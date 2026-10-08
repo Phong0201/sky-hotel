@@ -7,9 +7,9 @@ import {
     Tooltip, CircularProgress, Alert, Dialog, DialogTitle,
     DialogContent, DialogActions, TextField, MenuItem,
     FormControl, InputLabel, Select, IconButton, Avatar,
-    LinearProgress
+    LinearProgress, Grid, Card, CardContent, CardMedia, Divider
 } from '@mui/material';
-import { BookOnline, Add, Edit, Delete, Close, CloudUpload } from '@mui/icons-material';
+import { BookOnline, Add, Edit, Delete, Close, CloudUpload, People, Layers, KingBed } from '@mui/icons-material';
 import { roomAPI } from '../api/room';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -48,6 +48,36 @@ const Rooms = () => {
     });
 
     const canManage = isAdmin || isReceptionist;
+
+    // ===== GUEST VIEW: tìm kiếm + lọc loại phòng =====
+    const [guestSearch, setGuestSearch] = useState('');
+    const [guestTypeFilter, setGuestTypeFilter] = useState('ALL');
+
+    const ROOM_TYPE_LABELS = {
+        SINGLE: 'Phòng đơn', DOUBLE: 'Phòng đôi', SUITE: 'Phòng Suite',
+        DELUXE: 'Phòng Deluxe', FAMILY: 'Phòng gia đình', VIP: 'Phòng VIP',
+    };
+
+    const roomMainImage = (room) => {
+        if (room.imageUrl) return `${API_BASE_URL}${room.imageUrl}`;
+        if (room.images && room.images.length > 0) return `${API_BASE_URL}${room.images[0].imageUrl}`;
+        return null;
+    };
+
+    const parseAmenities = (room) => {
+        const raw = room.amenities || room.description || '';
+        return raw.split(/[,;•]/).map(a => a.trim()).filter(a => a && a.length > 1).slice(0, 4);
+    };
+
+    const guestFilteredRooms = rooms.filter(r => {
+        if (guestTypeFilter !== 'ALL' && r.roomType !== guestTypeFilter) return false;
+        if (guestSearch.trim()) {
+            const q = guestSearch.trim().toLowerCase();
+            const hay = `${r.roomNumber} ${r.roomType} ${r.description || ''} ${r.amenities || ''}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
 
     // Format currency
     const formatCurrency = (amount) => {
@@ -106,12 +136,32 @@ const Rooms = () => {
 
     const getStatusLabel = (status) => {
         switch (status) {
-            case 'AVAILABLE': return i18n.language === 'vi' ? '🟢 Còn trống' : '🟢 Available';
-            case 'BOOKED': return i18n.language === 'vi' ? '🔴 Đã đặt' : '🔴 Booked';
-            case 'OCCUPIED': return i18n.language === 'vi' ? '🔴 Đang sử dụng' : '🔴 Occupied';
-            case 'MAINTENANCE': return i18n.language === 'vi' ? '🔴 Bảo trì' : '🔴 Maintenance';
+            case 'AVAILABLE': return i18n.language === 'vi' ? 'Còn trống' : 'Available';
+            case 'BOOKED': return i18n.language === 'vi' ? 'Đã đặt trước' : 'Booked';
+            case 'OCCUPIED': return i18n.language === 'vi' ? 'Đang ở' : 'Occupied';
+            case 'MAINTENANCE': return i18n.language === 'vi' ? 'Bảo trì' : 'Maintenance';
             default: return status;
         }
+    };
+
+    // Màu chip theo trạng thái - nhìn là biết ngay phòng đang thế nào
+    const getStatusChip = (status) => {
+        const map = {
+            AVAILABLE: { color: 'success', icon: '✓' },
+            BOOKED: { color: 'warning', icon: '📅' },
+            OCCUPIED: { color: 'info', icon: '🔑' },
+            MAINTENANCE: { color: 'error', icon: '🔧' },
+        };
+        const cfg = map[status] || { color: 'default', icon: '•' };
+        return (
+            <Chip
+                label={`${cfg.icon} ${getStatusLabel(status)}`}
+                color={cfg.color}
+                size="small"
+                variant={status === 'AVAILABLE' ? 'filled' : 'outlined'}
+                sx={{ fontWeight: 600, borderRadius: 2 }}
+            />
+        );
     };
 
     // Lấy danh sách số phòng đã tồn tại
@@ -424,7 +474,7 @@ const Rooms = () => {
         <Box>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Box>
-                    <Typography variant="h4" fontWeight={600}>🏨 {t('rooms.title')}</Typography>
+                    <Typography variant="h4" fontWeight={600}> {canManage ? (t('rooms.title') || 'Quản Lý Phòng') : 'Danh sách phòng'}</Typography>
                     <Typography variant="body2" color="textSecondary">
                         {t('rooms.total')}: {rooms.length} {t('rooms.room')}
                     </Typography>
@@ -442,11 +492,182 @@ const Rooms = () => {
             </Box>
 
             {!canManage && (
-                <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-                    ℹ️ {i18n.language === 'vi' ? 'Bạn đang ở chế độ xem. Chỉ Admin và Receptionist mới có thể quản lý phòng.' : 'You are in view mode. Only Admin and Receptionist can manage rooms.'}
-                </Alert>
+                <Box>
+                    {/* ===== GUEST VIEW: card phòng đẹp ===== */}
+                    <Paper sx={{ p: 2, borderRadius: 3, mb: 3 }}>
+                        <Grid container spacing={2} alignItems="center">
+                            <Grid item xs={12} md={7}>
+                                <TextField
+                                    fullWidth size="small"
+                                    placeholder="Tìm phòng (số phòng, loại, tiện ích...)"
+                                    value={guestSearch}
+                                    onChange={(e) => setGuestSearch(e.target.value)}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={5}>
+                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    {['ALL', ...Object.keys(ROOM_TYPE_LABELS)].map(type => {
+                                        const active = guestTypeFilter === type;
+                                        const count = type === 'ALL' ? rooms.length : rooms.filter(r => r.roomType === type).length;
+                                        if (type !== 'ALL' && count === 0) return null;
+                                        return (
+                                            <Chip
+                                                key={type}
+                                                label={type === 'ALL' ? `Tất cả (${count})` : `${ROOM_TYPE_LABELS[type]} (${count})`}
+                                                onClick={() => setGuestTypeFilter(type)}
+                                                color={active ? 'primary' : 'default'}
+                                                variant={active ? 'filled' : 'outlined'}
+                                                sx={{ fontWeight: active ? 600 : 400 }}
+                                            />
+                                        );
+                                    })}
+                                </Box>
+                            </Grid>
+                        </Grid>
+                    </Paper>
+
+                    <Grid container spacing={3}>
+                        {guestFilteredRooms.length === 0 && (
+                            <Grid item xs={12}>
+                                <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
+                                    <Typography variant="h5" color="textSecondary">🔍 Không tìm thấy phòng phù hợp</Typography>
+                                </Paper>
+                            </Grid>
+                        )}
+                        {guestFilteredRooms.map((room) => {
+                            const img = roomMainImage(room);
+                            const available = room.status === 'AVAILABLE';
+                            return (
+                                <Grid item xs={12} sm={6} md={4} key={room.id}>
+                                                                        <Card
+                                        onClick={() => navigate(`/rooms/${room.id}`)}
+                                        sx={{
+                                        borderRadius: 3, overflow: 'hidden', height: '100%',
+                                        display: 'flex', flexDirection: 'column',
+                                        transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+                                        '&:hover': { transform: 'translateY(-6px)', boxShadow: 8 },
+                                        position: 'relative',
+                                        cursor: 'pointer',
+                                    }}>
+                                        {/* Ảnh phòng */}
+                                        <Box sx={{
+                                            position: 'relative', height: 210, overflow: 'hidden',
+                                            bgcolor: 'linear-gradient(135deg,#e3f2fd,#f5f5f5)',
+                                        }}>
+                                            {img ? (
+                                                <CardMedia
+                                                    component="img"
+                                                    image={img}
+                                                    alt={`Phòng ${room.roomNumber}`}
+                                                    sx={{
+                                                        width: '100%', height: '100%', objectFit: 'cover',
+                                                        transition: 'transform 0.4s ease',
+                                                        '&:hover': { transform: 'scale(1.06)' },
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Box sx={{
+                                                    width: '100%', height: '100%',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                    fontSize: 64,
+                                                }}>
+                                                    🏨
+                                                </Box>
+                                            )}
+                                            <Chip
+                                                size="small"
+                                                label={available ? '✓ Còn trống' : '✕ Hết phòng'}
+                                                color={available ? 'success' : 'default'}
+                                                sx={{
+                                                    position: 'absolute', top: 12, right: 12,
+                                                    backdropFilter: 'blur(4px)',
+                                                    fontWeight: 600,
+                                                    bgcolor: available ? 'rgba(46,125,50,0.92)' : 'rgba(97,97,97,0.92)',
+                                                    color: '#fff',
+                                                }}
+                                            />
+                                            <Chip
+                                                size="small"
+                                                label={`#${room.roomNumber}`}
+                                                sx={{
+                                                    position: 'absolute', top: 12, left: 12,
+                                                    bgcolor: 'rgba(0,0,0,0.55)', color: '#fff',
+                                                    backdropFilter: 'blur(4px)', fontWeight: 600,
+                                                }}
+                                            />
+                                        </Box>
+
+                                        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                                            <Typography variant="h6" fontWeight={700} gutterBottom>
+                                                {ROOM_TYPE_LABELS[room.roomType] || room.roomType}
+                                            </Typography>
+
+                                            <Box sx={{ display: 'flex', gap: 2, mb: 1.5, color: 'text.secondary' }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <People sx={{ fontSize: 17 }} />
+                                                    <Typography variant="body2">{room.capacity} khách</Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <Layers sx={{ fontSize: 17 }} />
+                                                    <Typography variant="body2">Tầng {room.floor}</Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <KingBed sx={{ fontSize: 17 }} />
+                                                    <Typography variant="body2">{room.roomNumber}</Typography>
+                                                </Box>
+                                            </Box>
+
+                                            {parseAmenities(room).length > 0 && (
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
+                                                    {parseAmenities(room).map((a, i) => (
+                                                        <Chip key={i} label={a} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 24 }} />
+                                                    ))}
+                                                </Box>
+                                            )}
+
+                                            {room.description && (
+                                                <Typography variant="body2" color="textSecondary" sx={{
+                                                    mb: 1.5, display: '-webkit-box',
+                                                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                                                }}>
+                                                    {room.description}
+                                                </Typography>
+                                            )}
+
+                                            <Box sx={{ mt: 'auto' }}>
+                                                <Divider sx={{ mb: 1.5 }} />
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <Box>
+                                                        <Typography variant="caption" color="textSecondary">Giá/đêm</Typography>
+                                                        <Typography variant="h6" fontWeight={700} color="primary">
+                                                            {formatCurrency(room.pricePerNight)}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Button
+                                                        variant="contained"
+                                                        disabled={!available}
+                                                        onClick={(e) => { e.stopPropagation(); handleBookNow(room); }}
+                                                        startIcon={<BookOnline />}
+                                                        sx={{
+                                                            borderRadius: 2, textTransform: 'none', fontWeight: 600,
+                                                            bgcolor: available ? 'primary.main' : 'grey.400',
+                                                        }}
+                                                    >
+                                                        {available ? 'Đặt ngay' : 'Hết phòng'}
+                                                    </Button>
+                                                </Box>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+                </Box>
             )}
 
+            {canManage && (
             <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
                 <Table>
                     <TableHead sx={{ bgcolor: '#f8f9fa' }}>
@@ -488,12 +709,7 @@ const Rooms = () => {
                                     </Typography>
                                 </TableCell>
                                 <TableCell>
-                                    <Chip
-                                        label={getStatusLabel(room.status)}
-                                        color={room.status === 'AVAILABLE' ? 'success' : 'error'}
-                                        size="small"
-                                        sx={{ fontWeight: 500 }}
-                                    />
+                                    {getStatusChip(room.status)}
                                 </TableCell>
                                 <TableCell align="center">
                                     <Tooltip title={room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}>
@@ -544,6 +760,7 @@ const Rooms = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
+            )}
 
             {/* Dialog Thêm/Sửa phòng */}
             <Dialog

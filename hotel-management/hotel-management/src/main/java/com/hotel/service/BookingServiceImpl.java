@@ -61,8 +61,20 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
         // Check room availability
-        if (!room.getStatus().equals("AVAILABLE")) {
-            throw new RuntimeException("Room is not available");
+        // Chỉ chặn phòng đang BẢO TRÌ — ngoài ra phòng bận theo NGÀY (xem check trùng ngày dưới đây)
+        if ("MAINTENANCE".equals(room.getStatus())) {
+            throw new RuntimeException("Phòng đang bảo trì, không thể đặt");
+        }
+
+        // 🔍 KIỂM TRA TRÙNG NGÀY: 2 booking cùng phòng không được đụng nhau
+        // (khách đặt 15-16/10 thì khách khác vẫn đặt được 17-19/10)
+        List<Booking> conflicts = bookingRepository.findConflictingBookings(
+                room.getId(), request.getCheckInDate(), request.getCheckOutDate());
+        if (!conflicts.isEmpty()) {
+            Booking c = conflicts.get(0);
+            throw new RuntimeException("Phòng " + room.getRoomNumber()
+                    + " đã có khách đặt từ " + c.getCheckInDate() + " đến " + c.getCheckOutDate()
+                    + ". Vui lòng chọn ngày khác!");
         }
 
         // Calculate nights
@@ -128,8 +140,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setGuestEmail(request.getEmail());
 
         // Update room status
-        room.setStatus("BOOKED");
-        roomRepository.save(room);
+        // ⛔ KHÔNG set room thành BOOKED nữa — phòng bận theo NGÀY (đã check trùng ngày ở trên),
+        // nên khách khác vẫn đặt được những ngày trống của phòng này
 
         System.out.println("✅ Booking created: ID=" + booking.getId() +
                 ", Total=" + totalPrice +

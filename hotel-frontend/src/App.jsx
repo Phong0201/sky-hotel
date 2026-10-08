@@ -1,16 +1,18 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import PrivateRoute from './components/common/PrivateRoute';
 import Layout from './components/common/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Rooms from './pages/Rooms';
+import RoomDetail from './pages/RoomDetail';
 import MyBookings from './pages/MyBookings';
 import Bookings from './pages/Bookings';
 import Users from './pages/Users';
@@ -29,6 +31,16 @@ import PaymentMock from './pages/PaymentMock';
 import theme from './styles/theme';
 import './i18n';
 
+// Admin/lễ tân không cần xem trang chủ kiểu khách hàng -> chuyển thẳng vào tổng quan
+const HomeRoute = () => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user && (user.role === 'ADMIN' || user.role === 'RECEPTIONIST')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Home />;
+};
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -37,10 +49,12 @@ function App() {
           <ChatProvider>
             <Toaster position="top-right" />
             <Routes>
-              <Route path="/" element={<Home />} />
+              <Route path="/" element={<HomeRoute />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reviews" element={<Reviews />} />
+              <Route path="/rooms/:id" element={<RoomDetail />} />
 
               <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />

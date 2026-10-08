@@ -15,6 +15,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import ContactBubble from './ContactBubble';
 
 const drawerWidth = 260;
 
@@ -262,6 +263,9 @@ const Layout = () => {
                     <Outlet />
                 </Container>
             </Box>
+
+            {/* Bong bóng liên hệ hỗ trợ (chỉ hiện với khách hàng) */}
+            <ContactBubble />
         </Box>
     );
 };

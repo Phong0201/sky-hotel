@@ -19,6 +19,10 @@ export const bookingAPI = {
         console.log('📤 Calling POST /bookings');
         return api.post('/bookings', data);
     },
+        // Kiểm tra phòng trống theo khoảng ngày
+    checkAvailability: (roomId, checkIn, checkOut) => {
+        return api.get(`/bookings/check-availability?roomId=${roomId}&checkIn=${checkIn}&checkOut=${checkOut}`);
+    },
     updateStatus: (id, status) => {
         console.log('📤 Calling PATCH /bookings/' + id + '/status');
         return api.patch(`/bookings/${id}/status?status=${status}`);

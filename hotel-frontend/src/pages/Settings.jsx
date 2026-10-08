@@ -34,7 +34,11 @@ const Settings = () => {
         supportEmail: 'support@skyhotel.com',
         supportAddress: '123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
         supportHours: 'Mon-Fri: 8:00-22:00, Sat-Sun: 9:00-21:00',
-        welcomeMessage: 'Chào mừng bạn đến với SkyHotel!'
+        welcomeMessage: 'Chào mừng bạn đến với SkyHotel!',
+        zaloUrl: 'https://zalo.me/0987654321',
+        messengerUrl: 'https://m.me/skyhotel',
+        fanpageUrl: 'https://facebook.com/skyhotel',
+        contactTagline: 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7'
     });
 
     // Backgrounds state
@@ -71,7 +75,11 @@ const Settings = () => {
                 supportEmail: settingsMap.supportEmail || 'support@skyhotel.com',
                 supportAddress: settingsMap.supportAddress || '123 Đường Nguyễn Huệ, Quận 1, TP.HCM',
                 supportHours: settingsMap.supportHours || 'Mon-Fri: 8:00-22:00, Sat-Sun: 9:00-21:00',
-                welcomeMessage: settingsMap.welcomeMessage || 'Chào mừng bạn đến với SkyHotel!'
+                welcomeMessage: settingsMap.welcomeMessage || 'Chào mừng bạn đến với SkyHotel!',
+                zaloUrl: settingsMap.zaloUrl || 'https://zalo.me/0987654321',
+                messengerUrl: settingsMap.messengerUrl || 'https://m.me/skyhotel',
+                fanpageUrl: settingsMap.fanpageUrl || 'https://facebook.com/skyhotel',
+                contactTagline: settingsMap.contactTagline || 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7'
             });
         } catch (error) {
             console.error('Fetch settings error:', error);
@@ -373,6 +381,29 @@ const Settings = () => {
                                     label="Giờ làm việc"
                                     value={settings.supportHours}
                                     onChange={(e) => handleChange('supportHours', e.target.value)}
+                                    sx={{ mb: 2 }}
+                                />
+                                <TextField
+                                    fullWidth
+                                    label="Link Zalo (vd: https://zalo.me/0987654321)"
+                                    value={settings.zaloUrl}
+                                    onChange={(e) => handleChange('zaloUrl', e.target.value)}
+                                    sx={{ mb: 2 }}
+                                />
+                                
+                                <TextField
+                                    fullWidth
+                                    label="Link Fanpage/Website (vd: https://facebook.com/skyhotel)"
+                                    value={settings.fanpageUrl}
+                                    onChange={(e) => handleChange('fanpageUrl', e.target.value)}
+                                    sx={{ mb: 2 }}
+                                />
+                                
+                                <TextField
+                                    fullWidth
+                                    label="Thông điệp cuối popup hỗ trợ"
+                                    value={settings.contactTagline}
+                                    onChange={(e) => handleChange('contactTagline', e.target.value)}
                                     sx={{ mb: 2 }}
                                 />
                             </Paper>

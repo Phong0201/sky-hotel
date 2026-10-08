@@ -53,12 +53,29 @@ const CreateBooking = () => {
 
     // Payment states
     const [payOption, setPayOption] = useState('VNPAY');
+    // ⚠️ Cảnh báo trùng ngày: phòng đã có khách đặt trong khoảng ngày mình chọn
+    const [dateConflict, setDateConflict] = useState(null);
 
     const steps = [
         i18n.language === 'vi' ? 'Chọn phòng' : 'Select Room',
         i18n.language === 'vi' ? 'Thông tin đặt phòng' : 'Booking Info',
         i18n.language === 'vi' ? 'Xác nhận' : 'Confirm'
     ];
+
+    // 🗓️ Kiểm tra phòng có bị đặt trùng ngày không (tự gọi mỗi khi đổi phòng / đổi ngày)
+    useEffect(() => {
+        const roomId = formData.roomId || selectedRoom?.id;
+        if (!roomId || !formData.checkInDate || !formData.checkOutDate) { setDateConflict(null); return; }
+        if (new Date(formData.checkInDate) >= new Date(formData.checkOutDate)) { setDateConflict(null); return; }
+        let cancelled = false;
+        bookingAPI.checkAvailability(roomId, formData.checkInDate, formData.checkOutDate)
+            .then(res => {
+                if (cancelled) return;
+                setDateConflict(res.data?.available ? null : (res.data?.message || 'Phòng đã có khách đặt trong khoảng ngày này'));
+            })
+            .catch(() => { if (!cancelled) setDateConflict(null); }); // lỗi mạng thì để backend chặn lúc gửi
+        return () => { cancelled = true; };
+    }, [formData.roomId, formData.checkInDate, formData.checkOutDate, selectedRoom]);
 
     // Format currency
     const formatCurrency = (amount) => {
@@ -245,6 +262,11 @@ const CreateBooking = () => {
 
     const handleSubmit = async () => {
         try {
+            // 🛡️ Hàng rào cuối: trùng ngày thì không gửi
+            if (dateConflict) {
+                toast.error(dateConflict);
+                return;
+            }
             setLoading(true);
             
             // CHỈ GỬI NHỮNG FIELD BACKEND CHẤP NHẬN
@@ -436,6 +458,11 @@ const CreateBooking = () => {
                                     required
                                 />
                             </Grid>
+                            {dateConflict && (
+                                <Grid item xs={12}>
+                                    <Alert severity="error">⚠️ {dateConflict} — vui lòng chọn ngày khác</Alert>
+                                </Grid>
+                            )}
                             <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
@@ -778,7 +805,7 @@ const CreateBooking = () => {
                     <Button
                         variant="contained"
                         onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
-                        disabled={loading}
+                        disabled={loading || (activeStep === 1 && !!dateConflict)}
                         sx={{ bgcolor: '#007bff' }}
                     >
                         {loading ? (

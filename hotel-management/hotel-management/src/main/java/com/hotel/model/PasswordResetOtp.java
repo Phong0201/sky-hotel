@@ -1,6 +1,7 @@
 package com.hotel.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,6 +23,10 @@ public class PasswordResetOtp {
     @Column(nullable = false)
     private boolean used = false;
 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
     public PasswordResetOtp() {}
 
     public Long getId() { return id; }
@@ -38,4 +43,7 @@ public class PasswordResetOtp {
 
     public boolean isUsed() { return used; }
     public void setUsed(boolean used) { this.used = used; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

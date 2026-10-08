@@ -30,4 +30,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT b FROM Booking b WHERE b.checkInDate <= :date AND b.checkOutDate >= :date AND b.status IN ('CONFIRMED', 'CHECKED_IN') AND b.deleted = false")
     List<Booking> findActiveBookingsOnDate(@Param("date") LocalDate date);
+    // 🔍 Tìm booking của 1 phòng ĐỤNG ĐỘ khoảng ngày (chỉ tính booking còn hiệu lực)
+    // Đặt 15-16/10 thì khách khác đặt 17-19/10 VẪN ĐƯỢC (không đụng nhau)
+    @Query("SELECT b FROM Booking b WHERE b.room.id = :roomId " +
+            "AND b.status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN') " +
+            "AND b.deleted = false " +
+            "AND b.checkInDate < :checkOutDate AND :checkInDate < b.checkOutDate")
+    List<Booking> findConflictingBookings(@Param("roomId") Long roomId,
+                                          @Param("checkInDate") LocalDate checkInDate,
+                                          @Param("checkOutDate") LocalDate checkOutDate);
+
 }
