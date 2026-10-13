@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { normalizePhoneForTel } from '../utils/phone';
+import { formatHotelCurrency } from '../utils/currency';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -31,8 +33,9 @@ import { roomAPI } from '../api/room';
 import { userAPI } from '../api/user';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { API_BASE_URL } from '../api/config';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+const API_URL = API_BASE_URL;
 
 const Dashboard = () => {
     const { t, i18n } = useTranslation();
@@ -40,6 +43,7 @@ const Dashboard = () => {
     const { user, isAdmin, isReceptionist } = useAuth();
     const [loading, setLoading] = useState(true);
     const [tabValue, setTabValue] = useState(0);
+    const [bookingFilter, setBookingFilter] = useState('all');
     const [stats, setStats] = useState({
         totalRooms: 0,
         availableRooms: 0,
@@ -59,12 +63,7 @@ const Dashboard = () => {
     const [recentBookings, setRecentBookings] = useState([]);
     const [upcomingBookings, setUpcomingBookings] = useState([]);
     const [favoriteRooms, setFavoriteRooms] = useState([]);
-    const [notifications, setNotifications] = useState([
-        { id: 1, message: 'Đặt phòng thành công!', time: '2 giờ trước', read: false },
-        { id: 2, message: 'Khuyến mãi 20% cho đặt phòng cuối tuần', time: '1 ngày trước', read: false },
-        { id: 3, message: 'Nhắc nhở: Bạn có đặt phòng vào ngày mai', time: '2 ngày trước', read: true }
-    ]);
-
+    const [notifications, setNotifications] = useState([]);
     // Support Settings
     const [supportSettings, setSupportSettings] = useState({
         supportPhone: '+84 123 456 789',
@@ -95,20 +94,23 @@ const Dashboard = () => {
     const [openNotificationDialog, setOpenNotificationDialog] = useState(false);
 
     const canManage = isAdmin || isReceptionist;
+    const sortedUpcomingBookings = [...upcomingBookings].sort(
+        (a, b) => new Date(a.checkIn) - new Date(b.checkIn)
+    );
+    const nextUpcomingBooking = sortedUpcomingBookings[0];
+
+    const filteredRecentBookings = recentBookings.filter((booking) => {
+        if (bookingFilter === 'active') {
+            return ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(booking.status);
+        }
+        if (bookingFilter === 'completed') return booking.status === 'CHECKED_OUT';
+        if (bookingFilter === 'cancelled') return booking.status === 'CANCELLED';
+        return true;
+    });
 
     // Format currency
-    const formatCurrency = (amount) => {
-        if (!amount) return '0';
-        const isVietnamese = i18n.language === 'vi';
-        const currency = isVietnamese ? 'VND' : 'USD';
-        const locale = isVietnamese ? 'vi-VN' : 'en-US';
-        return new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     // Format date
     const formatDate = (dateString) => {
@@ -182,6 +184,55 @@ const Dashboard = () => {
             fetchSupportSettings();
         }
     }, []);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadNotifications = async () => {
+            if (!user?.id) {
+                if (active) setNotifications([]);
+                return;
+            }
+
+            const token = localStorage.getItem('token');
+            if (!token) {
+                if (active) setNotifications([]);
+                return;
+            }
+
+            try {
+                const response = await axios.get(
+                    `${API_BASE_URL}/notifications/user/${user.id}`,
+                    {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }
+                );
+
+                if (!active) return;
+
+                const data = Array.isArray(response.data) ? response.data : [];
+                setNotifications(data.map((item) => ({
+                    ...item,
+                    read: Boolean(item.isRead),
+                    time: item.createdAt
+                        ? new Date(item.createdAt).toLocaleString(
+                            i18n.language?.startsWith('vi') ? 'vi-VN' : 'en-US'
+                        )
+                        : ''
+                })));
+            } catch (error) {
+                console.error('Không tải được thông báo:', error);
+            }
+        };
+
+        loadNotifications();
+        const timer = window.setInterval(loadNotifications, 30000);
+
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+        };
+    }, [user?.id, i18n.language]);
 
     // Calculate revenue by period with details
     const calculateRevenue = (bookings, period, limit = 50) => {
@@ -483,16 +534,72 @@ const Dashboard = () => {
     };
 
     // User functions
-    const handleMarkNotificationRead = (id) => {
-        setNotifications(prev =>
-            prev.map(n => n.id === id ? { ...n, read: true } : n)
-        );
-        toast.success('Đã đánh dấu đã đọc');
+    const handleMarkNotificationRead = async (id) => {
+        try {
+            const token = localStorage.getItem('token');
+
+            await axios.put(
+                `${API_BASE_URL}/notifications/${id}/read`,
+                null,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setNotifications((previous) =>
+                previous.map((notification) =>
+                    notification.id === id
+                        ? { ...notification, isRead: true, read: true }
+                        : notification
+                )
+            );
+
+            toast.success(
+                i18n.language?.startsWith('vi')
+                    ? 'Đã đánh dấu đã đọc'
+                    : 'Marked as read'
+            );
+        } catch (error) {
+            console.error('Mark notification read failed:', error);
+            toast.error(
+                i18n.language?.startsWith('vi')
+                    ? 'Đánh dấu đã đọc thất bại'
+                    : 'Could not mark notification as read'
+            );
+        }
     };
 
-    const handleMarkAllRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-        toast.success('Đã đánh dấu tất cả là đã đọc');
+    const handleMarkAllRead = async () => {
+        if (!user?.id) return;
+
+        try {
+            const token = localStorage.getItem('token');
+
+            await axios.put(
+                `${API_BASE_URL}/notifications/user/${user.id}/read-all`,
+                null,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setNotifications((previous) =>
+                previous.map((notification) => ({
+                    ...notification,
+                    isRead: true,
+                    read: true
+                }))
+            );
+
+            toast.success(
+                i18n.language?.startsWith('vi')
+                    ? 'Đã đánh dấu tất cả là đã đọc'
+                    : 'All notifications marked as read'
+            );
+        } catch (error) {
+            console.error('Mark all notifications read failed:', error);
+            toast.error(
+                i18n.language?.startsWith('vi')
+                    ? 'Thao tác thất bại'
+                    : 'Action failed'
+            );
+        }
     };
 
     const handleToggleFavorite = (roomId) => {
@@ -517,7 +624,13 @@ const Dashboard = () => {
     }
 
     return (
-        <Box>
+        <Box sx={{
+            minHeight: canManage ? 'auto' : 'calc(100vh - 72px)',
+            bgcolor: canManage ? 'transparent' : '#f6f8f5',
+            px: canManage ? 0 : { xs: 2, sm: 3, md: 4 },
+            pt: canManage ? 0 : { xs: 2.5, md: 3.5 },
+            pb: canManage ? 0 : 6
+        }}>
             {/* Header */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
@@ -528,25 +641,62 @@ const Dashboard = () => {
                         <Typography variant="body2" color="textSecondary">
                             {t('dashboard.welcome') || 'Chào mừng trở lại'}, {user?.fullName || user?.username}
                         </Typography>
-                        <Chip
-                            label={user?.role || 'GUEST'}
-                            size="small"
-                            color={user?.role === 'ADMIN' ? 'error' : user?.role === 'RECEPTIONIST' ? 'warning' : 'default'}
-                            sx={{ fontWeight: 500 }}
-                        />
+                        {canManage && (
+                            <Chip
+                                label={user?.role || 'STAFF'}
+                                size="small"
+                                color={user?.role === 'ADMIN' ? 'error' : 'warning'}
+                                sx={{ fontWeight: 600 }}
+                            />
+                        )}
                     </Box>
                 </Box>
-                <Box display="flex" gap={1}>
-                    <Tooltip title="Làm mới">
-                        <IconButton onClick={canManage ? fetchAdminDashboard : fetchUserDashboard} color="primary">
+                <Box sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.25,
+                    flexShrink: 0,
+                    ml: { xs: 0, sm: 'auto' }
+                }}>
+                    <Tooltip title={i18n.language === 'vi' ? 'Làm mới dữ liệu' : 'Refresh data'}>
+                        <IconButton
+                            aria-label={i18n.language === 'vi' ? 'Làm mới dữ liệu' : 'Refresh data'}
+                            onClick={canManage ? fetchAdminDashboard : fetchUserDashboard}
+                            sx={{
+                                width: 46,
+                                height: 46,
+                                color: '#315d48',
+                                bgcolor: '#fff',
+                                border: '1px solid #e1e9e2',
+                                '&:hover': { bgcolor: '#f2f7f3' }
+                            }}
+                        >
                             <Refresh />
                         </IconButton>
                     </Tooltip>
+
                     <Button
                         variant="contained"
+                        size="large"
                         startIcon={<BookOnline />}
-                        onClick={() => navigate('/bookings/create')}
-                        sx={{ bgcolor: '#007bff' }}
+                        onClick={() => navigate(canManage ? '/bookings/create' : '/rooms')}
+                        sx={{
+                            minWidth: 168,
+                            minHeight: 46,
+                            px: 2.25,
+                            borderRadius: 2.5,
+                            bgcolor: '#174c40',
+                            color: '#fff',
+                            fontSize: '0.95rem',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 7px 18px rgba(23,76,64,.18)',
+                            '&:hover': {
+                                bgcolor: '#123f35',
+                                boxShadow: '0 9px 20px rgba(23,76,64,.23)'
+                            }
+                        }}
                     >
                         {t('dashboard.bookRoom') || 'Đặt phòng'}
                     </Button>
@@ -583,405 +733,444 @@ const Dashboard = () => {
 
             {/* ============ USER DASHBOARD ============ */}
             {!canManage ? (
-                <Box>
-                    {/* Welcome Banner */}
-                    <Paper sx={{
-                        p: 3,
-                        borderRadius: 3,
-                        mb: 4,
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white'
+                <Box sx={{ maxWidth: 1440, mx: 'auto' }}>
+                    {/* Hero và đặt phòng gần nhất */}
+                    <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', lg: '1.35fr .85fr' },
+                        gap: 2.5,
+                        mb: 3,
+                        p: { xs: 2.25, sm: 3, md: 3.5 },
+                        borderRadius: 4,
+                        color: '#fff',
+                        background: 'linear-gradient(120deg, #174c40, #2f7454 57%, #86a875)',
+                        boxShadow: '0 18px 42px rgba(31,88,62,.16)'
                     }}>
-                        <Box display="flex" alignItems="center" gap={2}>
-                            <Avatar sx={{ width: 64, height: 64, bgcolor: 'rgba(255,255,255,0.2)' }}>
-                                {user?.fullName?.charAt(0) || user?.username?.charAt(0) || 'U'}
-                            </Avatar>
-                            <Box flex={1}>
-                                <Typography variant="h5" fontWeight={700}>
-                                    👋 {i18n.language === 'vi' ? 'Chào mừng trở lại' : 'Welcome back'}, {user?.fullName || user?.username}!
-                                </Typography>
-                                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                                    {supportSettings.welcomeMessage || (i18n.language === 'vi'
-                                        ? 'Quản lý đặt phòng và trải nghiệm dịch vụ của bạn'
-                                        : 'Manage your bookings and experience our services')}
-                                </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center' }}>
+                            <Chip
+                                label={i18n.language === 'vi' ? 'KHÔNG GIAN CỦA BẠN' : 'YOUR SKYHOTEL'}
+                                size="small"
+                                sx={{
+                                    mb: 1.5,
+                                    bgcolor: 'rgba(255,255,255,.15)',
+                                    color: '#fff',
+                                    border: '1px solid rgba(255,255,255,.22)',
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    letterSpacing: '.12em'
+                                }}
+                            />
+
+                            <Typography component="h2" sx={{
+                                fontSize: { xs: 25, sm: 30, md: 36 },
+                                lineHeight: 1.15,
+                                fontWeight: 750,
+                                letterSpacing: '-.035em'
+                            }}>
+                                {nextUpcomingBooking
+                                    ? (i18n.language === 'vi' ? 'Kỳ nghỉ tiếp theo đang chờ bạn' : 'Your next stay is coming up')
+                                    : (i18n.language === 'vi' ? 'Sẵn sàng cho một kỳ nghỉ mới?' : 'Ready for your next getaway?')}
+                            </Typography>
+
+                            <Typography sx={{ mt: 1.1, maxWidth: 580, color: 'rgba(255,255,255,.82)', fontSize: 14, lineHeight: 1.65 }}>
+                                {nextUpcomingBooking
+                                    ? (i18n.language === 'vi'
+                                        ? `Bạn có ${upcomingBookings.length} đặt phòng trong 7 ngày tới. Xem lại lịch trình và chuẩn bị cho chuyến đi.`
+                                        : `You have ${upcomingBookings.length} booking(s) in the next 7 days.`)
+                                    : (i18n.language === 'vi'
+                                        ? 'Tìm phòng phù hợp, theo dõi đặt phòng và liên hệ đội ngũ SkyHotel ngay tại đây.'
+                                        : 'Find a room, track your bookings, and contact the SkyHotel team here.')}
+                            </Typography>
+
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2.5 }}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<BookOnline />}
+                                    onClick={() => navigate(nextUpcomingBooking ? '/my-bookings' : '/bookings/create')}
+                                    sx={{
+                                        minHeight: 42,
+                                        px: 2,
+                                        borderRadius: 2.5,
+                                        bgcolor: '#fff',
+                                        color: '#24533f',
+                                        fontWeight: 700,
+                                        textTransform: 'none',
+                                        boxShadow: 'none',
+                                        '&:hover': { bgcolor: '#eff6f0', boxShadow: 'none' }
+                                    }}
+                                >
+                                    {nextUpcomingBooking
+                                        ? (i18n.language === 'vi' ? 'Xem đặt phòng' : 'View booking')
+                                        : (i18n.language === 'vi' ? 'Đặt phòng ngay' : 'Book a room')}
+                                </Button>
+
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<ChatIcon />}
+                                    onClick={() => navigate('/chat')}
+                                    sx={{
+                                        minHeight: 42,
+                                        px: 2,
+                                        borderRadius: 2.5,
+                                        color: '#fff',
+                                        borderColor: 'rgba(255,255,255,.45)',
+                                        fontWeight: 700,
+                                        textTransform: 'none',
+                                        '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,.1)' }
+                                    }}
+                                >
+                                    {i18n.language === 'vi' ? 'Chat hỗ trợ' : 'Chat with support'}
+                                </Button>
                             </Box>
-                            <Box display="flex" gap={1}>
-                                <Tooltip title={i18n.language === 'vi' ? 'Thông báo' : 'Notifications'}>
-                                    <IconButton sx={{ color: 'white' }} onClick={() => setOpenNotificationDialog(true)}>
-                                        <Badge badgeContent={notifications.filter(n => !n.read).length} color="error">
-                                            <Notifications />
-                                        </Badge>
-                                    </IconButton>
-                                </Tooltip>
-                                <Tooltip title={i18n.language === 'vi' ? 'Hỗ trợ' : 'Support'}>
-                                    <IconButton sx={{ color: 'white' }} onClick={() => setOpenSupportDialog(true)}>
-                                        <Support />
-                                    </IconButton>
-                                </Tooltip>
-                            </Box>
+                        </Box>
+
+                        <Paper elevation={0} sx={{
+                            minHeight: 200,
+                            p: { xs: 2, sm: 2.5 },
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            borderRadius: 3.5,
+                            bgcolor: 'rgba(255,255,255,.96)',
+                            color: '#20372e'
+                        }}>
+                            {nextUpcomingBooking ? (
+                                <>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5 }}>
+                                        <Typography sx={{ color: '#7a8a80', fontSize: 10, fontWeight: 800, letterSpacing: '.13em' }}>
+                                            {i18n.language === 'vi' ? 'ĐẶT PHÒNG SẮP TỚI' : 'UPCOMING STAY'}
+                                        </Typography>
+                                        <Chip
+                                            label={getStatusLabel(nextUpcomingBooking.status)}
+                                            size="small"
+                                            color={getStatusColor(nextUpcomingBooking.status)}
+                                        />
+                                    </Box>
+
+                                    <Typography sx={{ color: '#20372e', fontSize: 23, fontWeight: 750 }}>
+                                        {i18n.language === 'vi' ? 'Phòng' : 'Room'} {nextUpcomingBooking.room?.roomNumber || '—'}
+                                    </Typography>
+                                    <Typography sx={{ mt: 0.35, color: '#78877e', fontSize: 13 }}>
+                                        {nextUpcomingBooking.room?.roomType || (i18n.language === 'vi' ? 'Kỳ nghỉ của bạn' : 'Your stay')}
+                                    </Typography>
+
+                                    <Divider sx={{ my: 1.5, borderColor: '#e8eee9' }} />
+
+                                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+                                        <Box>
+                                            <Typography sx={{ color: '#8a968f', fontSize: 11 }}>
+                                                {i18n.language === 'vi' ? 'Nhận phòng' : 'Check-in'}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.35, color: '#34483c', fontSize: 13, fontWeight: 700 }}>
+                                                {formatDate(nextUpcomingBooking.checkIn)}
+                                            </Typography>
+                                        </Box>
+                                        <Box>
+                                            <Typography sx={{ color: '#8a968f', fontSize: 11 }}>
+                                                {i18n.language === 'vi' ? 'Trả phòng' : 'Check-out'}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.35, color: '#34483c', fontSize: 13, fontWeight: 700 }}>
+                                                {formatDate(nextUpcomingBooking.checkOut)}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </>
+                            ) : (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Avatar sx={{ width: 48, height: 48, bgcolor: '#edf5ee', color: '#347354' }}>
+                                        <Hotel />
+                                    </Avatar>
+                                    <Box>
+                                        <Typography sx={{ color: '#2c4437', fontWeight: 750 }}>
+                                            {i18n.language === 'vi' ? 'Chưa có chuyến đi sắp tới' : 'No upcoming stays'}
+                                        </Typography>
+                                        <Typography sx={{ mt: 0.35, color: '#7c8981', fontSize: 12.5, lineHeight: 1.5 }}>
+                                            {i18n.language === 'vi' ? 'Khám phá phòng trống và lên kế hoạch nghỉ ngơi.' : 'Explore available rooms and plan your next stay.'}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
+                        </Paper>
+                    </Box>
+
+                    {/* Thống kê — CSS Grid giúp 4 thẻ trải hết chiều ngang */}
+                    <Box sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
+                        gap: { xs: 1.25, md: 2 },
+                        mb: 3
+                    }}>
+                        {[
+                            {
+                                label: 'Tổng đặt phòng',
+                                // Tổng đặt phòng
+                                value: stats.totalBookings || 0,
+                                filter: 'all',
+                                note: `${stats.pendingBookings || 0} đang chờ · ${stats.confirmedBookings || 0} đã xác nhận`,
+                                icon: <BookOnline />,
+                                color: '#397cb0',
+                                soft: '#eaf3fa'
+                            },
+                            {
+                                label: 'Đã hoàn thành',
+                                // Đã hoàn thành
+                                value: stats.checkedOutBookings || 0,
+                                filter: 'completed',
+                                note: 'Kỳ nghỉ đã kết thúc',
+                                icon: <CheckCircle />,
+                                color: '#3c8057',
+                                soft: '#eaf4ec'
+                            },
+                            {
+                                label: 'Sắp tới',
+                                // Sắp tới
+                                value: upcomingBookings.length,
+                                filter: 'upcoming',
+                                note: 'Trong 7 ngày tới',
+                                icon: <Event />,
+                                color: '#357f9d',
+                                soft: '#e9f5f7'
+                            },
+                            {
+                                label: 'Đã hủy',
+                                // Đã hủy
+                                value: stats.cancelledBookings || 0,
+                                filter: 'cancelled',
+                                note: 'Đặt phòng đã hủy',
+                                icon: <Cancel />,
+                                color: '#bf5a58',
+                                soft: '#fbefee'
+                            }
+                        ].map((item) => (
+                            <Paper
+                                key={item.label}
+                                component="button"
+                                type="button"
+                                elevation={0}
+                                onClick={() => navigate(`/my-bookings?filter=${item.filter}`)}
+                                aria-label={`${item.label}: ${item.value}. Xem đặt phòng`}
+                                sx={{
+                                    width: '100%',
+                                    minWidth: 0,
+                                    p: { xs: 1.6, sm: 2.2 },
+                                    border: '1px solid #e3eae4',
+                                    borderRadius: 3,
+                                    bgcolor: '#fff',
+                                    boxShadow: '0 5px 18px rgba(31,61,47,.04)',
+                                    color: 'inherit',
+                                    font: 'inherit',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-3px)',
+                                        borderColor: item.color,
+                                        boxShadow: '0 12px 26px rgba(31,61,47,.11)',
+                                    },
+                                    '&:focus-visible': {
+                                        outline: '3px solid #3e8b5c',
+                                        outlineOffset: 2,
+                                    },
+                                }}
+                            >
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                    <Box sx={{ minWidth: 0 }}>
+                                        <Typography sx={{ color: '#76847b', fontSize: 12, fontWeight: 650 }}>
+                                            {item.label}
+                                        </Typography>
+                                        <Typography sx={{ mt: 0.5, color: item.color, fontSize: 32, fontWeight: 750 }}>
+                                            {item.value}
+                                        </Typography>
+                                    </Box>
+                                    <Avatar sx={{ width: 40, height: 40, bgcolor: item.soft, color: item.color }}>
+                                        {item.icon}
+                                    </Avatar>
+                                </Box>
+                                <Typography sx={{ mt: 1.35, color: '#8a968e', fontSize: 11.5 }}>
+                                    {item.note}
+                                </Typography>
+                            </Paper>
+                        ))}
+                    </Box>
+
+                    {/* Thao tác nhanh */}
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, border: '1px solid #e3eae4', borderRadius: 3.5 }}>
+                        <Typography variant="h6" sx={{ color: '#263d32', fontWeight: 750, mb: 1.5 }}>
+                            {i18n.language === 'vi' ? 'Thao tác nhanh' : 'Quick actions'}
+                        </Typography>
+
+                        <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' },
+                            gap: 1.15
+                        }}>
+                            {[
+                                { label: 'Đặt phòng', icon: <BookOnline />, path: '/bookings/create' },
+                                { label: 'Đặt phòng của tôi', icon: <History />, path: '/my-bookings' },
+                                { label: 'Tìm phòng', icon: <Room />, path: '/rooms' },
+                                { label: 'Chat hỗ trợ', icon: <ChatIcon />, path: '/chat' },
+                                { label: 'Đánh giá dịch vụ', icon: <RateReview />, path: '/reviews' },
+                                { label: 'Hồ sơ cá nhân', icon: <Person />, path: '/profile' },
+                                { label: 'Liên hệ khách sạn', icon: <Support />, onClick: () => setOpenSupportDialog(true) }
+                            ].map((action) => (
+                                <Box
+                                    component="button"
+                                    type="button"
+                                    key={action.path || action.label}
+                                    onClick={action.onClick || (() => navigate(action.path))}
+                                    sx={{
+                                        minWidth: 0,
+                                        minHeight: 72,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 1,
+                                        p: 1.25,
+                                        border: '1px solid #e8eee9',
+                                        borderRadius: 2.5,
+                                        bgcolor: '#fff',
+                                        textAlign: 'left',
+                                        font: 'inherit',
+                                        cursor: 'pointer',
+                                        '&:hover': { borderColor: '#cbd9ce', bgcolor: '#fbfdfb' }
+                                    }}
+                                >
+                                    <Avatar sx={{ width: 38, height: 38, bgcolor: '#edf5ef', color: '#347354', flexShrink: 0 }}>
+                                        {action.icon}
+                                    </Avatar>
+                                    <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis', color: '#304439', fontSize: 12.5, fontWeight: 750 }}>
+                                        {action.label}
+                                    </Typography>
+                                </Box>
+                            ))}
                         </Box>
                     </Paper>
 
-                    {/* User Stats Cards */}
-                    <Grid container spacing={3} mb={4}>
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Box>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {i18n.language === 'vi' ? 'Tổng đặt phòng' : 'Total Bookings'}
-                                        </Typography>
-                                        <Typography variant="h4" fontWeight={700}>
-                                            {stats.totalBookings}
-                                        </Typography>
-                                    </Box>
-                                    <Avatar sx={{ bgcolor: '#e3f2fd', color: '#1976d2' }}>
-                                        <BookOnline />
-                                    </Avatar>
-                                </Box>
-                                <Box display="flex" gap={1} mt={2}>
-                                    <Chip
-                                        icon={<Pending sx={{ fontSize: 16 }} />}
-                                        label={`${stats.pendingBookings || 0} ${i18n.language === 'vi' ? 'chờ' : 'pending'}`}
-                                        size="small"
-                                        color="warning"
-                                    />
-                                    <Chip
-                                        icon={<CheckCircle sx={{ fontSize: 16 }} />}
-                                        label={`${stats.confirmedBookings || 0} ${i18n.language === 'vi' ? 'xác nhận' : 'confirmed'}`}
-                                        size="small"
-                                        color="success"
-                                    />
-                                </Box>
-                            </Paper>
-                        </Grid>
+                    {/* Đặt phòng sắp tới */}
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, border: '1px solid #e3eae4', borderRadius: 3.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                            <Typography variant="h6" sx={{ color: '#263d32', fontWeight: 750 }}>
+                                {i18n.language === 'vi' ? 'Đặt phòng sắp tới' : 'Upcoming stays'}
+                            </Typography>
+                            <Button onClick={() => navigate('/my-bookings')} endIcon={<ArrowForward />} sx={{ color: '#347354', textTransform: 'none' }}>
+                                {i18n.language === 'vi' ? 'Tất cả đặt phòng' : 'All bookings'}
+                            </Button>
+                        </Box>
 
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Box>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {i18n.language === 'vi' ? 'Đã hoàn thành' : 'Completed'}
-                                        </Typography>
-                                        <Typography variant="h4" fontWeight={700} color="success">
-                                            {stats.checkedOutBookings || 0}
-                                        </Typography>
-                                    </Box>
-                                    <Avatar sx={{ bgcolor: '#e8f5e9', color: '#2e7d32' }}>
-                                        <CheckCircle />
-                                    </Avatar>
-                                </Box>
-                                <Box mt={2}>
-                                    <Typography variant="caption" color="textSecondary">
-                                        {i18n.language === 'vi'
-                                            ? `${stats.checkedOutBookings || 0} đặt phòng đã trả phòng`
-                                            : `${stats.checkedOutBookings || 0} bookings checked out`}
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        </Grid>
-
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Box>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {i18n.language === 'vi' ? 'Sắp tới' : 'Upcoming'}
-                                        </Typography>
-                                        <Typography variant="h4" fontWeight={700} color="info">
-                                            {upcomingBookings.length}
-                                        </Typography>
-                                    </Box>
-                                    <Avatar sx={{ bgcolor: '#e3f2fd', color: '#0288d1' }}>
-                                        <Event />
-                                    </Avatar>
-                                </Box>
-                                <Box mt={2}>
-                                    <Typography variant="caption" color="textSecondary">
-                                        {i18n.language === 'vi'
-                                            ? `${upcomingBookings.length} đặt phòng trong 7 ngày tới`
-                                            : `${upcomingBookings.length} bookings in next 7 days`}
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        </Grid>
-
-                        <Grid item xs={12} sm={6} md={3}>
-                            <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                    <Box>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {i18n.language === 'vi' ? 'Đã hủy' : 'Cancelled'}
-                                        </Typography>
-                                        <Typography variant="h4" fontWeight={700} color="error">
-                                            {stats.cancelledBookings || 0}
-                                        </Typography>
-                                    </Box>
-                                    <Avatar sx={{ bgcolor: '#ffebee', color: '#d32f2f' }}>
-                                        <Cancel />
-                                    </Avatar>
-                                </Box>
-                                <Box mt={2}>
-                                    <Typography variant="caption" color="textSecondary">
-                                        {i18n.language === 'vi'
-                                            ? `${stats.cancelledBookings || 0} đặt phòng đã hủy`
-                                            : `${stats.cancelledBookings || 0} bookings cancelled`}
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        </Grid>
-                    </Grid>
-
-                    {/* Quick Actions */}
-                    <Paper sx={{ p: 3, borderRadius: 3, mb: 4 }}>
-                        <Typography variant="h6" fontWeight={600} gutterBottom>
-                            {i18n.language === 'vi' ? '🚀 Thao tác nhanh' : '🚀 Quick Actions'}
-                        </Typography>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="contained"
-                                    startIcon={<BookOnline />}
-                                    onClick={() => navigate('/bookings/create')}
-                                    sx={{ bgcolor: '#007bff' }}
-                                >
-                                    {t('dashboard.bookRoom') || 'Đặt phòng'}
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<History />}
-                                    onClick={() => navigate('/my-bookings')}
-                                >
-                                    {t('dashboard.viewBookings') || 'Xem đặt phòng của tôi'}
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<Room />}
-                                    onClick={() => navigate('/rooms')}
-                                >
-                                    {t('dashboard.rooms') || 'Phòng'}
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<RateReview />}
-                                    onClick={() => navigate('/reviews')}
-                                >
-                                    {i18n.language === 'vi' ? 'Đánh giá' : 'Reviews'}
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<ReceiptLong />}
-                                    onClick={() => navigate('/my-bookings')}
-                                >
-                                    {i18n.language === 'vi' ? 'Hóa đơn' : 'Invoices'}
-                                </Button>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<Person />}
-                                    onClick={() => navigate('/profile')}
-                                >
-                                    {i18n.language === 'vi' ? 'Hồ sơ' : 'Profile'}
-                                </Button>
-                            </Grid>
-                        </Grid>
-                    </Paper>
-
-                    {/* Upcoming Bookings */}
-                    {upcomingBookings.length > 0 && (
-                        <Paper sx={{ p: 3, borderRadius: 3, mb: 4 }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Typography variant="h6" fontWeight={600}>
-                                    📅 {i18n.language === 'vi' ? 'Đặt phòng sắp tới' : 'Upcoming Bookings'}
+                        {sortedUpcomingBookings.length ? (
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+                                {sortedUpcomingBookings.slice(0, 3).map((booking) => (
+                                    <Card key={booking.id} elevation={0} sx={{ border: '1px solid #e7ede8', borderRadius: 3 }}>
+                                        <CardContent>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                                <Typography sx={{ color: '#2b4336', fontWeight: 750 }}>
+                                                    Phòng {booking.room?.roomNumber || '—'}
+                                                </Typography>
+                                                <Chip label={getStatusLabel(booking.status)} size="small" color={getStatusColor(booking.status)} />
+                                            </Box>
+                                            <Typography sx={{ mt: 1, color: '#78877e', fontSize: 13 }}>
+                                                {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
+                                            </Typography>
+                                            <Divider sx={{ my: 1.25 }} />
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                                                <Typography sx={{ color: '#7b8981', fontSize: 12 }}>
+                                                    {booking.guests || 1} khách
+                                                </Typography>
+                                                <Typography sx={{ color: '#347354', fontWeight: 750 }}>
+                                                    {formatCurrency(booking.totalPrice || 0)}
+                                                </Typography>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </Box>
+                        ) : (
+                            <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, borderRadius: 3, bgcolor: '#f7faf7' }}>
+                                <Typography sx={{ color: '#607166' }}>
+                                    {i18n.language === 'vi' ? 'Chưa có lịch nhận phòng trong 7 ngày tới.' : 'No check-ins scheduled for the next 7 days.'}
                                 </Typography>
-                                <Button
-                                    size="small"
-                                    endIcon={<ArrowForward />}
-                                    onClick={() => navigate('/my-bookings')}
-                                >
-                                    {i18n.language === 'vi' ? 'Xem tất cả' : 'View all'}
+                                <Button variant="outlined" onClick={() => navigate('/rooms')} sx={{ color: '#347354', textTransform: 'none' }}>
+                                    {i18n.language === 'vi' ? 'Khám phá phòng' : 'Explore rooms'}
                                 </Button>
                             </Box>
-                            <Grid container spacing={2}>
-                                {upcomingBookings.slice(0, 3).map((booking) => (
-                                    <Grid item xs={12} md={4} key={booking.id}>
-                                        <Card sx={{ borderRadius: 2, border: '1px solid #e0e0e0' }}>
-                                            <CardContent>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                                    <Typography variant="h6" fontWeight={600}>
-                                                        {i18n.language === 'vi' ? 'Phòng' : 'Room'} {booking.room?.roomNumber}
-                                                    </Typography>
-                                                    <Chip
-                                                        label={getStatusLabel(booking.status)}
-                                                        size="small"
-                                                        color={getStatusColor(booking.status)}
-                                                    />
-                                                </Box>
-                                                <Typography variant="body2" color="textSecondary">
-                                                    {booking.room?.roomType}
-                                                </Typography>
-                                                <Box mt={1}>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        <CalendarToday fontSize="small" />
-                                                        {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
-                                                    </Typography>
-                                                </Box>
-                                                <Box mt={1}>
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        <People fontSize="small" /> {booking.guests || 1} {i18n.language === 'vi' ? 'khách' : 'guests'}
-                                                    </Typography>
-                                                </Box>
-                                                <Box mt={2}>
-                                                    <Typography variant="h6" color="primary">
-                                                        {formatCurrency(booking.totalPrice || 0)}
-                                                    </Typography>
-                                                </Box>
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
-                                ))}
-                            </Grid>
-                        </Paper>
-                    )}
+                        )}
+                    </Paper>
 
-                    {/* Recent Bookings */}
-                    <Paper sx={{ p: 3, borderRadius: 3 }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                            <Typography variant="h6" fontWeight={600}>
-                                {t('dashboard.recentBookings') || '📋 Đặt phòng gần đây'}
+                    {/* Đặt phòng gần đây và lọc theo trạng thái */}
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, border: '1px solid #e3eae4', borderRadius: 3.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+                            <Typography variant="h6" sx={{ color: '#263d32', fontWeight: 750 }}>
+                                {i18n.language === 'vi' ? 'Đặt phòng gần đây' : 'Recent bookings'}
                             </Typography>
-                            <Button
-                                size="small"
-                                endIcon={<ArrowForward />}
-                                onClick={() => navigate('/my-bookings')}
-                            >
+                            <Button onClick={() => navigate('/my-bookings')} endIcon={<ArrowForward />} sx={{ color: '#347354', textTransform: 'none' }}>
                                 {i18n.language === 'vi' ? 'Xem tất cả' : 'View all'}
                             </Button>
                         </Box>
 
-                        {recentBookings.length === 0 ? (
-                            <Box textAlign="center" py={4}>
-                                <Typography variant="body2" color="textSecondary">
-                                    {i18n.language === 'vi' ? 'Chưa có đặt phòng nào' : 'No bookings yet'}
-                                </Typography>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<BookOnline />}
-                                    onClick={() => navigate('/bookings/create')}
-                                    sx={{ mt: 2, bgcolor: '#007bff' }}
-                                >
-                                    {t('dashboard.bookRoom') || 'Đặt phòng ngay'}
-                                </Button>
-                            </Box>
-                        ) : (
-                            <List>
-                                {recentBookings.slice(0, 5).map((booking, index) => (
-                                    <React.Fragment key={booking.id}>
-                                        <ListItem
-                                            sx={{
-                                                px: 0,
-                                                '&:hover': { bgcolor: 'action.hover' },
-                                                borderRadius: 2,
-                                                cursor: 'pointer'
-                                            }}
-                                            onClick={() => navigate('/my-bookings')}
-                                        >
-                                            <ListItemAvatar>
-                                                <Avatar sx={{ bgcolor: '#e3f2fd' }}>
-                                                    <Bed />
-                                                </Avatar>
-                                            </ListItemAvatar>
-                                            <ListItemText
-                                                primary={
-                                                    <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                                                        <Typography variant="body1" fontWeight={500}>
-                                                            {i18n.language === 'vi' ? 'Phòng' : 'Room'} {booking.room?.roomNumber || 'N/A'}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
+                            {[
+                                { key: 'all', label: 'Tất cả' },
+                                { key: 'active', label: 'Đang xử lý' },
+                                { key: 'completed', label: 'Hoàn thành' },
+                                { key: 'cancelled', label: 'Đã hủy' }
+                            ].map((filter) => (
+                                <Chip
+                                    key={filter.key}
+                                    label={filter.label}
+                                    onClick={() => setBookingFilter(filter.key)}
+                                    variant={bookingFilter === filter.key ? 'filled' : 'outlined'}
+                                    sx={{
+                                        height: 31,
+                                        borderRadius: 99,
+                                        fontWeight: 700,
+                                        bgcolor: bookingFilter === filter.key ? '#315d48' : '#fff',
+                                        color: bookingFilter === filter.key ? '#fff' : '#65756b',
+                                        borderColor: bookingFilter === filter.key ? '#315d48' : '#e0e8e1'
+                                    }}
+                                />
+                            ))}
+                        </Box>
+
+                        {filteredRecentBookings.length ? (
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' }, gap: 1.25 }}>
+                                {filteredRecentBookings.map((booking) => (
+                                    <Card key={booking.id} elevation={0} sx={{ border: '1px solid #e7ede8', borderRadius: 3 }}>
+                                        <CardContent sx={{ p: 1.75, '&:last-child': { pb: 1.75 } }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                                                <Avatar sx={{ bgcolor: '#edf5ef', color: '#347354' }}><Bed /></Avatar>
+                                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
+                                                        <Typography sx={{ color: '#2f4438', fontWeight: 750 }}>
+                                                            Phòng {booking.room?.roomNumber || '—'}
                                                         </Typography>
-                                                        <Chip
-                                                            label={getStatusLabel(booking.status)}
-                                                            size="small"
-                                                            color={getStatusColor(booking.status)}
-                                                            sx={{ height: 20, fontSize: '0.65rem' }}
-                                                        />
-                                                        <Typography variant="caption" color="textSecondary">
-                                                            {formatCurrency(booking.totalPrice || 0)}
-                                                        </Typography>
+                                                        <Chip label={getStatusLabel(booking.status)} size="small" color={getStatusColor(booking.status)} />
                                                     </Box>
-                                                }
-                                                secondary={
-                                                    <Typography variant="caption" color="textSecondary">
-                                                        {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
-                                                        {' • '}
-                                                        {booking.guests || 1} {i18n.language === 'vi' ? 'khách' : 'guests'}
+                                                    <Typography sx={{ mt: 0.35, color: '#859188', fontSize: 11.5 }}>
+                                                        {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)} · {booking.guests || 1} khách
                                                     </Typography>
-                                                }
-                                            />
-                                            <Box>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    {formatDate(booking.createdAt)}
+                                                </Box>
+                                                <Typography sx={{ color: '#347354', fontSize: 13, fontWeight: 750, whiteSpace: 'nowrap' }}>
+                                                    {formatCurrency(booking.totalPrice || 0)}
                                                 </Typography>
                                             </Box>
-                                        </ListItem>
-                                        {index < recentBookings.length - 1 && <Divider />}
-                                    </React.Fragment>
+                                        </CardContent>
+                                    </Card>
                                 ))}
-                            </List>
+                            </Box>
+                        ) : (
+                            <Box sx={{ py: 4, textAlign: 'center', borderRadius: 3, bgcolor: '#f8faf8' }}>
+                                <Typography sx={{ color: '#75837a', fontSize: 13 }}>
+                                    {recentBookings.length
+                                        ? 'Không có đặt phòng ở trạng thái này.'
+                                        : 'Bạn chưa có đặt phòng nào.'}
+                                </Typography>
+                                <Button
+                                    onClick={() => recentBookings.length ? setBookingFilter('all') : navigate('/bookings/create')}
+                                    sx={{ mt: 1, color: '#347354', fontWeight: 700, textTransform: 'none' }}
+                                >
+                                    {recentBookings.length ? 'Xem tất cả trạng thái' : 'Tìm phòng ngay'}
+                                </Button>
+                            </Box>
                         )}
-                    </Paper>
-
-                    {/* Tips & Offers */}
-                    <Paper sx={{ p: 3, borderRadius: 3, mt: 4, bgcolor: '#fff8e1' }}>
-                        <Typography variant="h6" fontWeight={600} gutterBottom>
-                            💡 {i18n.language === 'vi' ? 'Mẹo & Ưu đãi' : 'Tips & Offers'}
-                        </Typography>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <Star sx={{ color: '#ff9800' }} />
-                                    <Typography variant="body2">
-                                        {i18n.language === 'vi'
-                                            ? 'Đánh giá phòng để nhận ưu đãi cho lần đặt tiếp theo!'
-                                            : 'Review rooms to get discounts for next booking!'}
-                                    </Typography>
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <VolunteerActivism sx={{ color: '#e91e63' }} />
-                                    <Typography variant="body2">
-                                        {i18n.language === 'vi'
-                                            ? 'Đặt phòng trước 7 ngày nhận giảm 20%'
-                                            : 'Book 7 days in advance get 20% off'}
-                                    </Typography>
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} sm={6} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <LocationOn sx={{ color: '#4caf50' }} />
-                                    <Typography variant="body2">
-                                        {i18n.language === 'vi'
-                                            ? 'Khám phá các điểm tham quan gần khách sạn'
-                                            : 'Explore attractions near the hotel'}
-                                    </Typography>
-                                </Box>
-                            </Grid>
-                        </Grid>
                     </Paper>
                 </Box>
             ) : (

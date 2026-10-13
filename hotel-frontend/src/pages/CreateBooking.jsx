@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { formatHotelCurrency } from '../utils/currency';
 import { useTranslation } from 'react-i18next';
 import {
     Box, Typography, Paper, Grid, Card, CardContent,
@@ -27,6 +28,7 @@ const API_BASE_URL = 'http://localhost:9981/api';
 const CreateBooking = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [rooms, setRooms] = useState([]);
@@ -78,19 +80,8 @@ const CreateBooking = () => {
     }, [formData.roomId, formData.checkInDate, formData.checkOutDate, selectedRoom]);
 
     // Format currency
-    const formatCurrency = (amount) => {
-        if (!amount) return '0';
-        const isVietnamese = i18n.language === 'vi';
-        const currency = isVietnamese ? 'VND' : 'USD';
-        const locale = isVietnamese ? 'vi-VN' : 'en-US';
-        return new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
     // Format date
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -108,50 +99,79 @@ const CreateBooking = () => {
     };
 
     useEffect(() => {
-        const savedRoom = localStorage.getItem('selectedRoom');
-        if (savedRoom) {
+        let savedRoom = null;
+        const savedRoomJson = localStorage.getItem('selectedRoom');
+
+        if (savedRoomJson) {
             try {
-                const roomData = JSON.parse(savedRoom);
-                console.log('📦 Selected room from storage:', roomData);
-                setSelectedRoom(roomData);
-                setFormData(prev => ({ ...prev, roomId: roomData.id }));
+                savedRoom = JSON.parse(savedRoomJson);
+            } catch (error) {
+                console.error('Error parsing selected room:', error);
+            } finally {
                 localStorage.removeItem('selectedRoom');
-            } catch (e) {
-                console.error('Error parsing selected room:', e);
             }
         }
-        
-        fetchRooms();
+
+        const requestedRoomId = location.state?.selectedRoomId ?? savedRoom?.id ?? null;
+        const skipRoomSelection = requestedRoomId !== null && requestedRoomId !== undefined;
+
+        fetchRooms(requestedRoomId, skipRoomSelection);
         fetchAvailablePromotions();
-        
-        if (user) {
-            setFormData(prev => ({
-                ...prev,
-                fullName: user.fullName || user.username || '',
-                email: user.email || '',
-                phoneNumber: user.phoneNumber || ''
-            }));
-        }
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+
+        setFormData(prev => ({
+            ...prev,
+            fullName: user.fullName || user.username || '',
+            email: user.email || '',
+            phoneNumber: user.phoneNumber || ''
+        }));
     }, [user]);
 
-    const fetchRooms = async () => {
+    const fetchRooms = async (requestedRoomId = null, skipRoomSelection = false) => {
         setLoading(true);
         try {
             const res = await roomAPI.getAll();
-            const availableRooms = res.data.filter(r => r.status === 'AVAILABLE');
+            const availableRooms = (res.data || []).filter(
+                room => room.status === 'AVAILABLE'
+            );
             setRooms(availableRooms);
-            
-            if (!selectedRoom && availableRooms.length > 0) {
-                setSelectedRoom(availableRooms[0]);
-                setFormData(prev => ({ ...prev, roomId: availableRooms[0].id }));
+
+            const roomToSelect = requestedRoomId != null
+                ? availableRooms.find(
+                    room => String(room.id) === String(requestedRoomId)
+                )
+                : availableRooms[0];
+
+            if (roomToSelect) {
+                setSelectedRoom(roomToSelect);
+                setFormData(prev => ({ ...prev, roomId: roomToSelect.id }));
+
+                if (skipRoomSelection) {
+                    setActiveStep(1);
+                }
+            } else if (requestedRoomId != null) {
+                setSelectedRoom(null);
+                setFormData(prev => ({ ...prev, roomId: '' }));
+                setActiveStep(0);
+                toast.error(
+                    i18n.language === 'vi'
+                        ? 'Phòng bạn chọn hiện không còn trống. Vui lòng chọn phòng khác.'
+                        : 'The selected room is no longer available. Please choose another room.'
+                );
             }
         } catch (error) {
-            toast.error(i18n.language === 'vi' ? 'Không thể tải danh sách phòng' : 'Cannot load rooms');
+            toast.error(
+                i18n.language === 'vi'
+                    ? 'Không thể tải danh sách phòng'
+                    : 'Cannot load rooms'
+            );
         } finally {
             setLoading(false);
         }
     };
-
     // Fetch available promotions
     const fetchAvailablePromotions = async () => {
         try {
@@ -206,12 +226,12 @@ const CreateBooking = () => {
         const checkOut = new Date(formData.checkOutDate);
         const nights = Math.max(0, Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24)));
         let total = nights * selectedRoom.pricePerNight;
-        
+
         // Apply promotion discount (chỉ để hiển thị, không gửi lên server)
         if (appliedPromotion && promotionDiscount > 0) {
             total = Math.max(0, total - promotionDiscount);
         }
-        
+
         return total;
     };
 
@@ -221,7 +241,7 @@ const CreateBooking = () => {
             toast.error(i18n.language === 'vi' ? 'Vui lòng nhập mã khuyến mãi' : 'Please enter promotion code');
             return;
         }
-        
+
         const total = calculateTotal();
         if (total <= 0) {
             toast.error(i18n.language === 'vi' ? 'Vui lòng chọn phòng và ngày trước' : 'Please select room and dates first');
@@ -236,7 +256,7 @@ const CreateBooking = () => {
                 null,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            
+
             if (res.data) {
                 setAppliedPromotion(res.data.promotion);
                 setPromotionDiscount(res.data.discount);
@@ -268,7 +288,7 @@ const CreateBooking = () => {
                 return;
             }
             setLoading(true);
-            
+
             // CHỈ GỬI NHỮNG FIELD BACKEND CHẤP NHẬN
             const bookingData = {
                 userId: user?.id || 1,
@@ -318,7 +338,7 @@ const CreateBooking = () => {
         } catch (error) {
             console.error('❌ Create booking error:', error);
             console.error('❌ Response data:', error.response?.data);
-            
+
             let errorMsg = error.response?.data?.message || error.response?.data || 'Đặt phòng thất bại';
             if (typeof errorMsg === 'object') {
                 errorMsg = errorMsg.message || JSON.stringify(errorMsg);
@@ -346,15 +366,15 @@ const CreateBooking = () => {
                         <Typography variant="h6" gutterBottom>
                             {i18n.language === 'vi' ? '🏨 Chọn phòng' : '🏨 Select Room'}
                         </Typography>
-                        
+
                         {selectedRoom && (
                             <Alert severity="info" sx={{ mb: 2 }}>
-                                {i18n.language === 'vi' 
+                                {i18n.language === 'vi'
                                     ? `✅ Đã chọn phòng ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`
                                     : `✅ Selected room ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`}
                             </Alert>
                         )}
-                        
+
                         {loading ? (
                             <CircularProgress />
                         ) : rooms.length === 0 ? (
@@ -365,13 +385,13 @@ const CreateBooking = () => {
                             <Grid container spacing={2}>
                                 {rooms.map((room) => (
                                     <Grid item xs={12} sm={6} md={4} key={room.id}>
-                                        <Card 
-                                            sx={{ 
+                                        <Card
+                                            sx={{
                                                 cursor: 'pointer',
                                                 borderRadius: 2,
                                                 border: selectedRoom?.id === room.id ? '3px solid #007bff' : '1px solid #e0e0e0',
                                                 transition: 'all 0.3s',
-                                                '&:hover': { 
+                                                '&:hover': {
                                                     boxShadow: 6,
                                                     transform: 'translateY(-4px)'
                                                 }
@@ -387,20 +407,20 @@ const CreateBooking = () => {
                                                         <CheckCircle color="primary" />
                                                     )}
                                                 </Box>
-                                                <Chip 
-                                                    label={room.roomType} 
-                                                    size="small" 
-                                                    color="primary" 
+                                                <Chip
+                                                    label={room.roomType}
+                                                    size="small"
+                                                    color="primary"
                                                     sx={{ mt: 1 }}
                                                 />
                                                 <Box sx={{ mt: 2 }}>
-                                                    <Chip 
+                                                    <Chip
                                                         icon={<People fontSize="small" />}
                                                         label={`${room.capacity} ${i18n.language === 'vi' ? 'khách' : 'guests'}`}
                                                         size="small"
                                                         variant="outlined"
                                                     />
-                                                    <Chip 
+                                                    <Chip
                                                         icon={<Bed fontSize="small" />}
                                                         label={`${i18n.language === 'vi' ? 'Tầng' : 'Floor'} ${room.floor}`}
                                                         size="small"
@@ -424,115 +444,239 @@ const CreateBooking = () => {
                 );
             case 1:
                 return (
-                    <Box>
-                        <Typography variant="h6" gutterBottom>
-                            {i18n.language === 'vi' ? '📝 Thông tin đặt phòng' : '📝 Booking Information'}
-                        </Typography>
+                    <Box sx={{ maxWidth: 980, mx: 'auto' }}>
+                        <Box sx={{ mb: 2.5 }}>
+                            <Typography variant="h5" sx={{ color: '#243a30', fontWeight: 750 }}>
+                                {i18n.language === 'vi' ? '📝 Thông tin đặt phòng' : '📝 Booking information'}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: '#748078' }}>
+                                {i18n.language === 'vi'
+                                    ? 'Điền thời gian lưu trú và thông tin liên hệ của bạn.'
+                                    : 'Enter your stay dates and contact details.'}
+                            </Typography>
+                        </Box>
+
                         {selectedRoom && (
-                            <Alert severity="info" sx={{ mb: 3 }}>
-                                {i18n.language === 'vi' 
-                                    ? `Đang đặt phòng ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`
-                                    : `Booking room ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`}
+                            <Alert
+                                severity="info"
+                                icon={<Room />}
+                                sx={{
+                                    mb: 2.5,
+                                    borderRadius: 2.5,
+                                    bgcolor: '#eff7f3',
+                                    color: '#244f3f',
+                                    '& .MuiAlert-icon': { color: '#28745c' }
+                                }}
+                            >
+                                <Box sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 1.5,
+                                    width: '100%'
+                                }}>
+                                    <Box>
+                                        <Typography sx={{ fontWeight: 700 }}>
+                                            {i18n.language === 'vi'
+                                                ? `Đang đặt phòng ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`
+                                                : `Booking room ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ color: '#65756c' }}>
+                                            {selectedRoom.capacity} {i18n.language === 'vi' ? 'khách tối đa' : 'guests maximum'}
+                                        </Typography>
+                                    </Box>
+                                    <Typography sx={{ color: '#1d624b', fontWeight: 800, whiteSpace: 'nowrap' }}>
+                                        {formatCurrency(selectedRoom.pricePerNight)} / {i18n.language === 'vi' ? 'đêm' : 'night'}
+                                    </Typography>
+                                </Box>
                             </Alert>
                         )}
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6}>
+
+                        <Paper
+                            variant="outlined"
+                            sx={{
+                                p: { xs: 2, sm: 3 },
+                                mb: 2.5,
+                                borderRadius: 3,
+                                borderColor: '#e2e9e3'
+                            }}
+                        >
+                            <Typography variant="subtitle1" sx={{ color: '#2b4337', fontWeight: 700 }}>
+                                🗓️ {i18n.language === 'vi' ? 'Thời gian lưu trú' : 'Stay dates'}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.35, mb: 2, color: '#78847d' }}>
+                                {i18n.language === 'vi'
+                                    ? 'Ngày trả phòng cần sau ngày nhận phòng.'
+                                    : 'Check-out must be after check-in.'}
+                            </Typography>
+
+                            <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: {
+                                    xs: 'minmax(0, 1fr)',
+                                    sm: 'repeat(2, minmax(0, 1fr))'
+                                },
+                                gap: 2
+                            }}>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Ngày nhận phòng' : 'Check-in Date'}
+                                    label={i18n.language === 'vi' ? 'Ngày nhận phòng' : 'Check-in date'}
                                     type="date"
                                     value={formData.checkInDate}
-                                    onChange={(e) => setFormData({ ...formData, checkInDate: e.target.value })}
-                                    InputLabelProps={{ shrink: true }}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        checkInDate: e.target.value
+                                    }))}
+                                    slotProps={{ inputLabel: { shrink: true } }}
                                     required
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Ngày trả phòng' : 'Check-out Date'}
+                                    label={i18n.language === 'vi' ? 'Ngày trả phòng' : 'Check-out date'}
                                     type="date"
                                     value={formData.checkOutDate}
-                                    onChange={(e) => setFormData({ ...formData, checkOutDate: e.target.value })}
-                                    InputLabelProps={{ shrink: true }}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        checkOutDate: e.target.value
+                                    }))}
+                                    slotProps={{ inputLabel: { shrink: true } }}
                                     required
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                            {dateConflict && (
-                                <Grid item xs={12}>
-                                    <Alert severity="error">⚠️ {dateConflict} — vui lòng chọn ngày khác</Alert>
-                                </Grid>
-                            )}
-                            <Grid item xs={12} sm={6}>
+
+                                {dateConflict && (
+                                    <Box sx={{ gridColumn: '1 / -1' }}>
+                                        <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                            ⚠️ {dateConflict} — {i18n.language === 'vi'
+                                                ? 'vui lòng chọn ngày khác'
+                                                : 'please choose other dates'}
+                                        </Alert>
+                                    </Box>
+                                )}
+                            </Box>
+
+                            <Divider sx={{ my: 3 }} />
+
+                            <Typography variant="subtitle1" sx={{ mb: 2, color: '#2b4337', fontWeight: 700 }}>
+                                👤 {i18n.language === 'vi' ? 'Thông tin khách hàng' : 'Guest details'}
+                            </Typography>
+
+                            <Box sx={{
+                                display: 'grid',
+                                gridTemplateColumns: {
+                                    xs: 'minmax(0, 1fr)',
+                                    sm: 'repeat(2, minmax(0, 1fr))'
+                                },
+                                gap: 2
+                            }}>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Số khách' : 'Number of Guests'}
+                                    label={i18n.language === 'vi' ? 'Số khách' : 'Number of guests'}
                                     type="number"
                                     value={formData.numberOfGuests}
-                                    onChange={(e) => setFormData({ ...formData, numberOfGuests: parseInt(e.target.value) || 1 })}
-                                    inputProps={{ min: 1, max: 10 }}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        numberOfGuests: parseInt(e.target.value) || 1
+                                    }))}
+                                    slotProps={{ htmlInput: { min: 1, max: 10 } }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Họ và tên' : 'Full Name'}
+                                    label={i18n.language === 'vi' ? 'Họ và tên' : 'Full name'}
                                     value={formData.fullName}
-                                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        fullName: e.target.value
+                                    }))}
                                     required
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Số điện thoại' : 'Phone Number'}
+                                    label={i18n.language === 'vi' ? 'Số điện thoại' : 'Phone number'}
                                     value={formData.phoneNumber}
-                                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        phoneNumber: e.target.value
+                                    }))}
                                     required
                                     placeholder="0987654321"
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                            <Grid item xs={12} sm={6}>
                                 <TextField
                                     fullWidth
                                     label="Email"
                                     type="email"
                                     value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        email: e.target.value
+                                    }))}
                                     required
                                     placeholder="example@email.com"
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
+                            </Box>
+                        </Paper>
 
-                            {/* Promotion Section */}
-                            <Grid item xs={12}>
-                                <Divider sx={{ my: 1 }} />
-                                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                                    🎉 {i18n.language === 'vi' ? 'Mã giảm giá' : 'Promotion Code'}
+                        <Box sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {
+                                xs: 'minmax(0, 1fr)',
+                                md: 'repeat(2, minmax(0, 1fr))'
+                            },
+                            gap: 2
+                        }}>
+                            <Paper
+                                variant="outlined"
+                                sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, borderColor: '#e2e9e3' }}
+                            >
+                                <Typography variant="subtitle1" sx={{ mb: 0.5, color: '#2b4337', fontWeight: 700 }}>
+                                    🎉 {i18n.language === 'vi' ? 'Mã giảm giá' : 'Promo code'}
                                 </Typography>
+                                <Typography variant="body2" sx={{ mb: 1.5, color: '#78847d' }}>
+                                    {i18n.language === 'vi'
+                                        ? 'Bạn có thể nhập mã ưu đãi nếu có.'
+                                        : 'Enter a promo code if you have one.'}
+                                </Typography>
+
                                 {availablePromotions.length > 0 && (
-                                    <Button 
-                                        size="small" 
+                                    <Button
+                                        size="small"
                                         onClick={() => setShowPromotions(!showPromotions)}
-                                        sx={{ mb: 1 }}
+                                        sx={{
+                                            minWidth: 112,
+                                            minHeight: 48,
+                                            borderRadius: 2,
+                                            borderColor: '#cbd8cf',
+                                            color: '#315f4c',
+                                            fontWeight: 700,
+                                            textTransform: 'none',
+                                        }}
                                     >
-                                        {showPromotions ? '📕 Ẩn' : '📖 Xem khuyến mãi đang có'}
+                                        {showPromotions
+                                            ? (i18n.language === 'vi' ? 'Ẩn khuyến mãi' : 'Hide promotions')
+                                            : (i18n.language === 'vi' ? 'Xem khuyến mãi đang có' : 'View available promotions')}
                                     </Button>
                                 )}
+
                                 {showPromotions && availablePromotions.length > 0 && (
-                                    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                                        <Typography variant="caption" color="textSecondary" gutterBottom display="block">
-                                            {i18n.language === 'vi' ? 'Các mã khuyến mãi đang có:' : 'Available promotions:'}
+                                    <Paper
+                                        variant="outlined"
+                                        sx={{ p: 1.5, mb: 1.5, borderRadius: 2, bgcolor: '#fbfcfb' }}
+                                    >
+                                        <Typography variant="caption" sx={{ display: 'block', mb: 1, color: '#68766e' }}>
+                                            {i18n.language === 'vi' ? 'Chọn mã khuyến mãi:' : 'Choose a promotion:'}
                                         </Typography>
-                                        <Box display="flex" flexWrap="wrap" gap={1}>
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                                             {availablePromotions.map((promo) => (
                                                 <Chip
                                                     key={promo.id}
                                                     label={promo.code}
-                                                    onClick={() => {
-                                                        setPromotionCode(promo.code);
-                                                        handleApplyPromotion();
-                                                    }}
+                                                    onClick={() => setPromotionCode(promo.code)}
                                                     icon={<LocalOffer />}
                                                     color="primary"
                                                     variant="outlined"
@@ -542,61 +686,97 @@ const CreateBooking = () => {
                                         </Box>
                                     </Paper>
                                 )}
-                                <Box display="flex" gap={1}>
+
+                                <Box sx={{
+                                    display: 'flex',
+                                    flexDirection: { xs: 'column', sm: 'row' },
+                                    gap: 1
+                                }}>
                                     <TextField
                                         fullWidth
                                         size="small"
-                                        label={i18n.language === 'vi' ? 'Nhập mã giảm giá' : 'Enter promotion code'}
+                                        label={i18n.language === 'vi' ? 'Nhập mã giảm giá' : 'Enter promo code'}
                                         value={promotionCode}
                                         onChange={(e) => setPromotionCode(e.target.value.toUpperCase())}
-                                        placeholder={i18n.language === 'vi' ? 'VD: SUMMER20' : 'E.g: SUMMER20'}
+                                        placeholder={i18n.language === 'vi' ? 'VD: SUMMER20' : 'E.g. SUMMER20'}
                                         disabled={!!appliedPromotion}
                                         InputProps={{
                                             startAdornment: <LocalOffer sx={{ mr: 1, color: 'text.secondary' }} />
                                         }}
+                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                     />
                                     {!appliedPromotion ? (
-                                        <Button 
-                                            variant="contained" 
+                                        <Button
+                                            variant="contained"
                                             onClick={handleApplyPromotion}
                                             disabled={applyingPromotion || !promotionCode.trim()}
-                                            sx={{ minWidth: 100, bgcolor: '#ff9800' }}
+                                            sx={{
+                                                minWidth: { xs: '100%', sm: 112 },
+                                                borderRadius: 2,
+                                                bgcolor: '#28745c',
+                                                whiteSpace: 'nowrap'
+                                            }}
                                         >
-                                            {applyingPromotion ? <CircularProgress size={24} /> : i18n.language === 'vi' ? 'Áp dụng' : 'Apply'}
+                                            {applyingPromotion
+                                                ? <CircularProgress size={22} />
+                                                : i18n.language === 'vi' ? 'Áp dụng' : 'Apply'}
                                         </Button>
                                     ) : (
-                                        <Button 
-                                            variant="outlined" 
-                                            color="error" 
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
                                             onClick={handleRemovePromotion}
-                                            sx={{ minWidth: 100 }}
+                                            sx={{
+                                                minWidth: { xs: '100%', sm: 112 },
+                                                borderRadius: 2,
+                                                whiteSpace: 'nowrap'
+                                            }}
                                             startIcon={<Close />}
                                         >
                                             {i18n.language === 'vi' ? 'Hủy' : 'Remove'}
                                         </Button>
                                     )}
                                 </Box>
+
                                 {appliedPromotion && (
-                                    <Alert severity="success" sx={{ mt: 1 }}>
-                                        ✅ {i18n.language === 'vi' ? 'Đã áp dụng mã' : 'Applied'} <strong>{appliedPromotion.code}</strong>: 
-                                        {i18n.language === 'vi' ? ' Giảm' : ' Discount'} <strong>{formatCurrency(promotionDiscount)}</strong>
+                                    <Alert severity="success" sx={{ mt: 1.5, borderRadius: 2 }}>
+                                        {i18n.language === 'vi' ? 'Đã áp dụng mã' : 'Applied'}
+                                        {' '}<strong>{appliedPromotion.code}</strong>:
+                                        {i18n.language === 'vi' ? ' Giảm ' : ' Discount '}
+                                        <strong>{formatCurrency(promotionDiscount)}</strong>
                                         {appliedPromotion.description && ` - ${appliedPromotion.description}`}
                                     </Alert>
                                 )}
-                            </Grid>
+                            </Paper>
 
-                            <Grid item xs={12}>
+                            <Paper
+                                variant="outlined"
+                                sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 3, borderColor: '#e2e9e3' }}
+                            >
+                                <Typography variant="subtitle1" sx={{ mb: 0.5, color: '#2b4337', fontWeight: 700 }}>
+                                    💬 {i18n.language === 'vi' ? 'Yêu cầu đặc biệt' : 'Special requests'}
+                                </Typography>
+                                <Typography variant="body2" sx={{ mb: 1.5, color: '#78847d' }}>
+                                    {i18n.language === 'vi'
+                                        ? 'Không bắt buộc — cho chúng tôi biết nếu bạn cần hỗ trợ thêm.'
+                                        : 'Optional — let us know if you need anything.'}
+                                </Typography>
                                 <TextField
                                     fullWidth
-                                    label={i18n.language === 'vi' ? 'Yêu cầu đặc biệt' : 'Special Requests'}
                                     multiline
-                                    rows={3}
+                                    minRows={3}
                                     value={formData.specialRequests}
-                                    onChange={(e) => setFormData({ ...formData, specialRequests: e.target.value })}
-                                    placeholder={i18n.language === 'vi' ? 'Nhập yêu cầu đặc biệt nếu có...' : 'Enter special requests if any...'}
+                                    onChange={(e) => setFormData(prev => ({
+                                        ...prev,
+                                        specialRequests: e.target.value
+                                    }))}
+                                    placeholder={i18n.language === 'vi'
+                                        ? 'Ví dụ: phòng yên tĩnh, thêm gối...'
+                                        : 'E.g. quiet room, extra pillows...'}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
                                 />
-                            </Grid>
-                        </Grid>
+                            </Paper>
+                        </Box>
                     </Box>
                 );
             case 2:
@@ -616,7 +796,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><Room /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={`${i18n.language === 'vi' ? 'Phòng' : 'Room'} ${selectedRoom?.roomNumber || 'N/A'}`}
                                                 secondary={selectedRoom?.roomType || 'N/A'}
                                             />
@@ -625,7 +805,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><People /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={`${selectedRoom?.capacity || 0} ${i18n.language === 'vi' ? 'khách' : 'guests'}`}
                                                 secondary={i18n.language === 'vi' ? 'Sức chứa' : 'Capacity'}
                                             />
@@ -634,7 +814,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><AttachMoney /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={formatCurrency(selectedRoom?.pricePerNight || 0)}
                                                 secondary={i18n.language === 'vi' ? 'Giá/đêm' : 'Price/Night'}
                                             />
@@ -650,7 +830,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><Person /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={formData.fullName || 'N/A'}
                                                 secondary={i18n.language === 'vi' ? 'Họ và tên' : 'Full Name'}
                                             />
@@ -659,7 +839,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><Phone /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={formData.phoneNumber || 'N/A'}
                                                 secondary={i18n.language === 'vi' ? 'Số điện thoại' : 'Phone'}
                                             />
@@ -668,7 +848,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><Email /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={formData.email || 'N/A'}
                                                 secondary="Email"
                                             />
@@ -677,7 +857,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><CalendarToday /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={`${formatDate(formData.checkInDate)} → ${formatDate(formData.checkOutDate)}`}
                                                 secondary={i18n.language === 'vi' ? 'Ngày nhận - trả phòng' : 'Check-in - Check-out'}
                                             />
@@ -686,7 +866,7 @@ const CreateBooking = () => {
                                             <ListItemAvatar>
                                                 <Avatar><People /></Avatar>
                                             </ListItemAvatar>
-                                            <ListItemText 
+                                            <ListItemText
                                                 primary={`${formData.numberOfGuests || 1} ${i18n.language === 'vi' ? 'khách' : 'guests'}`}
                                                 secondary={i18n.language === 'vi' ? 'Số khách' : 'Guests'}
                                             />
@@ -769,8 +949,8 @@ const CreateBooking = () => {
 
     return (
         <Box>
-            <Button 
-                startIcon={<ArrowBack />} 
+            <Button
+                startIcon={<ArrowBack />}
                 onClick={() => navigate(-1)}
                 sx={{ mb: 2 }}
             >
@@ -806,7 +986,16 @@ const CreateBooking = () => {
                         variant="contained"
                         onClick={activeStep === steps.length - 1 ? handleSubmit : handleNext}
                         disabled={loading || (activeStep === 1 && !!dateConflict)}
-                        sx={{ bgcolor: '#007bff' }}
+                        sx={{
+                            minWidth: 136,
+                            minHeight: 48,
+                            borderRadius: 2,
+                            bgcolor: '#28745c',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            boxShadow: 'none',
+                            '&:hover': { bgcolor: '#205c49', boxShadow: 'none' },
+                        }}
                     >
                         {loading ? (
                             <CircularProgress size={24} color="inherit" />
@@ -822,4 +1011,4 @@ const CreateBooking = () => {
     );
 };
 
-export default CreateBooking;
+    export default CreateBooking;

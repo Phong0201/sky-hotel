@@ -6,8 +6,8 @@ import {
     Card, CardContent, Snackbar, Tab, Tabs,
     Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { 
-    Save, Refresh, Edit, CheckCircle, Cancel, 
+import {
+    Save, Refresh, Edit, CheckCircle, Cancel,
     Add, Delete, Image, CloudUpload, DragIndicator,
     Link as LinkIcon
 } from '@mui/icons-material';
@@ -19,6 +19,25 @@ import axios from 'axios';
 const API_BASE_URL = 'http://localhost:9981/api';
 const API_URL = 'http://localhost:9981';
 
+const DEFAULT_HOME_AMENITIES = [
+    { key: 'wifi', name: 'WiFi', imageUrl: '', description: '', hours: '', conditions: '' },
+    { key: 'pool', name: 'Hồ bơi', imageUrls: [], description: '', hours: '', conditions: '' },
+    { key: 'restaurant', name: 'Nhà hàng', imageUrls: [], description: '', hours: '', conditions: '' },
+    { key: 'gym', name: 'Phòng gym', imageUrls: [], description: '', hours: '', conditions: '' },
+    { key: 'parking', name: 'Bãi đỗ xe', imageUrls: [], description: '', hours: '', conditions: '' },
+    { key: 'cafe', name: 'Quán cà phê', imageUrls: [], description: '', hours: '', conditions: '' }
+];
+
+const resolveAmenityImageUrl = (value) => {
+    if (!value || typeof value !== 'string') return '';
+
+    if (/^(https?:)?\/\//i.test(value) || /^(data:|blob:)/i.test(value)) {
+        return value;
+    }
+
+    return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
+};
+
 const Settings = () => {
     const { t, i18n } = useTranslation();
     const { user, isAdmin } = useAuth();
@@ -27,7 +46,9 @@ const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [tabValue, setTabValue] = useState(0);
     const [uploading, setUploading] = useState(false);
-    
+    const [amenitySettings, setAmenitySettings] = useState(DEFAULT_HOME_AMENITIES);
+    const [amenityUploadingKey, setAmenityUploadingKey] = useState(null);
+
     // Settings state
     const [settings, setSettings] = useState({
         supportPhone: '+84 123 456 789',
@@ -63,13 +84,47 @@ const Settings = () => {
             const res = await axios.get(`${API_BASE_URL}/settings`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             const data = res.data || [];
             const settingsMap = {};
             data.forEach(item => {
                 settingsMap[item.key] = item.value;
             });
-            
+            let savedAmenities = [];
+
+            try {
+                const parsed = JSON.parse(settingsMap.homeAmenities || '[]');
+                if (Array.isArray(parsed)) {
+                    savedAmenities = parsed;
+                }
+            } catch (error) {
+                console.error('Dữ liệu homeAmenities không phải JSON hợp lệ:', error);
+            }
+
+            const savedAmenityMap = new Map(
+                savedAmenities
+                    .filter((amenity) => amenity && amenity.key)
+                    .map((amenity) => [amenity.key, amenity])
+            );
+
+            setAmenitySettings(
+                DEFAULT_HOME_AMENITIES.map((defaultAmenity) => {
+                    const saved = savedAmenityMap.get(defaultAmenity.key) || {};
+                    const imageUrls =
+                        Array.isArray(saved.imageUrls) && saved.imageUrls.length > 0
+                            ? saved.imageUrls
+                            : saved.imageUrl
+                                ? [saved.imageUrl]
+                                : [];
+
+                    return {
+                        ...defaultAmenity,
+                        ...saved,
+                        imageUrls
+                    };
+                })
+            );
+
             setSettings({
                 supportPhone: settingsMap.supportPhone || '+84 123 456 789',
                 supportEmail: settingsMap.supportEmail || 'support@skyhotel.com',
@@ -109,25 +164,54 @@ const Settings = () => {
     // ============ SAVE SETTINGS ============
     const handleSave = async () => {
         setSaving(true);
+
         try {
             const token = localStorage.getItem('token');
-            
-            // 👉 DÙNG POST ĐỂ TẠO HOẶC UPDATE
-            for (const [key, value] of Object.entries(settings)) {
+            const headers = { Authorization: `Bearer ${token}` };
+
+            if (tabValue === 2) {
+                // Tab Tiện ích: chỉ lưu homeAmenities
                 await axios.post(
                     `${API_BASE_URL}/settings`,
                     {
-                        key: key,
-                        value: value,
-                        type: 'TEXT',
-                        description: `Setting for ${key}`
+                        key: 'homeAmenities',
+                        value: JSON.stringify(amenitySettings),
+                        type: 'JSON',
+                        description: 'Thông tin tiện ích hiển thị trên trang chủ'
                     },
-                    { headers: { Authorization: `Bearer ${token}` } }
+                    { headers }
                 );
+            } else {
+                // Tab 0: liên hệ; Tab 1: thông điệp
+                const keysByTab = {
+                    0: [
+                        'supportPhone',
+                        'supportEmail',
+                        'supportAddress',
+                        'supportHours',
+                        'zaloUrl',
+                        'messengerUrl',
+                        'fanpageUrl',
+                        'contactTagline'
+                    ],
+                    1: ['welcomeMessage']
+                };
+
+                for (const key of keysByTab[tabValue] || []) {
+                    await axios.post(
+                        `${API_BASE_URL}/settings`,
+                        {
+                            key,
+                            value: settings[key],
+                            type: 'TEXT',
+                            description: `Setting for ${key}`
+                        },
+                        { headers }
+                    );
+                }
             }
-            
-            toast.success('✅ Cập nhật cài đặt thành công!');
-            fetchSettings();
+
+            toast.success('✅ Cập nhật thành công!');
         } catch (error) {
             console.error('Save settings error:', error);
             toast.error('Cập nhật thất bại');
@@ -138,6 +222,79 @@ const Settings = () => {
 
     const handleChange = (field, value) => {
         setSettings(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleAmenityChange = (key, field, value) => {
+        setAmenitySettings((previous) =>
+            previous.map((amenity) =>
+                amenity.key === key
+                    ? { ...amenity, [field]: value }
+                    : amenity
+            )
+        );
+    };
+
+    const handleAmenityImageUpload = async (key, fileList) => {
+        const files = Array.from(fileList || []);
+        if (files.length === 0) return;
+
+        if (files.some((file) => !file.type.startsWith('image/'))) {
+            toast.error('Chỉ chọn file ảnh');
+            return;
+        }
+
+        setAmenityUploadingKey(key);
+
+        try {
+            const token = localStorage.getItem('token');
+            const uploadedUrls = [];
+
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await axios.post(
+                    `${API_BASE_URL}/settings/backgrounds/upload`,
+                    formData,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                if (res.data?.url) uploadedUrls.push(res.data.url);
+            }
+
+            setAmenitySettings((previous) =>
+                previous.map((amenity) =>
+                    amenity.key === key
+                        ? {
+                            ...amenity,
+                            imageUrls: [...(amenity.imageUrls || []), ...uploadedUrls]
+                        }
+                        : amenity
+                )
+            );
+
+            toast.success(`Đã upload ${uploadedUrls.length} ảnh`);
+        } catch (error) {
+            console.error('Upload amenity images error:', error);
+            toast.error('Upload ảnh tiện ích thất bại');
+        } finally {
+            setAmenityUploadingKey(null);
+        }
+    };
+
+    const handleRemoveAmenityImage = (key, imageIndex) => {
+        setAmenitySettings((previous) =>
+            previous.map((amenity) =>
+                amenity.key === key
+                    ? {
+                        ...amenity,
+                        imageUrls: (amenity.imageUrls || []).filter(
+                            (_, index) => index !== imageIndex
+                        )
+                    }
+                    : amenity
+            )
+        );
     };
 
     // ============ BACKGROUND MANAGEMENT ============
@@ -289,33 +446,23 @@ const Settings = () => {
                         ⚙️ Quản lý cài đặt
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        {i18n.language === 'vi' 
-                            ? 'Quản lý thông tin hiển thị trên hệ thống' 
+                        {i18n.language === 'vi'
+                            ? 'Quản lý thông tin hiển thị trên hệ thống'
                             : 'Manage system settings'}
                     </Typography>
                 </Box>
                 <Box display="flex" gap={1}>
-                    <Button 
-                        variant="outlined" 
+                    <Button
+                        variant="outlined"
                         startIcon={<Refresh />}
                         onClick={() => { fetchSettings(); fetchBackgrounds(); }}
                         disabled={loading || bgLoading}
                     >
                         Làm mới
                     </Button>
-                    {tabValue === 0 ? (
-                        <Button 
-                            variant="contained" 
-                            startIcon={<Save />}
-                            onClick={handleSave}
-                            disabled={saving}
-                            sx={{ bgcolor: '#007bff' }}
-                        >
-                            {saving ? 'Đang lưu...' : 'Lưu cài đặt'}
-                        </Button>
-                    ) : (
-                        <Button 
-                            variant="contained" 
+                    {tabValue === 3 ? (
+                        <Button
+                            variant="contained"
                             startIcon={<Save />}
                             onClick={handleSaveBackgrounds}
                             disabled={bgLoading}
@@ -323,291 +470,428 @@ const Settings = () => {
                         >
                             {bgLoading ? 'Đang lưu...' : 'Lưu background'}
                         </Button>
+                    ) : (
+                        <Button
+                            variant="contained"
+                            startIcon={<Save />}
+                            onClick={handleSave}
+                            disabled={saving}
+                            sx={{ bgcolor: '#007bff' }}
+                        >
+                            {saving
+                                ? 'Đang lưu...'
+                                : tabValue === 0
+                                    ? 'Lưu thông tin hỗ trợ'
+                                    : tabValue === 1
+                                        ? 'Lưu thông điệp'
+                                        : 'Lưu tiện ích'}
+                        </Button>
                     )}
                 </Box>
             </Box>
 
             {/* Tabs */}
-            <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)} sx={{ mb: 3 }}>
-                <Tab label="⚙️ Cài đặt chung" />
-                <Tab label="🖼️ Background Slideshow" />
+            <Tabs
+                value={tabValue}
+                onChange={(e, value) => setTabValue(value)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ mb: 3 }}
+            >
+                <Tab label="📞 Liên hệ & hỗ trợ" />
+                <Tab label="💬 Thông điệp" />
+                <Tab label="🏨 Tiện ích" />
+                <Tab label="🖼️ Background" />
             </Tabs>
 
-            {/* TAB 0: General Settings */}
+            {/* TAB 0: Liên hệ & hỗ trợ */}
             {tabValue === 0 && (
-                <>
-                    <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
-                        💡 {i18n.language === 'vi' 
-                            ? 'Các thông tin này sẽ hiển thị trên trang hỗ trợ của khách hàng' 
-                            : 'These settings will be displayed on customer support page'}
-                    </Alert>
+                <Paper sx={{ p: 3, borderRadius: 3 }}>
+                    <Typography variant="h6" fontWeight={600} gutterBottom>
+                        📞 Thông tin hỗ trợ
+                    </Typography>
 
-                    <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 3, borderRadius: 3 }}>
-                                <Typography variant="h6" fontWeight={600} gutterBottom>
-                                    📞 Thông tin hỗ trợ
-                                </Typography>
-                                <Divider sx={{ mb: 2 }} />
-                                
+                    <Grid container spacing={2}>
+                        {[
+                            ['supportPhone', 'Số điện thoại'],
+                            ['supportEmail', 'Email'],
+                            ['supportAddress', 'Địa chỉ'],
+                            ['supportHours', 'Giờ làm việc'],
+                            ['zaloUrl', 'Link Zalo'],
+                            ['messengerUrl', 'Link Messenger'],
+                            ['fanpageUrl', 'Link Fanpage'],
+                            ['contactTagline', 'Thông điệp hỗ trợ']
+                        ].map(([key, label]) => (
+                            <Grid item xs={12} md={6} key={key}>
                                 <TextField
                                     fullWidth
-                                    label="Số điện thoại"
-                                    value={settings.supportPhone}
-                                    onChange={(e) => handleChange('supportPhone', e.target.value)}
-                                    sx={{ mb: 2 }}
+                                    label={label}
+                                    value={settings[key] || ''}
+                                    onChange={(e) => handleChange(key, e.target.value)}
+                                    multiline={key === 'supportAddress' || key === 'contactTagline'}
+                                    minRows={
+                                        key === 'supportAddress' || key === 'contactTagline'
+                                            ? 2
+                                            : undefined
+                                    }
                                 />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Email"
-                                    value={settings.supportEmail}
-                                    onChange={(e) => handleChange('supportEmail', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Địa chỉ"
-                                    value={settings.supportAddress}
-                                    onChange={(e) => handleChange('supportAddress', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                    multiline
-                                    rows={2}
-                                />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Giờ làm việc"
-                                    value={settings.supportHours}
-                                    onChange={(e) => handleChange('supportHours', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                                <TextField
-                                    fullWidth
-                                    label="Link Zalo (vd: https://zalo.me/0987654321)"
-                                    value={settings.zaloUrl}
-                                    onChange={(e) => handleChange('zaloUrl', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Link Fanpage/Website (vd: https://facebook.com/skyhotel)"
-                                    value={settings.fanpageUrl}
-                                    onChange={(e) => handleChange('fanpageUrl', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Thông điệp cuối popup hỗ trợ"
-                                    value={settings.contactTagline}
-                                    onChange={(e) => handleChange('contactTagline', e.target.value)}
-                                    sx={{ mb: 2 }}
-                                />
-                            </Paper>
-                        </Grid>
-
-                        <Grid item xs={12} md={6}>
-                            <Paper sx={{ p: 3, borderRadius: 3 }}>
-                                <Typography variant="h6" fontWeight={600} gutterBottom>
-                                    💬 Thông điệp chào mừng
-                                </Typography>
-                                <Divider sx={{ mb: 2 }} />
-                                
-                                <TextField
-                                    fullWidth
-                                    label="Thông điệp chào mừng"
-                                    value={settings.welcomeMessage}
-                                    onChange={(e) => handleChange('welcomeMessage', e.target.value)}
-                                    multiline
-                                    rows={4}
-                                    sx={{ mb: 2 }}
-                                />
-                                
-                                <Box sx={{ mt: 2, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
-                                    <Typography variant="caption" color="textSecondary">
-                                        👁️ Preview:
-                                    </Typography>
-                                    <Typography variant="body1" sx={{ mt: 1, fontStyle: 'italic' }}>
-                                        "{settings.welcomeMessage}"
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        </Grid>
+                            </Grid>
+                        ))}
                     </Grid>
-                </>
+                </Paper>
             )}
 
-            {/* TAB 1: Background Management */}
+            {/* TAB 1: Thông điệp */}
             {tabValue === 1 && (
-                <Box>
-                    <Alert severity="info" sx={{ mb: 3 }}>
-                        💡 Ảnh sẽ được hiển thị theo thứ tự từ trên xuống dưới. Slideshow tự động chuyển ảnh mỗi 4 giây. Click vào ảnh sẽ chuyển đến link đã cài.
-                    </Alert>
+                <Paper sx={{ p: 3, borderRadius: 3 }}>
+                    <Typography variant="h6" fontWeight={600} gutterBottom>
+                        💬 Thông điệp chào mừng
+                    </Typography>
 
-                    {/* Preview */}
-                    <Paper sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: '#f5f5f5' }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                            📸 Preview slideshow ({backgrounds.length} ảnh)
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 1 }}>
-                            {backgrounds.length === 0 ? (
-                                <Typography variant="body2" color="textSecondary" sx={{ p: 2 }}>
-                                    Chưa có ảnh nào. Hãy thêm ảnh để hiển thị.
+                    <TextField
+                        fullWidth
+                        label="Thông điệp chào mừng"
+                        value={settings.welcomeMessage}
+                        onChange={(e) => handleChange('welcomeMessage', e.target.value)}
+                        multiline
+                        rows={4}
+                    />
+                </Paper>
+            )}
+
+            {/* TAB 2: Tiện ích */}
+            {tabValue === 2 && (
+                <Grid container spacing={2}>
+                    {amenitySettings.map((amenity) => (
+                        <Grid item xs={12} md={6} key={amenity.key}>
+                            <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
+                                <Typography variant="h6" fontWeight={600} gutterBottom>
+                                    {amenity.name}
                                 </Typography>
+
+                                <TextField
+                                    fullWidth
+                                    label="Tên tiện ích"
+                                    value={amenity.name}
+                                    onChange={(e) =>
+                                        handleAmenityChange(amenity.key, 'name', e.target.value)
+                                    }
+                                    sx={{ mb: 2 }}
+                                />
+
+                                <TextField
+                                    fullWidth
+                                    label="Link ảnh — mỗi dòng một link"
+                                    value={(amenity.imageUrls || []).join('\n')}
+                                    onChange={(e) =>
+                                        handleAmenityChange(
+                                            amenity.key,
+                                            'imageUrls',
+                                            e.target.value
+                                                .split(/\r?\n/)
+                                                .map((url) => url.trim())
+                                                .filter(Boolean)
+                                        )
+                                    }
+                                    multiline
+                                    minRows={2}
+                                    sx={{ mb: 1 }}
+                                />
+
+                                <Button
+                                    component="label"
+                                    variant="outlined"
+                                    startIcon={<CloudUpload />}
+                                    disabled={amenityUploadingKey === amenity.key}
+                                    sx={{ mb: 2 }}
+                                >
+                                    {amenityUploadingKey === amenity.key ? 'Đang upload...' : 'Chọn nhiều ảnh'}
+                                    <input
+                                        hidden
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={(e) => {
+                                            handleAmenityImageUpload(amenity.key, e.target.files);
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                </Button>
+                                <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', mb: 2 }}>
+                                    {(amenity.imageUrls || []).map((url, index) => (
+                                        <Box
+                                            key={`${url}-${index}`}
+                                            sx={{ position: 'relative', flex: '0 0 120px', height: 85 }}
+                                        >
+                                            <Box
+                                                component="img"
+                                                src={resolveAmenityImageUrl(url)}
+                                                alt={`${amenity.name} ${index + 1}`}
+                                                sx={{
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    objectFit: 'cover',
+                                                    borderRadius: 1.5
+                                                }}
+                                            />
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => handleRemoveAmenityImage(amenity.key, index)}
+                                                sx={{
+                                                    position: 'absolute',
+                                                    top: 3,
+                                                    right: 3,
+                                                    bgcolor: 'rgba(255,255,255,.9)'
+                                                }}
+                                            >
+                                                <Delete fontSize="small" color="error" />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                </Box>
+                                < TextField
+                                    fullWidth
+                                    label="Mô tả"
+                                    value={amenity.description}
+                                    onChange={(e) =>
+                                        handleAmenityChange(
+                                            amenity.key,
+                                            'description',
+                                            e.target.value
+                                        )
+                                    }
+                                    multiline
+                                    minRows={2}
+                                    sx={{ mb: 2 }}
+                                />
+
+                                <TextField
+                                    fullWidth
+                                    label="Giờ hoạt động"
+                                    value={amenity.hours}
+                                    onChange={(e) =>
+                                        handleAmenityChange(amenity.key, 'hours', e.target.value)
+                                    }
+                                    sx={{ mb: 2 }}
+                                />
+
+                                <TextField
+                                    fullWidth
+                                    label="Điều kiện sử dụng"
+                                    value={amenity.conditions}
+                                    onChange={(e) =>
+                                        handleAmenityChange(
+                                            amenity.key,
+                                            'conditions',
+                                            e.target.value
+                                        )
+                                    }
+                                    multiline
+                                    minRows={2}
+                                />
+                            </Paper>
+                        </Grid>
+                    ))}
+                </Grid>
+            )
+            }
+            {/* TAB 3: Background Management */}
+            {
+                tabValue === 3 && (
+                    <Box>
+                        <Alert severity="info" sx={{ mb: 3 }}>
+                            Ảnh hiển thị theo thứ tự từ trên xuống. Slideshow tự chuyển ảnh mỗi 4 giây.
+                            Nếu ảnh có link, click vào ảnh sẽ mở link đó.
+                        </Alert>
+
+                        {/* Preview slideshow */}
+                        <Paper sx={{ p: 2, mb: 3, borderRadius: 2, bgcolor: '#f5f5f5' }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                                📸 Preview slideshow ({backgrounds.length} ảnh)
+                            </Typography>
+
+                            <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', py: 1 }}>
+                                {backgrounds.length === 0 ? (
+                                    <Typography variant="body2" color="textSecondary" sx={{ p: 2 }}>
+                                        Chưa có ảnh background nào. Hãy thêm ảnh để hiển thị.
+                                    </Typography>
+                                ) : (
+                                    backgrounds.map((bg, index) => (
+                                        <Box
+                                            key={`${bg.url}-${index}`}
+                                            sx={{
+                                                minWidth: 200,
+                                                height: 120,
+                                                borderRadius: 2,
+                                                backgroundImage: `url("${bg.url}")`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                                position: 'relative',
+                                                flexShrink: 0,
+                                                border: '2px solid #ddd',
+                                                cursor: bg.link ? 'pointer' : 'default',
+                                                '&:hover': {
+                                                    borderColor: '#007bff',
+                                                    transform: 'scale(1.02)'
+                                                }
+                                            }}
+                                            onClick={() => {
+                                                if (bg.link) window.open(bg.link, '_blank', 'noopener,noreferrer');
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    position: 'absolute',
+                                                    bottom: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    bgcolor: 'rgba(0,0,0,0.6)',
+                                                    color: 'white',
+                                                    p: 0.5,
+                                                    fontSize: '0.7rem',
+                                                    textAlign: 'center'
+                                                }}
+                                            >
+                                                {bg.name || `#${index + 1}`}
+                                                {bg.link && ' 🔗'}
+                                            </Box>
+                                        </Box>
+                                    ))
+                                )}
+                            </Box>
+                        </Paper>
+
+                        {/* Nút thao tác */}
+                        <Box display="flex" gap={1} mb={3}>
+                            <Button
+                                variant="contained"
+                                startIcon={<Add />}
+                                onClick={handleAddBackground}
+                            >
+                                Thêm ảnh
+                            </Button>
+
+                            <Button
+                                variant="outlined"
+                                startIcon={<Refresh />}
+                                onClick={fetchBackgrounds}
+                                disabled={bgLoading}
+                            >
+                                Làm mới
+                            </Button>
+                        </Box>
+
+                        {/* Danh sách background */}
+                        <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
+                            {backgrounds.length === 0 ? (
+                                <Box p={4} textAlign="center">
+                                    <Typography variant="body1" color="textSecondary">
+                                        📭 Chưa có ảnh background nào
+                                    </Typography>
+
+                                    <Button
+                                        variant="contained"
+                                        startIcon={<Add />}
+                                        onClick={handleAddBackground}
+                                        sx={{ mt: 2 }}
+                                    >
+                                        Thêm ảnh đầu tiên
+                                    </Button>
+                                </Box>
                             ) : (
                                 backgrounds.map((bg, index) => (
                                     <Box
-                                        key={index}
+                                        key={`${bg.url}-row-${index}`}
                                         sx={{
-                                            minWidth: 200,
-                                            height: 120,
-                                            borderRadius: 2,
-                                            backgroundImage: `url(${bg.url})`,
-                                            backgroundSize: 'cover',
-                                            backgroundPosition: 'center',
-                                            position: 'relative',
-                                            flexShrink: 0,
-                                            border: '2px solid #ddd',
-                                            cursor: 'pointer',
-                                            '&:hover': { borderColor: '#007bff', transform: 'scale(1.02)' }
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            p: 2,
+                                            borderBottom:
+                                                index < backgrounds.length - 1
+                                                    ? '1px solid #e0e0e0'
+                                                    : 'none',
+                                            '&:hover': { bgcolor: '#f5f5f5' }
                                         }}
-                                        onClick={() => bg.link && window.open(bg.link, '_blank')}
                                     >
                                         <Box
                                             sx={{
-                                                position: 'absolute',
-                                                bottom: 0,
-                                                left: 0,
-                                                right: 0,
-                                                bgcolor: 'rgba(0,0,0,0.6)',
-                                                color: 'white',
-                                                p: 0.5,
-                                                fontSize: '0.7rem',
-                                                textAlign: 'center'
+                                                width: 80,
+                                                height: 50,
+                                                borderRadius: 1,
+                                                backgroundImage: `url("${bg.url}")`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                                flexShrink: 0,
+                                                mr: 2
                                             }}
-                                        >
-                                            {bg.name || `#${index + 1}`}
-                                            {bg.link && ' 🔗'}
+                                        />
+
+                                        <Box flex={1} minWidth={0}>
+                                            <Typography variant="body2" fontWeight={500}>
+                                                {bg.name || `Background ${index + 1}`}
+                                                {bg.link && (
+                                                    <Chip
+                                                        label="Có link"
+                                                        size="small"
+                                                        color="primary"
+                                                        sx={{ ml: 1 }}
+                                                    />
+                                                )}
+                                            </Typography>
+
+                                            <Typography
+                                                variant="caption"
+                                                color="textSecondary"
+                                                sx={{ wordBreak: 'break-all' }}
+                                            >
+                                                {bg.url}
+                                            </Typography>
+                                        </Box>
+
+                                        <Box display="flex" gap={0.5}>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => handleMoveUp(index)}
+                                                disabled={index === 0}
+                                                title="Di chuyển lên"
+                                            >
+                                                ↑
+                                            </IconButton>
+
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => handleMoveDown(index)}
+                                                disabled={index === backgrounds.length - 1}
+                                                title="Di chuyển xuống"
+                                            >
+                                                ↓
+                                            </IconButton>
+
+                                            <IconButton
+                                                size="small"
+                                                color="primary"
+                                                onClick={() => handleEditBackground(bg, index)}
+                                                title="Sửa"
+                                            >
+                                                <Edit fontSize="small" />
+                                            </IconButton>
+
+                                            <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={() => handleDeleteBackground(index)}
+                                                title="Xóa"
+                                            >
+                                                <Delete fontSize="small" />
+                                            </IconButton>
                                         </Box>
                                     </Box>
                                 ))
                             )}
-                        </Box>
-                    </Paper>
-
-                    {/* Actions */}
-                    <Box display="flex" gap={1} mb={3}>
-                        <Button
-                            variant="contained"
-                            startIcon={<Add />}
-                            onClick={handleAddBackground}
-                        >
-                            Thêm ảnh
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            startIcon={<Refresh />}
-                            onClick={fetchBackgrounds}
-                            disabled={bgLoading}
-                        >
-                            Làm mới
-                        </Button>
+                        </Paper>
                     </Box>
-
-                    {/* List backgrounds */}
-                    <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                        {backgrounds.length === 0 ? (
-                            <Box p={4} textAlign="center">
-                                <Typography variant="body1" color="textSecondary">
-                                    📭 Chưa có ảnh background nào
-                                </Typography>
-                                <Button
-                                    variant="contained"
-                                    startIcon={<Add />}
-                                    onClick={handleAddBackground}
-                                    sx={{ mt: 2 }}
-                                >
-                                    Thêm ảnh đầu tiên
-                                </Button>
-                            </Box>
-                        ) : (
-                            backgrounds.map((bg, index) => (
-                                <Box
-                                    key={index}
-                                    sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        p: 2,
-                                        borderBottom: index < backgrounds.length - 1 ? '1px solid #e0e0e0' : 'none',
-                                        '&:hover': { bgcolor: '#f5f5f5' }
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            width: 80,
-                                            height: 50,
-                                            borderRadius: 1,
-                                            backgroundImage: `url(${bg.url})`,
-                                            backgroundSize: 'cover',
-                                            backgroundPosition: 'center',
-                                            flexShrink: 0,
-                                            mr: 2,
-                                            cursor: 'pointer'
-                                        }}
-                                        onClick={() => bg.link && window.open(bg.link, '_blank')}
-                                    />
-                                    <Box flex={1}>
-                                        <Typography variant="body2" fontWeight={500}>
-                                            {bg.name || `Background ${index + 1}`}
-                                            {bg.link && <Chip label="Có link" size="small" color="primary" sx={{ ml: 1 }} />}
-                                        </Typography>
-                                        <Typography variant="caption" color="textSecondary" sx={{ wordBreak: 'break-all' }}>
-                                            {bg.url}
-                                        </Typography>
-                                    </Box>
-                                    <Box display="flex" gap={0.5}>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleMoveUp(index)}
-                                            disabled={index === 0}
-                                            title="Di chuyển lên"
-                                        >
-                                            ↑
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleMoveDown(index)}
-                                            disabled={index === backgrounds.length - 1}
-                                            title="Di chuyển xuống"
-                                        >
-                                            ↓
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            color="primary"
-                                            onClick={() => handleEditBackground(bg, index)}
-                                            title="Sửa"
-                                        >
-                                            <Edit fontSize="small" />
-                                        </IconButton>
-                                        <IconButton
-                                            size="small"
-                                            color="error"
-                                            onClick={() => handleDeleteBackground(index)}
-                                            title="Xóa"
-                                        >
-                                            <Delete fontSize="small" />
-                                        </IconButton>
-                                    </Box>
-                                </Box>
-                            ))
-                        )}
-                    </Paper>
-                </Box>
-            )}
+                )
+            }
 
             {/* Dialog thêm/sửa background */}
             <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
@@ -668,7 +952,7 @@ const Settings = () => {
                             sx={{ mb: 2 }}
                             helperText="Có thể upload ảnh lên hoặc nhập link từ internet"
                         />
-                        
+
                         <TextField
                             fullWidth
                             label="Tên ảnh (tùy chọn)"
@@ -712,7 +996,7 @@ const Settings = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+        </Box >
     );
 };
 

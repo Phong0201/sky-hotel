@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { normalizePhoneForTel } from '../utils/phone';
+import { formatHotelCurrency } from '../utils/currency';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -65,18 +67,8 @@ const BookingDetail = () => {
     };
 
     // Format currency
-    const formatCurrency = (amount) => {
-        if (!amount) return '0';
-        const isVietnamese = i18n.language === 'vi';
-        const currency = isVietnamese ? 'VND' : 'USD';
-        const locale = isVietnamese ? 'vi-VN' : 'en-US';
-        return new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     // Format date
     const formatDate = (dateString) => {
@@ -505,16 +497,26 @@ const BookingDetail = () => {
                             </Grid>
                         </Grid>
 
-                        <Box mt={3}>
-                            <Divider sx={{ mb: 2 }} />
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <AccessTime sx={{ color: 'text.secondary', fontSize: 20 }} />
-                                <Typography variant="caption" color="textSecondary">
-                                    {i18n.language === 'vi' ? 'Thời gian đặt:' : 'Booked at:'}
-                                </Typography>
-                                <Typography variant="caption" fontWeight={500}>
-                                    {formatDateTime(booking.createdAt)}
-                                </Typography>
+                        <Box sx={{ mt: 2.5 }}>
+                            <Divider sx={{ mb: 1.5 }} />
+                            <Box sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1.25,
+                                p: 1.5,
+                                borderRadius: 2,
+                                border: '1px solid #e3ebe5',
+                                bgcolor: '#f5f9f6'
+                            }}>
+                                <AccessTime sx={{ color: '#527362', fontSize: 20 }} />
+                                <Box>
+                                    <Typography variant="caption" sx={{ display: 'block', color: '#68766e' }}>
+                                        {i18n.language === 'vi' ? 'Đặt phòng được tạo lúc' : 'Booking created at'}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ color: '#2b4337', fontWeight: 700 }}>
+                                        {formatDateTime(booking.createdAt)}
+                                    </Typography>
+                                </Box>
                             </Box>
                         </Box>
                     </Paper>

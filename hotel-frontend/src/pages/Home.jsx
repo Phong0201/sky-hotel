@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { formatHotelCurrency } from '../utils/currency';
+import { normalizePhoneForTel } from '../utils/phone';
+import { Menu as MuiMenu, MenuItem } from '@mui/material';
+import { Menu as MenuIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import CustomerHeader from '../components/common/CustomerHeader';
 import { useTranslation } from 'react-i18next';
 import {
   Box, Container, Typography, Grid, Card, CardContent,
@@ -30,6 +35,20 @@ import toast from 'react-hot-toast';
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:9981';
+const resolveAssetUrl = (value) => {
+  if (!value || typeof value !== 'string') return '';
+
+  // URL đầy đủ hoặc URL tương đối kiểu //example.com/image.jpg: giữ nguyên
+  if (/^(https?:)?\/\//i.test(value)) return value;
+
+  // Data URL hoặc Blob URL: giữ nguyên
+  if (/^(data:|blob:)/i.test(value)) return value;
+
+  const baseUrl = API_BASE_URL.replace(/\/+$/, '');
+  const path = value.startsWith('/') ? value : `/${value}`;
+
+  return `${baseUrl}${path}`;
+};
 
 // 👉 ẢNH BACKGROUND MẶC ĐỊNH (FALLBACK)
 const DEFAULT_BACKGROUNDS = [
@@ -40,6 +59,14 @@ const DEFAULT_BACKGROUNDS = [
   { url: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=1920&h=1080&fit=crop', name: 'Deluxe Interior' },
   { url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=1920&h=1080&fit=crop', name: 'Cozy Room' },
 ];
+const AMENITY_COLORS = {
+  wifi: '#2563eb',
+  pool: '#0891b2',
+  restaurant: '#ea580c',
+  gym: '#7c3aed',
+  parking: '#475569',
+  cafe: '#a16207'
+};
 
 // Hàm ẩn tên
 const maskName = (name) => {
@@ -74,12 +101,30 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
   const [filteredReviews, setFilteredReviews] = useState([]);
+  const [amenityDetails, setAmenityDetails] = useState([]);
+  const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
+  const [mobileNavAnchor, setMobileNavAnchor] = useState(null);
+
+  const navigateFromHeader = (path) => {
+    setProfileMenuAnchor(null);
+    setMobileNavAnchor(null);
+    navigate(path);
+  };
+
+  const handleHeaderLogout = () => {
+    setProfileMenuAnchor(null);
+    setMobileNavAnchor(null);
+    logout();
+  };
   const [searchParams, setSearchParams] = useState({
     destination: '',
     checkIn: '',
-    checkOut: ''
+    checkOut: '',
+    guests: 1
   });
+
   const [filteredRooms, setFilteredRooms] = useState([]);
+  const [roomSearchPool, setRoomSearchPool] = useState(null);
   const [reviewData, setReviewData] = useState({
     rating: 0,
     comment: '',
@@ -92,6 +137,12 @@ const Home = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewTab, setReviewTab] = useState(0);
   const [selectedRating, setSelectedRating] = useState(0);
+  const [selectedAmenity, setSelectedAmenity] = useState(null);
+  const amenityDescriptionLines = (selectedAmenity?.description || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-•]\s*/, ''))
+    .filter(Boolean);
+  const [amenityImageIndex, setAmenityImageIndex] = useState(0);
   const [openReplyDialog, setOpenReplyDialog] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
   const [replyText, setReplyText] = useState('');
@@ -109,9 +160,10 @@ const Home = () => {
     total: 0,
     distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
   });
-  
+
   // 👉 THÔNG TIN LIÊN HỆ (admin sửa trong trang Cài đặt)
   const [supportSettings, setSupportSettings] = useState({
+    welcomeMessage: '',
     supportPhone: '1900 1234',
     supportEmail: 'support@skyhotel.vn',
     supportAddress: 'Số 1 Đường Biên Sông, Phủ Lý, Hà Nam, Việt Nam',
@@ -126,24 +178,40 @@ const Home = () => {
     fetchSupportSettings();
   }, []);
 
-    const fetchSupportSettings = async () => {
+  const fetchSupportSettings = async () => {
     try {
-      // GET /api/settings đã public (SecurityConfig) - khách cũng đọc được
-      const res = await axios.get(`${API_BASE_URL}/api/settings`);
-      const data = res.data || [];
+      const res = await axios.get(`${API_BASE_URL}/api/settings/public`, {
+        params: { _t: Date.now() }
+      });
+
+      const data = Array.isArray(res.data) ? res.data : [];
       const settingsMap = {};
-      data.forEach(item => {
+
+      data.forEach((item) => {
         settingsMap[item.key] = item.value;
       });
-      setSupportSettings({
-        supportPhone: settingsMap.supportPhone || '1900 1234',
-        supportEmail: settingsMap.supportEmail || 'support@skyhotel.vn',
-        supportAddress: settingsMap.supportAddress || 'Số 1 Đường Biên Sông, Phủ Lý, Hà Nam, Việt Nam',
-        fanpageUrl: settingsMap.fanpageUrl || 'https://facebook.com/skyhotel',
-        brandDescription: settingsMap.brandDescription || 'Trải nghiệm nghỉ dưỡng đẳng cấp — phòng ấm cúng, dịch vụ tận tâm, vị trí thuận tiện. Đặt phòng online nhanh chóng và an toàn.'
-      });
+
+      let parsedAmenities = [];
+      try {
+        const parsed = JSON.parse(settingsMap.homeAmenities || '[]');
+        if (Array.isArray(parsed)) parsedAmenities = parsed;
+      } catch (error) {
+        console.error('homeAmenities không phải JSON hợp lệ:', error);
+      }
+
+      setAmenityDetails(parsedAmenities);
+
+      setSupportSettings((previous) => ({
+        ...previous,
+        welcomeMessage: settingsMap.welcomeMessage || '',
+        supportPhone: settingsMap.supportPhone || previous.supportPhone,
+        supportEmail: settingsMap.supportEmail || previous.supportEmail,
+        supportAddress: settingsMap.supportAddress || previous.supportAddress,
+        fanpageUrl: settingsMap.fanpageUrl || previous.fanpageUrl,
+        brandDescription: settingsMap.brandDescription || previous.brandDescription
+      }));
     } catch (error) {
-      console.error('Fetch support settings error:', error);
+      console.error('Fetch public settings error:', error);
     }
   };
 
@@ -177,31 +245,53 @@ const Home = () => {
   }, [backgrounds]);
 
   // Format currency
-  const formatCurrency = (amount) => {
-    const isVietnamese = i18n.language === 'vi';
-    const currency = isVietnamese ? 'VND' : 'USD';
-    const locale = isVietnamese ? 'vi-VN' : 'en-US';
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
+  const formatCurrency = (amount) =>
+    formatHotelCurrency(amount, i18n.language);
 
   // Amenities
   const getAmenities = () => {
-    return [
-      { icon: <Wifi />, name: t('amenities.wifi') || 'WiFi' },
-      { icon: <Pool />, name: t('amenities.pool') || 'Pool' },
-      { icon: <Restaurant />, name: t('amenities.restaurant') || 'Restaurant' },
-      { icon: <FitnessCenter />, name: t('amenities.gym') || 'Gym' },
-      { icon: <LocalParking />, name: t('amenities.parking') || 'Parking' },
-      { icon: <Coffee />, name: t('amenities.cafe') || 'Cafe' },
+    const baseAmenities = [
+      { key: 'wifi', icon: <Wifi />, name: t('amenities.wifi') || 'WiFi' },
+      { key: 'pool', icon: <Pool />, name: t('amenities.pool') || 'Hồ bơi' },
+      { key: 'restaurant', icon: <Restaurant />, name: t('amenities.restaurant') || 'Nhà hàng' },
+      { key: 'gym', icon: <FitnessCenter />, name: t('amenities.gym') || 'Phòng gym' },
+      { key: 'parking', icon: <LocalParking />, name: t('amenities.parking') || 'Bãi đỗ xe' },
+      { key: 'cafe', icon: <Coffee />, name: t('amenities.cafe') || 'Quán cà phê' }
     ];
-  };
 
+    return baseAmenities.map((baseAmenity) => {
+      const savedAmenity = amenityDetails.find(
+        (amenity) => amenity.key === baseAmenity.key
+      );
+
+      return {
+        ...baseAmenity,
+        ...(savedAmenity || {}),
+        key: baseAmenity.key,
+        icon: baseAmenity.icon,
+        name: savedAmenity?.name?.trim() || baseAmenity.name
+      };
+    });
+  };
   const amenities = getAmenities();
+  const activeAmenityImages =
+    Array.isArray(selectedAmenity?.imageUrls) && selectedAmenity.imageUrls.length > 0
+      ? selectedAmenity.imageUrls.filter(Boolean)
+      : selectedAmenity?.imageUrl
+        ? [selectedAmenity.imageUrl]
+        : [];
+
+  useEffect(() => {
+    setAmenityImageIndex(0);
+
+    if (!selectedAmenity || activeAmenityImages.length <= 1) return undefined;
+
+    const timer = window.setInterval(() => {
+      setAmenityImageIndex((current) => (current + 1) % activeAmenityImages.length);
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [selectedAmenity?.key, activeAmenityImages.length]);
 
   useEffect(() => {
     fetchRooms();
@@ -212,7 +302,7 @@ const Home = () => {
     if (rooms.length > 0) {
       filterRooms();
     }
-  }, [searchParams.destination, rooms]);
+  }, [searchParams.destination, searchParams.guests, rooms, roomSearchPool]);
 
   useEffect(() => {
     if (reviews.length > 0) {
@@ -238,7 +328,6 @@ const Home = () => {
       setLoading(false);
     }
   };
-  // ============ END FETCH ROOMS ============
 
   // ============ FETCH REVIEWS ============
   const fetchReviews = async () => {
@@ -246,7 +335,7 @@ const Home = () => {
       console.log('🔍 Fetching reviews...');
       const res = await axios.get('http://localhost:9981/api/reviews');
       console.log('📥 Response data:', res.data);
-      
+
       let data = [];
       if (Array.isArray(res.data)) {
         data = res.data;
@@ -267,10 +356,10 @@ const Home = () => {
           }
         }
       }
-      
+
       console.log('✅ Processed reviews:', data);
       console.log('✅ Number of reviews:', data.length);
-      
+
       setReviews(data);
       setFilteredReviews(data);
       calculateStats(data);
@@ -320,25 +409,71 @@ const Home = () => {
     }
   };
 
-  const filterRooms = () => {
-    if (!searchParams.destination) {
-      setFilteredRooms(rooms);
-      return;
-    }
-    const filtered = rooms.filter(room =>
-      room.roomNumber?.toLowerCase().includes(searchParams.destination.toLowerCase()) ||
-      room.roomType?.toLowerCase().includes(searchParams.destination.toLowerCase()) ||
-      room.description?.toLowerCase().includes(searchParams.destination.toLowerCase())
-    );
-    setFilteredRooms(filtered);
+  const filterRooms = (sourceRooms = roomSearchPool || rooms) => {
+    const keyword = searchParams.destination.trim().toLowerCase();
+    const guestCount = Math.max(1, Number(searchParams.guests) || 1);
+
+    const matches = sourceRooms.filter((room) => {
+      const searchableText = [
+        room.roomNumber,
+        room.roomType,
+        room.description
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return (
+        searchableText.includes(keyword) &&
+        Number(room.capacity || 1) >= guestCount
+      );
+    });
+
+    setFilteredRooms(matches);
+    return matches;
   };
 
-  const handleSearch = () => {
-    filterRooms();
-    toast.success(`${t('home.found') || 'Found'} ${filteredRooms.length} ${t('home.rooms') || 'rooms'}`);
-    setTimeout(() => {
-      document.getElementById('home-rooms')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
+  const handleSearch = async () => {
+    const { checkIn, checkOut } = searchParams;
+
+    if (Boolean(checkIn) !== Boolean(checkOut)) {
+      toast.error('Hãy chọn cả ngày nhận phòng và ngày trả phòng');
+      return;
+    }
+
+    if (checkIn && checkOut && checkIn >= checkOut) {
+      toast.error('Ngày trả phòng phải sau ngày nhận phòng');
+      return;
+    }
+
+    try {
+      let roomsToFilter = rooms;
+
+      if (checkIn && checkOut) {
+        const response = await axios.get(`${API_BASE_URL}/rooms/available`, {
+          params: { checkIn, checkOut }
+        });
+
+        roomsToFilter = Array.isArray(response.data) ? response.data : [];
+      }
+
+      setRoomSearchPool(roomsToFilter);
+      const matches = filterRooms(roomsToFilter);
+
+      toast.success(
+        `${t('home.found') || 'Tìm thấy'} ${matches.length} ${t('home.rooms') || 'phòng'}`
+      );
+
+      setTimeout(() => {
+        document.getElementById('home-rooms')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 120);
+    } catch (error) {
+      console.error('Search rooms error:', error);
+      toast.error('Không kiểm tra được phòng trống. Vui lòng thử lại.');
+    }
   };
 
   const handleBookNow = (room) => {
@@ -346,14 +481,17 @@ const Home = () => {
       toast.error('Phòng này hiện không còn trống');
       return;
     }
-    
+
     localStorage.setItem('selectedRoom', JSON.stringify({
       id: room.id,
       roomNumber: room.roomNumber,
       roomType: room.roomType,
       pricePerNight: room.pricePerNight,
       capacity: room.capacity,
-      imageUrl: room.imageUrl || ''
+      imageUrl: room.imageUrl || '',
+      checkInDate: searchParams.checkIn || '',
+      checkOutDate: searchParams.checkOut || '',
+      numberOfGuests: Number(searchParams.guests) || 1
     }));
 
     if (!isAuthenticated) {
@@ -361,7 +499,9 @@ const Home = () => {
       navigate('/login');
       return;
     }
-    navigate('/bookings/create');
+    navigate('/bookings/create', {
+      state: { selectedRoomId: room.id }
+    });
   };
 
   const handleReviewSubmit = async (e) => {
@@ -492,248 +632,300 @@ const Home = () => {
 
   // Lấy background hiện tại
   const currentBackground = backgrounds.length > 0 ? backgrounds[currentBgIndex] : DEFAULT_BACKGROUNDS[0];
-  
-    // Địa chỉ hiển thị + tra bản đồ (admin sửa trong Cài đặt)
+
+  // Địa chỉ hiển thị + tra bản đồ (admin sửa trong Cài đặt)
   const addressText = supportSettings.supportAddress || 'Số 1 Đường Biên Sông, Phủ Lý, Hà Nam, Việt Nam';
   const mapQuery = encodeURIComponent(addressText);
 
   return (
     <Box sx={{ bgcolor: '#f0f2f5', minHeight: '100vh' }}>
-      {/* Header - GIỮ NGUYÊN */}
-      <AppBar position="static" sx={{ bgcolor: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.08)' }}>
-        <Toolbar sx={{ maxWidth: 'xl', mx: 'auto', width: '100%' }}>
-          <Box sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => navigate('/')}>
-            <Logo size="medium" />
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexGrow: 1, ml: 4 }}>
-            <Button variant="contained" startIcon={<Hotel />} sx={{ bgcolor: '#007bff' }} onClick={() => navigate('/')}>
-              {t('home.hotel') || 'Khách sạn'}
-            </Button>
-            <Button variant="text" sx={{ color: '#666' }} onClick={() => navigate('/rooms')}>
-              {t('home.roomList') || 'Danh sách phòng'}
-            </Button>
-            {isAuthenticated && (
-              <Button variant="text" sx={{ color: '#666' }} onClick={() => navigate('/my-bookings')}>
-                {t('home.myBookings') || 'Đặt phòng của tôi'}
-              </Button>
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {isAuthenticated ? (
-              <>
-                <Badge badgeContent={3} color="error">
-                  <FavoriteBorder />
-                </Badge>
-                <Typography variant="body2" sx={{ color: '#333' }}>
-                  {user?.fullName || user?.username}
-                </Typography>
-                <Button variant="outlined" color="error" size="small" onClick={logout}>
-                  {t('app.logout') || 'Đăng xuất'}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outlined" onClick={() => navigate('/login')}>
-                  {t('app.login') || 'Đăng nhập'}
-                </Button>
-                <Button variant="contained" onClick={() => navigate('/register')} sx={{ bgcolor: '#007bff' }}>
-                  {t('app.register') || 'Đăng ký'}
-                </Button>
-              </>
-            )}
-          </Box>
-        </Toolbar>
-      </AppBar>
-
+      <CustomerHeader activePage="home" />
       {/* 👉 HERO SECTION VỚI BACKGROUND SLIDESHOW */}
       <Box
         sx={{
           position: 'relative',
-          minHeight: '70vh',
+          minHeight: { xs: 760, md: 690 },
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
           overflow: 'hidden',
-          borderRadius: '0 0 30px 30px',
+          bgcolor: '#173f36',
           cursor: currentBackground?.link ? 'pointer' : 'default'
         }}
         onClick={() => {
           const link = currentBackground?.link;
-          if (link) {
-            if (link.startsWith('http')) {
-              window.open(link, '_blank');
-            } else {
-              navigate(link);
-            }
+          if (!link) return;
+
+          if (link.startsWith('http')) {
+            window.open(link, '_blank', 'noopener,noreferrer');
+          } else {
+            navigate(link);
           }
         }}
       >
-        {/* BACKGROUND IMAGE */}
+        {/* Ảnh nền và lớp phủ */}
         <Box
           sx={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundImage: `url(${currentBackground?.url || DEFAULT_BACKGROUNDS[0].url})`,
+            inset: 0,
+            backgroundImage: `
+        linear-gradient(90deg, rgba(12,31,26,.68), rgba(12,31,26,.26)),
+        url("${resolveAssetUrl(currentBackground?.url || DEFAULT_BACKGROUNDS[0].url)}")
+      `,
             backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            transition: 'background-image 1.5s ease-in-out',
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 100%)',
-            }
+            backgroundPosition: 'center'
           }}
         />
 
-        {/* NỘI DUNG TRÊN BACKGROUND */}
-        <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, py: 6 }}>
-          <Typography
-            variant="h4"
-            fontWeight={700}
-            gutterBottom
-            align="center"
-            sx={{
-              color: 'white',
-              textShadow: '0 2px 20px rgba(0,0,0,0.5)',
-              animation: 'fadeIn 1s ease-in-out'
-            }}
-          >
-            ☁️ SkyHotel - {t('home.tagline') || 'Điểm đến tiếp theo của bạn'}
-          </Typography>
-          <Typography
-            variant="body1"
-            align="center"
-            sx={{
-              color: 'rgba(255,255,255,0.9)',
-              mb: 4,
-              textShadow: '0 2px 10px rgba(0,0,0,0.3)'
-            }}
-          >
-            {t('home.subTagline') || 'Đặt phòng khách sạn giá tốt, chất lượng hàng đầu'}
-          </Typography>
+        <Container
+          maxWidth="lg"
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            py: { xs: 7, md: 10 },
+            transform: { xs: 'translateY(18px)', md: 'translateY(36px)' }
+          }}
+        >
+          {/* Tiêu đề */}
+          <Box sx={{ maxWidth: { xs: '100%', md: 1000 }, mb: 4 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: '#e7d4ad', fontWeight: 800, letterSpacing: '.14em' }}
+            >
+              SKY HOTEL · Thanh Hóa
+            </Typography>
 
-          {/* DOT INDICATOR */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 40 }}>
-            {backgrounds.map((_, index) => (
-              <Box
-                key={index}
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  backgroundColor: currentBgIndex === index ? 'white' : 'rgba(255,255,255,0.4)',
-                  transition: 'all 0.5s ease',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    backgroundColor: 'white',
-                    transform: 'scale(1.2)'
-                  }
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentBgIndex(index);
-                }}
-              />
-            ))}
+            <Typography
+              component="h1"
+              sx={{
+                mt: 1,
+                color: '#fff',
+                fontSize: { xs: '2.6rem', sm: '3.5rem', md: '4.3rem' },
+                fontWeight: 800,
+                lineHeight: 1.08,
+                letterSpacing: '-.05em'
+              }}
+            >
+              {t('home.tagline') || 'Điểm đến tiếp theo của bạn'}
+            </Typography>
+
+            <Typography
+              sx={{
+                mt: 1.5,
+                color: 'rgba(255,255,255,.86)',
+                fontSize: { xs: '1rem', md: '1.15rem' }
+              }}
+            >
+              {supportSettings.welcomeMessage ||
+                t('home.subTagline') ||
+                'Đặt phòng khách sạn giá tốt, chất lượng hàng đầu'}
+            </Typography>
+
+            <Box sx={{ display: 'flex', gap: 4, mt: 3, flexWrap: 'wrap' }}>
+              <Box>
+                <Typography sx={{ color: '#e7d4ad', fontSize: '1.5rem', fontWeight: 800 }}>
+                  {rooms.length}+
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,.8)' }}>
+                  Phòng lưu trú
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography sx={{ color: '#e7d4ad', fontSize: '1.5rem', fontWeight: 800 }}>
+                  {(parseFloat(stats.average) || 0).toFixed(1)} ★
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,.8)' }}>
+                  Đánh giá của khách
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography sx={{ color: '#e7d4ad', fontSize: '1.5rem', fontWeight: 800 }}>
+                  24/7
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,.8)' }}>
+                  Hỗ trợ khách hàng
+                </Typography>
+              </Box>
+            </Box>
           </Box>
 
-                    <Paper
-            onClick={(e) => e.stopPropagation()}
+          {/* Thanh tìm kiếm nằm ngang */}
+          <Paper
+            onClick={(event) => event.stopPropagation()}
+            elevation={0}
             sx={{
-            p: 3,
-            borderRadius: 3,
-            maxWidth: 'lg',
-            mt: 5,
-            mx: 'auto',
-            width: '100%',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-            backgroundColor: 'rgba(255,255,255,0.95)',
-            backdropFilter: 'blur(10px)'
-          }}>
-            <Grid container spacing={2} sx={{ alignItems: 'center' }}>
-              <Grid size={{ xs: 12, md: 4.2 }}>
+              width: '100%',
+              p: { xs: 2, md: 2.5 },
+              borderRadius: 3,
+              bgcolor: 'rgba(255,255,255,.97)',
+              boxShadow: '0 20px 55px rgba(0,0,0,.2)'
+            }}
+          >
+            <Grid container spacing={1.5} alignItems="flex-end">
+              <Grid size={{ xs: 12, md: 4 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', mb: 0.6, color: '#52615b', fontWeight: 700 }}
+                >
+                  Điểm đến hoặc loại phòng
+                </Typography>
                 <TextField
                   fullWidth
-                  placeholder={t('home.searchPlaceholder') || '📍 Tìm kiếm khách sạn, địa điểm...'}
+                  placeholder={t('home.searchPlaceholder') || 'Tìm kiếm khách sạn, địa điểm...'}
                   value={searchParams.destination}
-                  onChange={(e) => setSearchParams({ ...searchParams, destination: e.target.value })}
+                  onChange={(event) =>
+                    setSearchParams({ ...searchParams, destination: event.target.value })
+                  }
                   slotProps={{
                     input: {
-                      startAdornment: <InputAdornment position="start"><LocationOn color="primary" /></InputAdornment>,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LocationOn sx={{ color: '#718078' }} />
+                        </InputAdornment>
+                      )
                     }
                   }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      height: 48,
-                      bgcolor: 'white',
-                      '& input': { fontSize: '0.9rem', padding: '0 14px' }
+                      height: 54,
+                      bgcolor: '#fff',
+                      borderRadius: 2
                     }
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 6, md: 2.9 }}>
+
+              <Grid size={{ xs: 6, md: 2 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', mb: 0.6, color: '#52615b', fontWeight: 700 }}
+                >
+                  Nhận phòng
+                </Typography>
                 <TextField
                   fullWidth
-                  label={t('home.checkIn') || 'Nhận phòng'}
                   type="date"
                   value={searchParams.checkIn}
-                  onChange={(e) => setSearchParams({ ...searchParams, checkIn: e.target.value })}
-                  slotProps={{ inputLabel: { shrink: true } }}
+                  onChange={(event) =>
+                    setSearchParams({ ...searchParams, checkIn: event.target.value })
+                  }
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      height: 48,
-                      bgcolor: 'white',
-                      '& input': { fontSize: '0.85rem', padding: '10px 14px' },
-                      '& fieldset': { borderColor: '#e0e0e0' },
-                      '&:hover fieldset': { borderColor: '#007bff' },
+                      height: 54,
+                      bgcolor: '#fff',
+                      borderRadius: 2
                     }
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 6, md: 2.9 }}>
+
+              <Grid size={{ xs: 6, md: 2 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', mb: 0.6, color: '#52615b', fontWeight: 700 }}
+                >
+                  Trả phòng
+                </Typography>
                 <TextField
                   fullWidth
-                  label={t('home.checkOut') || 'Trả phòng'}
                   type="date"
                   value={searchParams.checkOut}
-                  onChange={(e) => setSearchParams({ ...searchParams, checkOut: e.target.value })}
-                  slotProps={{ inputLabel: { shrink: true } }}
+                  onChange={(event) =>
+                    setSearchParams({ ...searchParams, checkOut: event.target.value })
+                  }
                   sx={{
                     '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      height: 48,
-                      bgcolor: 'white',
-                      '& input': { fontSize: '0.85rem', padding: '10px 14px' },
-                      '& fieldset': { borderColor: '#e0e0e0' },
-                      '&:hover fieldset': { borderColor: '#007bff' },
+                      height: 54,
+                      bgcolor: '#fff',
+                      borderRadius: 2
                     }
                   }}
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 2 }}>
+
+              <Grid size={{ xs: 6, md: 2 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ display: 'block', mb: 0.6, color: '#52615b', fontWeight: 700 }}
+                >
+                  Số khách
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="number"
+                  value={searchParams.guests}
+                  inputProps={{ min: 1, max: 10 }}
+                  onChange={(event) =>
+                    setSearchParams({
+                      ...searchParams,
+                      guests: Math.max(1, Number(event.target.value) || 1)
+                    })
+                  }
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      height: 54,
+                      bgcolor: '#fff',
+                      borderRadius: 2
+                    }
+                  }}
+                />
+              </Grid>
+
+              <Grid size={{ xs: 6, md: 2 }}>
                 <Button
                   fullWidth
                   variant="contained"
                   startIcon={<Search />}
                   onClick={handleSearch}
-                  sx={{ bgcolor: '#007bff', borderRadius: 2, height: 48, fontSize: '0.9rem', fontWeight: 600, whiteSpace: 'nowrap' }}
+                  sx={{
+                    height: 54,
+                    borderRadius: 2,
+                    bgcolor: '#174c40',
+                    fontWeight: 750,
+                    textTransform: 'none',
+                    whiteSpace: 'nowrap',
+                    '&:hover': { bgcolor: '#103c32' }
+                  }}
                 >
                   {t('home.search') || 'Tìm kiếm'}
                 </Button>
               </Grid>
             </Grid>
           </Paper>
-          
         </Container>
+
+        {/* Chấm chuyển ảnh slideshow */}
+        <Box
+          sx={{
+            position: 'absolute',
+            zIndex: 2,
+            bottom: 20,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 1
+          }}
+        >
+          {backgrounds.map((_, index) => (
+            <Box
+              key={index}
+              onClick={(event) => {
+                event.stopPropagation();
+                setCurrentBgIndex(index);
+              }}
+              sx={{
+                width: currentBgIndex === index ? 26 : 8,
+                height: 8,
+                borderRadius: 99,
+                bgcolor: currentBgIndex === index ? '#e7d4ad' : 'rgba(255,255,255,.55)',
+                cursor: 'pointer',
+                transition: 'all 180ms ease'
+              }}
+            />
+          ))}
+        </Box>
       </Box>
 
       {/* ===== TIỆN ÍCH NHANH (thanh gọn 1 hàng) ===== */}
@@ -741,11 +933,10 @@ const Home = () => {
         <Paper elevation={0} sx={{ border: '1px solid #e8ecf3', borderRadius: 3, overflow: 'hidden', bgcolor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
           <Grid container>
             {[
-              { icon: '🛏️', title: 'Tìm & đặt phòng', desc: 'Xem phòng trống', color: '#1967d2', bg: '#e8f0fe', path: '/rooms' },
+              { icon: '🛏️', title: 'Khám phá phòng', desc: `${rooms.length} phòng trong hệ thống`, color: '#1967d2', bg: '#e8f0fe', path: '/rooms' },
               { icon: '📋', title: 'Đặt phòng của tôi', desc: 'Lịch sử, thanh toán', color: '#2e7d32', bg: '#e8f5e9', path: '/my-bookings' },
-              { icon: '⭐', title: 'Đánh giá dịch vụ', desc: 'Chia sẻ trải nghiệm', color: '#f9a825', bg: '#fff8e1', path: '/reviews' },
-              { icon: <Phone sx={{ fontSize: 16 }} />, text: supportSettings.supportPhone },
-              { icon: <Email sx={{ fontSize: 16 }} />, text: supportSettings.supportEmail },
+              { icon: '⭐', title: 'Đánh giá dịch vụ', desc: `${reviews.length} lượt chia sẻ trải nghiệm`, color: '#f9a825', bg: '#fff8e1', path: '/reviews' },
+              { icon: <SupportAgent />, title: 'Hỗ trợ khách hàng', desc: supportSettings.supportPhone || 'Liên hệ Sky Hotel', bg: '#eaf0f4', path: isAuthenticated ? '/chat' : '/login' }
             ].map((item, i, arr) => (
               <Grid size={{ xs: 12, sm: 6, md: 3 }} key={item.title} sx={{ borderRight: { md: i < arr.length - 1 ? '1px solid #eef1f6' : 'none' }, borderTop: { xs: '1px solid #eef1f6', sm: 'none' } }}>
                 <Box
@@ -767,53 +958,233 @@ const Home = () => {
       </Container>
 
       {/* Stats - GIỮ NGUYÊN (mt: 5 - hết đè lên khối tiện ích bên trên) */}
+      {/* Thống kê - Tiện ích - Ưu đãi */}
       <Container maxWidth="lg" sx={{ mt: 5, position: 'relative', zIndex: 2 }}>
-        <Grid container spacing={3} alignItems="stretch">
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, borderRadius: 3, bgcolor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom align="center" sx={{ color: '#333', mb: 2 }}>📊 {t('home.stats') || 'Thống kê'}</Typography>
-              <Grid container spacing={1.5} sx={{ flex: 1, alignContent: 'center' }}>
-                <Grid item xs={6}><Box textAlign="center" onClick={() => document.getElementById('home-rooms')?.scrollIntoView({ behavior: 'smooth' })} sx={{ p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#e3f2fd', transform: 'translateY(-2px)' } }}><Typography variant="h5" fontWeight={700} sx={{ color: '#007bff' }}>{rooms.length}</Typography><Typography variant="body2" sx={{ color: '#666' }}>{t('home.rooms') || 'Phòng'}</Typography></Box></Grid>
-                <Grid item xs={6}><Box textAlign="center" onClick={() => navigate('/reviews')} sx={{ p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#e3f2fd', transform: 'translateY(-2px)' } }}><Typography variant="h5" fontWeight={700} sx={{ color: '#007bff' }}>{(parseFloat(stats.average) || 0).toFixed(1)} ★</Typography><Typography variant="body2" sx={{ color: '#666' }}>{t('home.rating') || 'Đánh giá'}</Typography></Box></Grid>
-                <Grid item xs={6}><Box textAlign="center" onClick={() => navigate('/reviews')} sx={{ p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#e3f2fd', transform: 'translateY(-2px)' } }}><Typography variant="h5" fontWeight={700} sx={{ color: '#007bff' }}>{stats.total}</Typography><Typography variant="body2" sx={{ color: '#666' }}>Lượt đánh giá</Typography></Box></Grid>
-                <Grid item xs={6}><Box textAlign="center" onClick={() => navigate(isAuthenticated ? '/chat' : '/login')} sx={{ p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, cursor: 'pointer', transition: '0.2s', '&:hover': { bgcolor: '#e3f2fd', transform: 'translateY(-2px)' } }}><Typography variant="h5" fontWeight={700} sx={{ color: '#007bff' }}>24/7</Typography><Typography variant="body2" sx={{ color: '#666' }}>Hỗ trợ khách</Typography></Box></Grid>
-              </Grid>
-            </Paper>
-          </Grid>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(3, minmax(0, 1fr))'
+            },
+            gap: 3,
+            alignItems: 'stretch'
+          }}
+        >
+          {/* Thống kê */}
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              height: '100%',
+              boxShadow: '0 8px 26px rgba(24, 39, 75, 0.08)'
+            }}
+          >
+            <Typography variant="h6" fontWeight={700} textAlign="center" sx={{ mb: 2 }}>
+              📊 Thống kê
+            </Typography>
 
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, borderRadius: 3, bgcolor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom align="center" sx={{ color: '#333', mb: 2 }}>🌟 {t('home.amenities') || 'Tiện ích'}</Typography>
-              <Grid container spacing={1.5} justifyContent="center" sx={{ flex: 1, alignContent: 'center' }}>
-                {amenities.map((item, index) => (
-                  <Grid item xs={4} key={index}>
-                    <Box onClick={() => document.getElementById('home-rooms')?.scrollIntoView({ behavior: 'smooth' })} sx={{ textAlign: 'center', p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, transition: '0.3s', cursor: 'pointer', '&:hover': { bgcolor: '#e3f2fd', transform: 'translateY(-3px)' } }}>
-                      <Avatar sx={{ mx: 'auto', bgcolor: '#007bff', width: 40, height: 40, mb: 0.5, color: 'white' }}>{item.icon}</Avatar>
-                      <Typography variant="body2" sx={{ color: '#333', fontSize: '0.7rem', fontWeight: 500 }}>{item.name}</Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Paper>
-          </Grid>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 1.25
+              }}
+            >
+              {[
+                { value: rooms.length, label: 'Phòng' },
+                { value: `${(parseFloat(stats.average) || 0).toFixed(1)} ★`, label: 'Đánh giá' },
+                { value: stats.total, label: 'Lượt đánh giá' },
+                { value: '24/7', label: 'Hỗ trợ khách' }
+              ].map((item) => (
+                <Box
+                  key={item.label}
+                  sx={{
+                    p: 1.5,
+                    minWidth: 0,
+                    borderRadius: 2.5,
+                    bgcolor: '#f5f8ff',
+                    border: '1px solid #e8eefb'
+                  }}
+                >
+                  <Typography
+                    variant="h5"
+                    fontWeight={800}
+                    sx={{ color: '#2563eb', lineHeight: 1.2 }}
+                  >
+                    {item.value}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Paper>
 
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, borderRadius: 3, bgcolor: 'white', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom align="center" sx={{ color: '#333', mb: 2 }}>🎉 {t('home.offers') || 'Ưu đãi'}</Typography>
-              <Grid container spacing={1.5} justifyContent="center" sx={{ flex: 1, alignContent: 'center' }}>
-                {specialOffers.map((offer, index) => (
-                  <Grid item xs={12} sm={12} key={index}>
-                    <Box onClick={() => { toast.success('Xem phòng và đặt ngay để nhận ưu đãi!'); document.getElementById('home-rooms')?.scrollIntoView({ behavior: 'smooth' }); }} sx={{ textAlign: 'center', p: 1.5, bgcolor: '#f5f7fa', borderRadius: 2, border: `2px solid ${offer.color}`, position: 'relative', overflow: 'hidden', cursor: 'pointer', '&:hover': { transform: 'scale(1.02)', transition: '0.3s' } }}>
-                      <Box sx={{ position: 'absolute', top: 0, right: 0, bgcolor: offer.color, color: 'white', px: 2, py: 0.3, borderRadius: '0 8px 0 8px', fontWeight: 700, fontSize: '0.6rem' }}>HOT</Box>
-                      <Typography variant="subtitle1" fontWeight={700} sx={{ color: offer.color }}>{offer.title}</Typography>
-                      <Typography variant="body2" sx={{ color: '#666' }}>{offer.desc}</Typography>
-                    </Box>
-                  </Grid>
-                ))}
-              </Grid>
-            </Paper>
-          </Grid>
-        </Grid>
+          {/* Tiện ích */}
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              height: '100%',
+              boxShadow: '0 8px 26px rgba(24, 39, 75, 0.08)'
+            }}
+          >
+            <Typography variant="h6" fontWeight={700} textAlign="center" sx={{ mb: 2 }}>
+              ✨ Tiện ích
+            </Typography>
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 1
+              }}
+            >
+              {amenities.map((item) => {
+                const color = AMENITY_COLORS[item.key] || '#2563eb';
+
+                return (
+                  <Box
+                    key={item.key}
+                    onClick={() => {
+                      setAmenityImageIndex(0);
+                      setSelectedAmenity(item);
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        setSelectedAmenity(item);
+                      }
+                    }}
+                    sx={{
+                      p: 1,
+                      minWidth: 0,
+                      textAlign: 'center',
+                      borderRadius: 2.5,
+                      bgcolor: '#f7f9fc',
+                      border: '1px solid transparent',
+                      cursor: 'pointer',
+                      transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        borderColor: color,
+                        bgcolor: '#fff',
+                        boxShadow: `0 8px 20px ${color}33`
+                      },
+                      '&:hover .amenity-avatar': {
+                        transform: 'rotate(-8deg) scale(1.1)',
+                        boxShadow: `0 8px 18px ${color}66`
+                      }
+                    }}
+                  >
+                    <Avatar
+                      className="amenity-avatar"
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        mx: 'auto',
+                        mb: 0.75,
+                        bgcolor: color,
+                        color: '#fff',
+                        backgroundImage:
+                          'linear-gradient(145deg, rgba(255,255,255,.25), rgba(0,0,0,.12))',
+                        boxShadow: `0 5px 14px ${color}44`,
+                        transition: 'transform 180ms ease, box-shadow 180ms ease',
+                        '& svg': { fontSize: 23 }
+                      }}
+                    >
+                      {item.icon}
+                    </Avatar>
+
+                    <Typography
+                      variant="caption"
+                      fontWeight={600}
+                      sx={{
+                        display: 'block',
+                        lineHeight: 1.25,
+                        overflowWrap: 'anywhere'
+                      }}
+                    >
+                      {item.name}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Paper>
+
+          {/* Ưu đãi */}
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              height: '100%',
+              boxShadow: '0 8px 26px rgba(24, 39, 75, 0.08)'
+            }}
+          >
+            <Typography variant="h6" fontWeight={700} textAlign="center" sx={{ mb: 2 }}>
+              🎉 Ưu đãi
+            </Typography>
+
+            <Box sx={{ display: 'grid', gap: 1.25 }}>
+              {specialOffers.map((offer, index) => (
+                <Box
+                  key={offer.title || index}
+                  onClick={() => {
+                    toast.success('Xem phòng và đặt ngay để nhận ưu đãi!');
+                    document.getElementById('home-rooms')?.scrollIntoView({
+                      behavior: 'smooth'
+                    });
+                  }}
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 2.5,
+                    border: `1px solid ${offer.color}66`,
+                    bgcolor: `${offer.color}0D`,
+                    cursor: 'pointer',
+                    transition: 'transform 180ms ease, box-shadow 180ms ease',
+                    '&:hover': {
+                      transform: 'translateX(4px)',
+                      boxShadow: `0 6px 16px ${offer.color}22`
+                    }
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 1
+                    }}
+                  >
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: offer.color }}>
+                      {offer.title}
+                    </Typography>
+                    <Chip
+                      label="HOT"
+                      size="small"
+                      sx={{
+                        height: 20,
+                        bgcolor: offer.color,
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: '0.65rem'
+                      }}
+                    />
+                  </Box>
+
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {offer.desc}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Paper>
+        </Box>
       </Container>
 
       {/* Danh sách phòng - GIỮ NGUYÊN */}
@@ -825,23 +1196,25 @@ const Home = () => {
               <Card
                 onClick={() => navigate(`/rooms/${room.id}`)}
                 sx={{
-                  borderRadius: 3,
+                  borderRadius: 4,
                   overflow: 'hidden',
-                  transition: '0.3s',
+                  border: '1px solid #e8ece5',
+                  boxShadow: '0 12px 32px rgba(30,52,42,.07)',
+                  transition: 'all 220ms ease',
                   height: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: 'pointer',
                   '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 8
+                    transform: 'translateY(-6px)',
+                    boxShadow: '0 20px 42px rgba(30,52,42,.14)'
                   }
                 }}>
                 <Box sx={{
-                  height: 220,
+                  height: 250,
                   position: 'relative',
                   background: room.imageUrl
-                    ? `url(${API_BASE_URL}${room.imageUrl})`
+                    ? `url("${resolveAssetUrl(room.imageUrl)}")`
                     : 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -853,8 +1226,8 @@ const Home = () => {
                   {!room.imageUrl && '🏨'}
 
                   <Chip
-                    label={room.status === 'AVAILABLE' 
-                      ? (t('home.available') || '🟢 Còn trống') 
+                    label={room.status === 'AVAILABLE'
+                      ? (t('home.available') || '🟢 Còn trống')
                       : (t('home.unavailable') || '🔴 Hết phòng')}
                     size="small"
                     color={room.status === 'AVAILABLE' ? 'success' : 'error'}
@@ -903,6 +1276,21 @@ const Home = () => {
                       {t('home.room') || 'Phòng'} {room.roomNumber}
                     </Typography>
                   </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mt: 1,
+                      color: '#718078',
+                      lineHeight: 1.65,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      minHeight: 44
+                    }}
+                  >
+                    {room.description || 'Không gian nghỉ ngơi thoải mái cho chuyến đi của bạn.'}
+                  </Typography>
 
                   {stats.total > 0 && (
                     <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -938,11 +1326,11 @@ const Home = () => {
                       }}
                       fullWidth
                       sx={{
-                        bgcolor: room.status === 'AVAILABLE' ? '#007bff' : '#6c757d',
+                        bgcolor: room.status === 'AVAILABLE' ? '#174c40' : '#6c757d',
                         borderRadius: 2,
                         py: 1,
                         '&:hover': {
-                          bgcolor: room.status === 'AVAILABLE' ? '#0056b3' : '#6c757d'
+                          bgcolor: room.status === 'AVAILABLE' ? '#103c32' : '#6c757d'
                         }
                       }}
                     >
@@ -997,7 +1385,7 @@ const Home = () => {
                   </Grid>
                 </Grid>
                 <Grid item xs={12}>
-                  <Button type="submit" variant="contained" disabled={reviewSubmitting || !reviewData.rating || !reviewData.comment.trim()} sx={{ bgcolor: '#007bff', '&:hover': { bgcolor: '#0056b3' } }}>
+                  <Button type="submit" variant="contained" disabled={reviewSubmitting || !reviewData.rating || !reviewData.comment.trim()} sx={{ bgcolor: '#007bff', '&:hover': { bgcolor: '#103c32' } }}>
                     {reviewSubmitting ? <CircularProgress size={24} color="inherit" /> : (t('home.submitReview') || 'Gửi đánh giá')}
                   </Button>
                 </Grid>
@@ -1007,194 +1395,509 @@ const Home = () => {
         </Container>
       )}
 
-      {/* ĐÁNH GIÁ DỊCH VỤ - GIỮ NGUYÊN */}
-      <Box sx={{ bgcolor: '#f8f9fa', py: 4 }}>
+      {/* ĐÁNH GIÁ DỊCH VỤ */}
+      <Box
+        component="section"
+        aria-labelledby="home-reviews-title"
+        sx={{
+          py: { xs: 4, md: 7 },
+          bgcolor: '#f6f8f5',
+          borderTop: '1px solid #e9eee9',
+          borderBottom: '1px solid #e9eee9'
+        }}
+      >
         <Container maxWidth="lg">
-          <Typography variant="h5" fontWeight={700} gutterBottom>
-            ⭐ {t('home.reviews') || 'Đánh giá dịch vụ'}
-          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: { xs: 'flex-start', sm: 'flex-end' },
+              justifyContent: 'space-between',
+              gap: 2,
+              flexWrap: 'wrap',
+              mb: 3
+            }}
+          >
+            <Box>
+              <Typography sx={{
+                color: '#8b7449',
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: '0.15em',
+                mb: 0.75
+              }}>
+                TRẢI NGHIỆM KHÁCH HÀNG
+              </Typography>
 
-          <Paper sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={2} textAlign="center">
-                <Typography variant="h2" fontWeight={700} color="primary">
-                  {stats.average || 0}
-                </Typography>
-                <Rating value={parseFloat(stats.average) || 0} precision={0.5} readOnly size="small" />
-                <Typography variant="caption" color="textSecondary">
-                  {stats.total} {t('home.reviews') || 'đánh giá'}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={10}>
-                <Box display="flex" flexWrap="wrap" gap={1}>
-                  {[5, 4, 3, 2, 1].map((star) => {
-                    const count = stats.distribution[star] || 0;
-                    const percent = stats.total > 0 ? (count / stats.total) * 100 : 0;
-                    return (
-                      <Box key={star} display="flex" alignItems="center" gap={1} sx={{ width: { xs: '100%', sm: '48%', md: '32%' } }}>
-                        <Box display="flex" alignItems="center" gap={0.5} sx={{ minWidth: 40 }}>
-                          <Typography variant="caption">{star}</Typography>
-                          <Star sx={{ fontSize: 12, color: '#faaf00' }} />
-                        </Box>
-                        <Box flex={1}>
-                          <LinearProgress
-                            variant="determinate"
-                            value={percent}
-                            sx={{ height: 4, borderRadius: 2, bgcolor: '#e0e0e0', '& .MuiLinearProgress-bar': { borderRadius: 2 } }}
-                          />
-                        </Box>
-                        <Typography variant="caption" color="textSecondary" sx={{ minWidth: 20 }}>
-                          {count}
-                        </Typography>
-                      </Box>
-                    );
-                  })}
-                </Box>
-              </Grid>
-            </Grid>
-          </Paper>
+              <Typography
+                id="home-reviews-title"
+                component="h2"
+                sx={{
+                  color: '#20372e',
+                  fontSize: { xs: 26, md: 32 },
+                  fontWeight: 750,
+                  letterSpacing: '-0.035em',
+                  lineHeight: 1.2
+                }}
+              >
+                {t('home.reviews') || 'Đánh giá dịch vụ'}
+              </Typography>
 
-          <Box display="flex" flexWrap="wrap" gap={0.5} sx={{ mb: 2 }}>
+              <Typography sx={{ mt: 0.75, color: '#75827b', fontSize: 14 }}>
+                Cảm nhận chân thực từ những vị khách đã lưu trú tại SkyHotel.
+              </Typography>
+            </Box>
+
             <Chip
-              label={`${t('home.all') || 'Tất cả'} (${reviews.length})`}
-              variant={selectedRating === 0 ? 'filled' : 'outlined'}
-              color={selectedRating === 0 ? 'primary' : 'default'}
-              onClick={() => handleRatingFilter(0)}
+              icon={<Verified sx={{ fontSize: 17 }} />}
+              label="Đánh giá từ khách hàng"
               size="small"
-            />
-            {[5, 4, 3, 2, 1].map((star) => {
-              const count = stats.distribution[star] || 0;
-              return (
-                <Chip
-                  key={star}
-                  label={`${star} ★ (${count})`}
-                  variant={selectedRating === star ? 'filled' : 'outlined'}
-                  color={selectedRating === star ? 'primary' : 'default'}
-                  onClick={() => handleRatingFilter(star)}
-                  size="small"
-                />
-              );
-            })}
-            <Chip
-              label={t('home.hasReply') || 'Có phản hồi'}
-              variant={reviewTab === 1 ? 'filled' : 'outlined'}
-              color={reviewTab === 1 ? 'secondary' : 'default'}
-              onClick={() => handleReviewTabChange(null, reviewTab === 1 ? 0 : 1)}
-              size="small"
+              sx={{
+                height: 32,
+                borderRadius: 99,
+                bgcolor: '#eaf3ed',
+                color: '#38644f',
+                fontWeight: 700,
+                '& .MuiChip-icon': { color: '#438363' }
+              }}
             />
           </Box>
 
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2, sm: 3, md: 3.5 },
+              mb: 3,
+              border: '1px solid #e4ebe5',
+              borderRadius: 4,
+              bgcolor: '#fff',
+              boxShadow: '0 12px 36px rgba(31, 61, 47, 0.055)'
+            }}
+          >
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  md: '230px minmax(0, 1fr)'
+                },
+                alignItems: 'center',
+                gap: { xs: 2.5, md: 4 }
+              }}
+            >
+              <Box sx={{
+                px: 2,
+                py: { xs: 2, md: 1.5 },
+                textAlign: 'center',
+                borderRadius: 3,
+                bgcolor: '#f8faf7',
+                border: '1px solid #edf1ed'
+              }}>
+                <Typography sx={{
+                  color: '#7b8981',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: '0.12em'
+                }}>
+                  ĐIỂM TRUNG BÌNH
+                </Typography>
+
+                <Box sx={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'center',
+                  gap: 0.5,
+                  mt: 0.5
+                }}>
+                  <Typography sx={{
+                    color: '#20372e',
+                    fontSize: 54,
+                    fontWeight: 750,
+                    lineHeight: 1.15,
+                    letterSpacing: '-0.05em'
+                  }}>
+                    {(parseFloat(stats.average) || 0).toFixed(1)}
+                  </Typography>
+                  <Typography sx={{ color: '#9aa59e', fontSize: 15 }}>
+                    / 5
+                  </Typography>
+                </Box>
+
+                <Rating
+                  value={parseFloat(stats.average) || 0}
+                  precision={0.5}
+                  readOnly
+                  size="medium"
+                  sx={{ color: '#d0a451', mt: 0.35 }}
+                />
+
+                <Typography sx={{ color: '#7b8981', fontSize: 12, mt: 0.5 }}>
+                  {stats.total > 0
+                    ? `${stats.total} lượt đánh giá`
+                    : 'Chưa có đánh giá'}
+                </Typography>
+              </Box>
+
+              <Box sx={{ display: 'grid', gap: 1.15 }}>
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count = stats.distribution[star] || 0;
+                  const percent = stats.total > 0
+                    ? (count / stats.total) * 100
+                    : 0;
+
+                  return (
+                    <Box
+                      key={star}
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: '42px minmax(0, 1fr) 34px',
+                        alignItems: 'center',
+                        gap: 1.25
+                      }}
+                    >
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.4
+                      }}>
+                        <Typography sx={{
+                          color: '#52635a',
+                          fontSize: 12,
+                          fontWeight: 700
+                        }}>
+                          {star}
+                        </Typography>
+                        <Star sx={{ color: '#d0a451', fontSize: 14 }} />
+                      </Box>
+
+                      <LinearProgress
+                        variant="determinate"
+                        value={percent}
+                        sx={{
+                          width: '100%',
+                          height: 8,
+                          borderRadius: 99,
+                          bgcolor: '#edf1ed',
+                          '& .MuiLinearProgress-bar': {
+                            borderRadius: 99,
+                            bgcolor: '#c5a05e'
+                          }
+                        }}
+                      />
+
+                      <Typography sx={{
+                        color: '#718078',
+                        fontSize: 12,
+                        textAlign: 'right'
+                      }}>
+                        {count}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Paper>
+
+          <Box sx={{ mb: 2.5 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              justifyContent: 'space-between',
+              gap: 1,
+              flexWrap: 'wrap',
+              mb: 1.25
+            }}>
+              <Typography sx={{ color: '#52645a', fontSize: 13, fontWeight: 750 }}>
+                Lọc đánh giá
+              </Typography>
+              <Typography sx={{ color: '#87938b', fontSize: 12 }}>
+                Đang hiển thị {filteredReviews.length} / {totalFilteredReviews.length} đánh giá
+              </Typography>
+            </Box>
+
+            <Box role="group" aria-label="Lọc đánh giá" sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.8 }}>
+              {[
+                {
+                  key: 'all',
+                  label: `${t('home.all') || 'Tất cả'} (${reviews.length})`,
+                  selected: selectedRating === 0,
+                  onClick: () => handleRatingFilter(0)
+                },
+                ...[5, 4, 3, 2, 1].map((star) => ({
+                  key: `rating-${star}`,
+                  label: `${star} ★ (${stats.distribution[star] || 0})`,
+                  selected: selectedRating === star,
+                  onClick: () => handleRatingFilter(star)
+                })),
+                {
+                  key: 'replied',
+                  label: t('home.hasReply') || 'Có phản hồi',
+                  selected: reviewTab === 1,
+                  onClick: () => handleReviewTabChange(null, reviewTab === 1 ? 0 : 1)
+                }
+              ].map((filter) => (
+                <Chip
+                  key={filter.key}
+                  label={filter.label}
+                  variant={filter.selected ? 'filled' : 'outlined'}
+                  onClick={filter.onClick}
+                  size="small"
+                  sx={{
+                    height: 34,
+                    borderRadius: 99,
+                    fontWeight: 700,
+                    bgcolor: filter.selected ? '#315d48' : '#fff',
+                    color: filter.selected ? '#fff' : '#52645a',
+                    borderColor: filter.selected ? '#315d48' : '#dce5dd',
+                    '& .MuiChip-label': { px: 1.25 },
+                    '&:hover': {
+                      bgcolor: filter.selected ? '#274b3b' : '#f3f7f3',
+                      borderColor: filter.selected ? '#274b3b' : '#a8b9ac'
+                    }
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+
           {filteredReviews.length === 0 ? (
-            <Paper sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
-              <Typography variant="body2" color="textSecondary">{t('home.noReviews') || 'Chưa có đánh giá nào'}</Typography>
+            <Paper elevation={0} sx={{
+              p: { xs: 3, sm: 4 },
+              textAlign: 'center',
+              border: '1px solid #e4ebe5',
+              borderRadius: 3,
+              bgcolor: '#fff'
+            }}>
+              <Box sx={{
+                width: 48,
+                height: 48,
+                mx: 'auto',
+                mb: 1.25,
+                display: 'grid',
+                placeItems: 'center',
+                borderRadius: '50%',
+                bgcolor: '#f1f6f2',
+                color: '#4c755d',
+                fontSize: 22
+              }}>
+                💬
+              </Box>
+              <Typography sx={{ color: '#34483b', fontWeight: 700, mb: 0.5 }}>
+                {t('home.noReviews') || 'Chưa có đánh giá nào'}
+              </Typography>
+              <Typography sx={{ color: '#87938b', fontSize: 13 }}>
+                Hãy thử chọn bộ lọc khác để xem thêm đánh giá.
+              </Typography>
             </Paper>
           ) : (
             <>
-              <Grid container spacing={1.5}>
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: 'minmax(0, 1fr)',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(3, minmax(0, 1fr))'
+                },
+                gap: { xs: 1.5, md: 2 },
+                alignItems: 'stretch'
+              }}>
                 {filteredReviews.map((review) => (
-                  <Grid item xs={12} key={review.id}>
-                    <Card sx={{ borderRadius: 2, '&:hover': { boxShadow: 2 } }}>
-                      <CardContent sx={{ p: 1.5 }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="start">
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Avatar sx={{ bgcolor: 'primary.main', width: 28, height: 28 }}>
-                              {review.user?.fullName?.charAt(0) || review.user?.username?.charAt(0) || 'U'}
-                            </Avatar>
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                              <Box display="flex" alignItems="center" gap={0.5}>
-                                <Typography
-                                  variant="body2"
-                                  fontWeight={600}
-                                  sx={{
-                                    maxWidth: '100px',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                  }}
-                                >
-                                  {maskName(review.user?.fullName || review.user?.username || 'Guest')}
-                                </Typography>
-                                <Verified sx={{ fontSize: 12, color: '#1dbf73', flexShrink: 0 }} />
-                              </Box>
-                              <Box display="flex" alignItems="center" gap={0.5}>
-                                <Rating value={review.rating || 0} readOnly size="small" />
-                                <Typography variant="caption" color="textSecondary" sx={{ flexShrink: 0 }}>
-                                  {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'N/A'}
-                                </Typography>
-                              </Box>
-                            </Box>
+                  <Card
+                    component="article"
+                    key={review.id}
+                    elevation={0}
+                    sx={{
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      overflow: 'hidden',
+                      border: '1px solid #e3eae4',
+                      borderRadius: 3,
+                      bgcolor: '#fff',
+                      boxShadow: '0 5px 18px rgba(31, 61, 47, 0.045)',
+                      transition: 'transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease',
+                      '&:hover': {
+                        transform: 'translateY(-3px)',
+                        borderColor: '#cbd9ce',
+                        boxShadow: '0 12px 28px rgba(31, 61, 47, 0.1)'
+                      }
+                    }}
+                  >
+                    <Box sx={{ height: 3, flexShrink: 0, bgcolor: '#d0a451' }} />
+                    <CardContent sx={{
+                      p: { xs: 2, md: 2.25 },
+                      flex: 1,
+                      '&:last-child': { pb: { xs: 2, md: 2.25 } }
+                    }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+                        <Avatar sx={{ bgcolor: '#2f7454', width: 42, height: 42, fontWeight: 700, flexShrink: 0 }}>
+                          {review.user?.fullName?.charAt(0) || review.user?.username?.charAt(0) || 'U'}
+                        </Avatar>
+
+                        <Box sx={{ minWidth: 0, flex: 1, pt: 0.15 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" fontWeight={700} sx={{
+                              minWidth: 0,
+                              maxWidth: '100%',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              color: '#253b30'
+                            }}>
+                              {maskName(review.user?.fullName || review.user?.username || 'Guest')}
+                            </Typography>
+                            <Verified sx={{ fontSize: 14, color: '#1dbf73', flexShrink: 0 }} />
                           </Box>
-                          <Box display="flex" gap={0.5}>
-                            <IconButton size="small" onClick={() => handleLike(review.id)} color={likedReviews[review.id] ? 'primary' : 'default'}>
-                              {likedReviews[review.id] ? <ThumbUp fontSize="small" /> : <ThumbUpOffAlt fontSize="small" />}
-                            </IconButton>
-                            {isAuthenticated && (
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => { setSelectedReview(review); setOpenReplyDialog(true); }}
-                              >
-                                <Reply fontSize="small" />
-                              </IconButton>
-                            )}
-                            {(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST' || review.user?.id === user?.id) && (
-                              <IconButton size="small" color="error" onClick={() => { setDeleteId(review.id); setOpenDeleteDialog(true); }}>
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            )}
+
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            columnGap: 0.75,
+                            rowGap: 0.25,
+                            mt: 0.4
+                          }}>
+                            <Rating value={review.rating || 0} readOnly size="small" sx={{ color: '#d0a451' }} />
+                            <Typography variant="caption" sx={{ color: '#87938b', whiteSpace: 'nowrap' }}>
+                              {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : 'N/A'}
+                            </Typography>
                           </Box>
                         </Box>
 
-                        <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          {review.comment || 'Không có nội dung'}
-                        </Typography>
+                        <Box sx={{
+                          display: 'flex',
+                          gap: 0.25,
+                          flexShrink: 0,
+                          ml: 0.25,
+                          '& .MuiIconButton-root': {
+                            width: 32,
+                            height: 32,
+                            bgcolor: '#f3f6f3',
+                            '&:hover': { bgcolor: '#e8efe9' }
+                          }
+                        }}>
+                          <IconButton
+                            size="small"
+                            aria-label={likedReviews[review.id] ? 'Bỏ thích đánh giá' : 'Thích đánh giá'}
+                            onClick={() => handleLike(review.id)}
+                            color={likedReviews[review.id] ? 'primary' : 'default'}
+                          >
+                            {likedReviews[review.id] ? <ThumbUp fontSize="small" /> : <ThumbUpOffAlt fontSize="small" />}
+                          </IconButton>
 
-                        {(review.serviceRating || review.foodRating || review.cleanlinessRating || review.locationRating || review.valueRating) && (
-                          <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {review.serviceRating && <Chip label={`${t('home.service') || 'Phục vụ'} ${review.serviceRating}★`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />}
-                            {review.foodRating && <Chip label={`${t('home.food') || 'Đồ ăn'} ${review.foodRating}★`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />}
-                            {review.cleanlinessRating && <Chip label={`${t('home.cleanliness') || 'Vệ sinh'} ${review.cleanlinessRating}★`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />}
-                            {review.locationRating && <Chip label={`${t('home.location') || 'Vị trí'} ${review.locationRating}★`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />}
-                            {review.valueRating && <Chip label={`${t('home.value') || 'Giá trị'} ${review.valueRating}★`} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />}
-                          </Box>
-                        )}
+                          {isAuthenticated && (
+                            <IconButton
+                              size="small"
+                              aria-label="Phản hồi đánh giá"
+                              color="primary"
+                              onClick={() => { setSelectedReview(review); setOpenReplyDialog(true); }}
+                            >
+                              <Reply fontSize="small" />
+                            </IconButton>
+                          )}
 
-                        {review.adminReply ? (
-                          <Box sx={{ mt: 0.5, p: 1, bgcolor: '#f0f7ff', borderRadius: 1, borderLeft: '3px solid #007bff' }}>
-                            <Typography variant="caption" color="primary" fontWeight={600}>💬 {t('home.reply') || 'Phản hồi'}:</Typography>
-                            <Typography variant="body2">{review.adminReply}</Typography>
-                          </Box>
-                        ) : (
-                          <Box sx={{ mt: 0.5, p: 0.5, bgcolor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
-                            <Typography variant="caption" color="textSecondary">{t('home.noReply') || 'Chưa có phản hồi'}</Typography>
-                          </Box>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                          {(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST' || review.user?.id === user?.id) && (
+                            <IconButton
+                              size="small"
+                              aria-label="Xóa đánh giá"
+                              color="error"
+                              onClick={() => { setDeleteId(review.id); setOpenDeleteDialog(true); }}
+                              sx={{ bgcolor: '#fff5f4', '&:hover': { bgcolor: '#fde9e6' } }}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Box>
+                      </Box>
+
+                      <Typography variant="body2" sx={{
+                        mt: 1.75,
+                        color: '#34453d',
+                        fontSize: 14,
+                        lineHeight: 1.65,
+                        whiteSpace: 'pre-line',
+                        overflowWrap: 'anywhere'
+                      }}>
+                        {review.comment || 'Không có nội dung'}
+                      </Typography>
+
+                      {(review.serviceRating || review.foodRating || review.cleanlinessRating || review.locationRating || review.valueRating) && (
+                        <Box sx={{ mt: 1.5, display: 'flex', flexWrap: 'wrap', gap: 0.65 }}>
+                          {[
+                            [review.serviceRating, t('home.service') || 'Phục vụ'],
+                            [review.foodRating, t('home.food') || 'Đồ ăn'],
+                            [review.cleanlinessRating, t('home.cleanliness') || 'Vệ sinh'],
+                            [review.locationRating, t('home.location') || 'Vị trí'],
+                            [review.valueRating, t('home.value') || 'Giá trị']
+                          ].filter(([rating]) => rating).map(([rating, label]) => (
+                            <Chip
+                              key={label}
+                              label={`${label} ${rating}★`}
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                height: 25,
+                                borderRadius: 99,
+                                bgcolor: '#f7faf7',
+                                borderColor: '#e1e9e2',
+                                color: '#506157',
+                                fontSize: '0.68rem',
+                                '& .MuiChip-label': { px: 1 }
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      )}
+
+                      {review.adminReply ? (
+                        <Box sx={{ mt: 1.6, p: 1.25, bgcolor: '#f1f6fb', borderRadius: 2, borderLeft: '3px solid #5b96d2' }}>
+                          <Typography variant="caption" sx={{ color: '#3979b9', fontWeight: 700 }}>
+                            💬 {t('home.reply') || 'Phản hồi'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.4, color: '#40566a', lineHeight: 1.55, overflowWrap: 'anywhere' }}>
+                            {review.adminReply}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ mt: 1.6, p: 1, display: 'flex', alignItems: 'center', gap: 0.75, bgcolor: '#f7f8f7', borderRadius: 2 }}>
+                          <Reply sx={{ fontSize: 16, color: '#98a39c' }} />
+                          <Typography variant="caption" sx={{ color: '#87938b' }}>
+                            {t('home.noReply') || 'Chưa có phản hồi'}
+                          </Typography>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
                 ))}
-              </Grid>
+              </Box>
 
               {totalFilteredReviews.length > REVIEWS_PER_PAGE && (
-                <Box textAlign="center" sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                   <Button
                     variant="contained"
                     onClick={toggleShowAllReviews}
                     endIcon={showAllReviews ? <ExpandLess /> : <ExpandMore />}
                     sx={{
-                      bgcolor: '#007bff',
-                      color: 'white',
-                      px: 4,
-                      py: 1,
-                      borderRadius: 3,
+                      minHeight: 46,
+                      px: 3.5,
+                      borderRadius: 99,
+                      bgcolor: '#2f7454',
+                      color: '#fff',
+                      fontWeight: 750,
+                      fontSize: 14,
+                      textTransform: 'none',
+                      boxShadow: '0 6px 16px rgba(47, 116, 84, 0.2)',
+                      transition: 'transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease',
                       '&:hover': {
-                        bgcolor: '#0056b3'
-                      },
-                      fontWeight: 600,
-                      fontSize: '0.9rem'
+                        bgcolor: '#255f43',
+                        transform: 'translateY(-1px)',
+                        boxShadow: '0 9px 20px rgba(47, 116, 84, 0.26)'
+                      }
                     }}
                   >
-                    {showAllReviews ? (t('home.collapse') || '📕 Thu gọn') : `📖 ${t('home.viewMore') || 'Xem thêm'} ${totalFilteredReviews.length - REVIEWS_PER_PAGE} ${t('home.reviews') || 'đánh giá'}`}
+                    {showAllReviews
+                      ? (t('home.collapse') || 'Thu gọn đánh giá')
+                      : `${t('home.viewMore') || 'Xem thêm'} ${totalFilteredReviews.length - REVIEWS_PER_PAGE} ${t('home.reviews') || 'đánh giá'}`}
                   </Button>
                 </Box>
               )}
@@ -1203,37 +1906,337 @@ const Home = () => {
         </Container>
       </Box>
 
-      {/* Reply Dialog */}
-      <Dialog open={openReplyDialog} onClose={() => setOpenReplyDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>💬 {t('home.replyToReview') || 'Trả lời đánh giá'}</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              {t('home.customer') || 'Khách hàng'}: <strong>{maskName(selectedReview?.user?.fullName || selectedReview?.user?.username || 'Guest')}</strong>
-            </Typography>
-            <Typography variant="body2" color="textSecondary" gutterBottom>
-              {t('home.rating') || 'Đánh giá'}: <Rating value={selectedReview?.rating || 0} readOnly size="small" />
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 2, fontStyle: 'italic' }}>
-              "{selectedReview?.comment || 'Không có nội dung'}"
-            </Typography>
-            <TextField
-              fullWidth
-              label={t('home.yourReply') || 'Phản hồi của bạn'}
-              multiline
-              rows={3}
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder={t('home.replyPlaceholder') || 'Viết phản hồi...'}
-            />
+      {/* Amenity Details Dialog */}
+      {/* Amenity Details Dialog */}
+      <Dialog
+        open={Boolean(selectedAmenity)}
+        onClose={() => setSelectedAmenity(null)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            overflow: 'hidden',
+            bgcolor: '#f3f7f4',
+            boxShadow: '0 24px 80px rgba(16, 48, 39, 0.28)'
+          }
+        }}
+      >
+        <DialogTitle
+          sx={{
+            p: 2.5,
+            color: '#fff',
+            background: 'linear-gradient(135deg, #174c40 0%, #0d352e 100%)'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar
+              sx={{
+                width: 48,
+                height: 48,
+                bgcolor: 'rgba(255,255,255,.16)',
+                color: '#f2d18b',
+                border: '1px solid rgba(255,255,255,.25)'
+              }}
+            >
+              {selectedAmenity?.icon}
+            </Avatar>
+
+            <Box sx={{ flex: 1 }}>
+              <Typography
+                variant="overline"
+                sx={{ color: 'rgba(255,255,255,.7)', letterSpacing: 1.5, lineHeight: 1.2 }}
+              >
+                TIỆN ÍCH SKY HOTEL
+              </Typography>
+              <Typography variant="h5" fontWeight={700}>
+                {selectedAmenity?.name}
+              </Typography>
+            </Box>
+
+            <IconButton
+              aria-label="Đóng"
+              onClick={() => setSelectedAmenity(null)}
+              sx={{ color: '#fff' }}
+            >
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ p: { xs: 2, sm: 3 } }}>
+            {/* Slideshow ảnh */}
+            {activeAmenityImages.length > 0 ? (
+              <Box
+                sx={{
+                  position: 'relative',
+                  height: { xs: 210, sm: 290 },
+                  overflow: 'hidden',
+                  borderRadius: 3,
+                  mb: 2.5,
+                  bgcolor: '#dcebe7'
+                }}
+              >
+                {activeAmenityImages.map((url, index) => (
+                  <Box
+                    key={`${url}-${index}`}
+                    component="img"
+                    src={resolveAssetUrl(url)}
+                    alt={`${selectedAmenity?.name || 'Tiện ích'} — ảnh ${index + 1}`}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      opacity: index === amenityImageIndex ? 1 : 0,
+                      transition: 'opacity 800ms ease-in-out'
+                    }}
+                  />
+                ))}
+
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: '45% 0 0',
+                    background: 'linear-gradient(transparent, rgba(7, 25, 21, .58))',
+                    pointerEvents: 'none'
+                  }}
+                />
+
+                {activeAmenityImages.length > 1 && (
+                  <>
+                    <Chip
+                      size="small"
+                      label={`${amenityImageIndex + 1} / ${activeAmenityImages.length}`}
+                      sx={{
+                        position: 'absolute',
+                        top: 12,
+                        right: 12,
+                        color: '#fff',
+                        bgcolor: 'rgba(0,0,0,.45)',
+                        backdropFilter: 'blur(6px)'
+                      }}
+                    />
+
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 12,
+                        left: 0,
+                        right: 0,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: 0.75
+                      }}
+                    >
+                      {activeAmenityImages.map((_, index) => (
+                        <Box
+                          key={index}
+                          onClick={() => setAmenityImageIndex(index)}
+                          sx={{
+                            width: index === amenityImageIndex ? 20 : 8,
+                            height: 8,
+                            borderRadius: 99,
+                            bgcolor:
+                              index === amenityImageIndex
+                                ? '#fff'
+                                : 'rgba(255,255,255,.55)',
+                            cursor: 'pointer',
+                            transition: 'all 200ms ease'
+                          }}
+                        />
+                      ))}
+                    </Box>
+                  </>
+                )}
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  height: 180,
+                  mb: 2.5,
+                  borderRadius: 3,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
+                  color: '#537267',
+                  background: 'linear-gradient(135deg, #e7f2ed, #d9e9e2)'
+                }}
+              >
+                <Avatar sx={{ bgcolor: '#174c40', color: '#fff' }}>
+                  {selectedAmenity?.icon}
+                </Avatar>
+                <Typography variant="body2">Chưa có ảnh tiện ích</Typography>
+              </Box>
+            )}
+
+            {/* Mô tả */}
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2.25,
+                mb: 1.5,
+                border: '1px solid #e1ebe5',
+                borderRadius: 3,
+                bgcolor: '#fff'
+              }}
+            >
+              <Typography
+                variant="overline"
+                fontWeight={700}
+                sx={{ color: '#49806d', letterSpacing: 1.2 }}
+              >
+                GIỚI THIỆU
+              </Typography>
+
+              {amenityDescriptionLines.length > 0 ? (
+                <Box sx={{ mt: 1, display: 'grid', gap: 0.8 }}>
+                  {amenityDescriptionLines.map((line, index) => (
+                    <Box key={index} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                      <Box
+                        sx={{
+                          width: 7,
+                          height: 7,
+                          mt: '8px',
+                          flex: '0 0 7px',
+                          borderRadius: '50%',
+                          bgcolor: '#c5a66a'
+                        }}
+                      />
+                      <Typography
+                        variant="body1"
+                        sx={{ color: '#394b43', lineHeight: 1.7 }}
+                      >
+                        {line}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography sx={{ mt: 1, color: '#718078' }}>
+                  Chưa có mô tả được cập nhật.
+                </Typography>
+              )}
+            </Paper>
+
+            {/* Giờ hoạt động và điều kiện */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                gap: 1.5
+              }}
+            >
+              <Paper
+                elevation={0}
+                sx={{
+                  display: 'flex',
+                  gap: 1.25,
+                  alignItems: 'flex-start',
+                  p: 2,
+                  border: '1px solid #e1ebe5',
+                  borderRadius: 3,
+                  bgcolor: '#fff'
+                }}
+              >
+                <Avatar sx={{ width: 36, height: 36, bgcolor: '#e6f2ed', color: '#174c40' }}>
+                  <AccessTime fontSize="small" />
+                </Avatar>
+                <Box>
+                  <Typography variant="overline" fontWeight={700} sx={{ color: '#49806d' }}>
+                    GIỜ HOẠT ĐỘNG
+                  </Typography>
+                  <Typography sx={{ color: '#34483f', whiteSpace: 'pre-line' }}>
+                    {selectedAmenity?.hours?.trim() || 'Chưa cập nhật.'}
+                  </Typography>
+                </Box>
+              </Paper>
+
+              <Paper
+                elevation={0}
+                sx={{
+                  display: 'flex',
+                  gap: 1.25,
+                  alignItems: 'flex-start',
+                  p: 2,
+                  border: '1px solid #e1ebe5',
+                  borderRadius: 3,
+                  bgcolor: '#fff'
+                }}
+              >
+                <Avatar sx={{ width: 36, height: 36, bgcolor: '#fff3dc', color: '#9a6b19' }}>
+                  <RoomService fontSize="small" />
+                </Avatar>
+                <Box>
+                  <Typography variant="overline" fontWeight={700} sx={{ color: '#9a6b19' }}>
+                    ĐIỀU KIỆN SỬ DỤNG
+                  </Typography>
+                  <Typography sx={{ color: '#34483f', whiteSpace: 'pre-line' }}>
+                    {selectedAmenity?.conditions?.trim() || 'Chưa cập nhật.'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenReplyDialog(false)}>{t('home.cancel') || 'Hủy'}</Button>
-          <Button variant="contained" onClick={handleReply}>{t('home.sendReply') || 'Gửi phản hồi'}</Button>
+
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: '#fff', borderTop: '1px solid #e7eee9' }}>
+          <Button
+            onClick={() => setSelectedAmenity(null)}
+            variant="contained"
+            sx={{
+              px: 3,
+              borderRadius: 2,
+              bgcolor: '#174c40',
+              '&:hover': { bgcolor: '#103c32' }
+            }}
+          >
+            Đóng
+          </Button>
         </DialogActions>
       </Dialog>
+      {/* Review Reply Dialog */}
+      <Dialog
+        open={openReplyDialog}
+        onClose={() => setOpenReplyDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Phản hồi đánh giá</DialogTitle>
 
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={4}
+            label="Nội dung phản hồi"
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenReplyDialog(false)}>
+            Hủy
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleReply}
+            disabled={!replyText.trim()}
+          >
+            Gửi phản hồi
+          </Button>
+        </DialogActions>
+      </Dialog>
       {/* Delete Dialog */}
       <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
         <DialogTitle>🗑️ {t('home.deleteReview') || 'Xóa đánh giá'}</DialogTitle>
@@ -1264,100 +2267,100 @@ const Home = () => {
       >
         <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3, py: 4 }}>
           <Grid container spacing={3}>
-          {/* Bên trái: 3 cột thông tin */}
-          <Grid size={{ xs: 12, md: 8.5 }}>
-            <Grid container spacing={3}>
-            {/* Brand */}
-            <Grid size={{ xs: 12, sm: 5 }}>
-              <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-                <Typography variant="h5" fontWeight={700} sx={{ color: '#E8C48A' }}>
-                  🏨 SkyHotel
-                </Typography>
-              </Box>
-              <Typography variant="body2" sx={{ color: '#9AA1B5', lineHeight: 1.8, maxWidth: 320 }}>
-                {supportSettings.brandDescription}
-              </Typography>
-              <Box display="flex" gap={1.5} mt={2.5}>
-                {[
-                  { icon: <Phone sx={{ fontSize: 18 }} />, label: 'Gọi điện', action: () => window.open(`tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`, '_self') },
-                  { icon: <Email sx={{ fontSize: 18 }} />, label: 'Gửi email', action: () => window.open(`mailto:${supportSettings.supportEmail}`, '_self') },
-                  { icon: <Language sx={{ fontSize: 18 }} />, label: 'Fanpage', action: () => window.open(supportSettings.fanpageUrl, '_blank') },
-                ].map((s, i) => (
-                  <Tooltip key={i} title={s.label}>
-                    <Box
-                      onClick={s.action}
-                      sx={{
-                        width: 38, height: 38, borderRadius: '50%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '1px solid #2A3350', color: '#E8C48A',
-                        cursor: 'pointer', transition: 'all 0.25s ease',
-                        '&:hover': { bgcolor: '#E8C48A', color: '#0B1020', borderColor: '#E8C48A', transform: 'translateY(-3px)' },
-                      }}
+            {/* Bên trái: 3 cột thông tin */}
+            <Grid size={{ xs: 12, md: 8.5 }}>
+              <Grid container spacing={3}>
+                {/* Brand */}
+                <Grid size={{ xs: 12, sm: 5 }}>
+                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                    <Typography variant="h5" fontWeight={700} sx={{ color: '#E8C48A' }}>
+                      🏨 SkyHotel
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" sx={{ color: '#9AA1B5', lineHeight: 1.8, maxWidth: 320 }}>
+                    {supportSettings.brandDescription}
+                  </Typography>
+                  <Box display="flex" gap={1.5} mt={2.5}>
+                    {[
+                      { icon: <Phone sx={{ fontSize: 18 }} />, label: 'Gọi điện', action: () => window.open(`tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`, '_self') },
+                      { icon: <Email sx={{ fontSize: 18 }} />, label: 'Gửi email', action: () => window.open(`mailto:${supportSettings.supportEmail}`, '_self') },
+                      { icon: <Language sx={{ fontSize: 18 }} />, label: 'Fanpage', action: () => window.open(supportSettings.fanpageUrl, '_blank') },
+                    ].map((s, i) => (
+                      <Tooltip key={i} title={s.label}>
+                        <Box
+                          onClick={s.action}
+                          sx={{
+                            width: 38, height: 38, borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: '1px solid #2A3350', color: '#E8C48A',
+                            cursor: 'pointer', transition: 'all 0.25s ease',
+                            '&:hover': { bgcolor: '#E8C48A', color: '#0B1020', borderColor: '#E8C48A', transform: 'translateY(-3px)' },
+                          }}
+                        >
+                          {s.icon}
+                        </Box>
+                      </Tooltip>
+                    ))}
+                  </Box>
+                </Grid>
+
+                {/* Liên kết nhanh */}
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
+                    Khám phá
+                  </Typography>
+                  {[
+                    { label: 'Trang chủ', path: '/' },
+                    { label: 'Danh sách phòng', path: '/rooms' },
+                    { label: 'Đặt phòng của tôi', path: '/my-bookings' },
+                    { label: 'Đánh giá', path: '/reviews' },
+                  ].map((l) => (
+                    <Typography
+                      key={l.path}
+                      variant="body2"
+                      onClick={() => navigate(l.path)}
+                      sx={{ color: '#9AA1B5', cursor: 'pointer', py: 0.6, transition: 'color 0.2s', '&:hover': { color: '#E8C48A' } }}
                     >
-                      {s.icon}
+                      {l.label}
+                    </Typography>
+                  ))}
+                </Grid>
+
+                {/* Hỗ trợ khách hàng */}
+                <Grid size={{ xs: 6, sm: 3.5 }}>
+                  <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
+                    Hỗ trợ 24/7
+                  </Typography>
+                  {[
+                    { icon: <Phone sx={{ fontSize: 16 }} />, text: supportSettings.supportPhone, action: () => window.open(`tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`, '_self') },
+                    { icon: <Email sx={{ fontSize: 16 }} />, text: supportSettings.supportEmail, action: () => window.open(`mailto:${supportSettings.supportEmail}`, '_self') },
+                    { icon: <Language sx={{ fontSize: 16 }} />, text: (supportSettings.fanpageUrl || '').replace(/^https?:\/\/(www\.)?/, '') || 'fb.com/skyhotel', action: () => window.open(supportSettings.fanpageUrl, '_blank') },
+                    { icon: <SupportAgent sx={{ fontSize: 16 }} />, text: 'Chat với chúng tôi', action: () => navigate(isAuthenticated ? '/chat' : '/login') },
+                  ].map((c, i) => (
+                    <Box
+                      key={i}
+                      display="flex"
+                      alignItems="center"
+                      gap={1}
+                      py={0.4}
+                      sx={{ cursor: 'pointer', transition: 'opacity 0.2s', '&:hover': { opacity: 0.75 } }}
+                      onClick={c.action}
+                    >
+                      <Box sx={{ color: '#E8C48A', display: 'flex' }}>{c.icon}</Box>
+                      <Typography variant="body2" sx={{ color: '#9AA1B5' }}>{c.text}</Typography>
                     </Box>
-                  </Tooltip>
-                ))}
-              </Box>
+                  ))}
+                </Grid>
+
+              </Grid>
             </Grid>
 
-            {/* Liên kết nhanh */}
-            <Grid size={{ xs: 6, sm: 3.5 }}>
+            {/* Bên phải: bản đồ */}
+            <Grid size={{ xs: 12, md: 3.5 }}>
               <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
-                Khám phá
-              </Typography>
-              {[
-                { label: 'Trang chủ', path: '/' },
-                { label: 'Danh sách phòng', path: '/rooms' },
-                { label: 'Đặt phòng của tôi', path: '/my-bookings' },
-                { label: 'Đánh giá', path: '/reviews' },
-              ].map((l) => (
-                <Typography
-                  key={l.path}
-                  variant="body2"
-                  onClick={() => navigate(l.path)}
-                  sx={{ color: '#9AA1B5', cursor: 'pointer', py: 0.6, transition: 'color 0.2s', '&:hover': { color: '#E8C48A' } }}
-                >
-                  {l.label}
-                </Typography>
-              ))}
-            </Grid>
-
-            {/* Hỗ trợ khách hàng */}
-            <Grid size={{ xs: 6, sm: 3.5 }}>
-              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
-                Hỗ trợ 24/7
-              </Typography>
-              {[
-                { icon: <Phone sx={{ fontSize: 16 }} />, text: supportSettings.supportPhone, action: () => window.open(`tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`, '_self') },
-                { icon: <Email sx={{ fontSize: 16 }} />, text: supportSettings.supportEmail, action: () => window.open(`mailto:${supportSettings.supportEmail}`, '_self') },
-                { icon: <Language sx={{ fontSize: 16 }} />, text: (supportSettings.fanpageUrl || '').replace(/^https?:\/\/(www\.)?/, '') || 'fb.com/skyhotel', action: () => window.open(supportSettings.fanpageUrl, '_blank') },
-                { icon: <SupportAgent sx={{ fontSize: 16 }} />, text: 'Chat với chúng tôi', action: () => navigate(isAuthenticated ? '/chat' : '/login') },
-              ].map((c, i) => (
-                <Box
-                  key={i}
-                  display="flex"
-                  alignItems="center"
-                  gap={1}
-                  py={0.4}
-                  sx={{ cursor: 'pointer', transition: 'opacity 0.2s', '&:hover': { opacity: 0.75 } }}
-                  onClick={c.action}
-                >
-                  <Box sx={{ color: '#E8C48A', display: 'flex' }}>{c.icon}</Box>
-                  <Typography variant="body2" sx={{ color: '#9AA1B5' }}>{c.text}</Typography>
-                </Box>
-              ))}
-            </Grid>
-
-            </Grid>
-          </Grid>
-
-          {/* Bên phải: bản đồ */}
-          <Grid size={{ xs: 12, md: 3.5 }}>
-              <addressText variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
                 Vị trí của chúng tôi
-              </addressText>
-                            <Box display="flex" gap={1} mb={1.5}>
+              </Typography>
+              <Box display="flex" gap={1} mb={1.5}>
                 <Box sx={{ color: '#E8C48A', mt: 0.3, display: 'flex' }}><LocationOnIcon sx={{ fontSize: 18 }} /></Box>
                 <Typography variant="body2" sx={{ color: '#9AA1B5', lineHeight: 1.7 }}>
                   {addressText}

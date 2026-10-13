@@ -19,6 +19,7 @@ import {
     Chat as ChatIcon  // 👉 THÊM ICON CHAT
 } from '@mui/icons-material';
 import { bookingAPI } from '../api/booking';
+import { formatHotelCurrency } from '../utils/currency';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -264,18 +265,8 @@ const Bookings = () => {
         return map[s] || null;
     };
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '0';
-        const isVietnamese = i18n.language === 'vi';
-        const currency = isVietnamese ? 'VND' : 'USD';
-        const locale = isVietnamese ? 'vi-VN' : 'en-US';
-        return new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';

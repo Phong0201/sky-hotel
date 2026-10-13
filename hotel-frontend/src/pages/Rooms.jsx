@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { formatHotelCurrency } from '../utils/currency';
 import { useTranslation } from 'react-i18next';
 import {
     Box, Typography, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Paper, Chip, Button,
     Tooltip, CircularProgress, Alert, Dialog, DialogTitle,
-    DialogContent, DialogActions, TextField, MenuItem,
+    DialogContent, DialogActions, TextField, MenuItem, InputAdornment,
     FormControl, InputLabel, Select, IconButton, Avatar,
     LinearProgress, Grid, Card, CardContent, CardMedia, Divider
 } from '@mui/material';
-import { BookOnline, Add, Edit, Delete, Close, CloudUpload, People, Layers, KingBed } from '@mui/icons-material';
+import {
+    BookOnline, Add, Edit, Delete, Close, CloudUpload,
+    People, Layers, HotelRounded, SearchRounded
+} from '@mui/icons-material';
 import { roomAPI } from '../api/room';
 import { useAuth } from '../context/AuthContext';
+import CustomerHeader from '../components/common/CustomerHeader';
 import toast from 'react-hot-toast';
 // ❌ Đã xóa: import axios from 'axios';
 // ✅ Dùng instance đã có sẵn interceptor gắn token
@@ -50,12 +55,20 @@ const Rooms = () => {
     const canManage = isAdmin || isReceptionist;
 
     // ===== GUEST VIEW: tìm kiếm + lọc loại phòng =====
+    const roomsManagementPath = '/admin/rooms';
     const [guestSearch, setGuestSearch] = useState('');
     const [guestTypeFilter, setGuestTypeFilter] = useState('ALL');
 
     const ROOM_TYPE_LABELS = {
-        SINGLE: 'Phòng đơn', DOUBLE: 'Phòng đôi', SUITE: 'Phòng Suite',
-        DELUXE: 'Phòng Deluxe', FAMILY: 'Phòng gia đình', VIP: 'Phòng VIP',
+        SINGLE: 'Phòng đơn',
+        DOUBLE: 'Phòng đôi',
+        TWIN: 'Phòng 2 giường',
+        SUITE: 'Phòng Suite',
+        DELUXE: 'Phòng Deluxe',
+        FAMILY: 'Phòng gia đình',
+        VIP: 'Phòng VIP',
+        STANDARD: 'Phòng tiêu chuẩn',
+        EXECUTIVE: 'Phòng Executive',
     };
 
     const roomMainImage = (room) => {
@@ -65,33 +78,41 @@ const Rooms = () => {
     };
 
     const parseAmenities = (room) => {
-        const raw = room.amenities || room.description || '';
-        return raw.split(/[,;•]/).map(a => a.trim()).filter(a => a && a.length > 1).slice(0, 4);
+        // Không lấy description làm tiện nghi để tránh hiện cùng nội dung hai lần.
+        const raw = room.amenities || '';
+        return raw
+            .split(/[,;•]/)
+            .map((item) => item.trim())
+            .filter((item) => item && item.length > 1)
+            .slice(0, 3);
     };
 
-    const guestFilteredRooms = rooms.filter(r => {
-        if (guestTypeFilter !== 'ALL' && r.roomType !== guestTypeFilter) return false;
-        if (guestSearch.trim()) {
-            const q = guestSearch.trim().toLowerCase();
-            const hay = `${r.roomNumber} ${r.roomType} ${r.description || ''} ${r.amenities || ''}`.toLowerCase();
-            if (!hay.includes(q)) return false;
+    const guestFilteredRooms = rooms.filter((room) => {
+        if (guestTypeFilter !== 'ALL' && room.roomType !== guestTypeFilter) {
+            return false;
         }
+
+        if (guestSearch.trim()) {
+            const query = guestSearch.trim().toLowerCase();
+            const searchableText =
+                `${room.roomNumber} ${room.roomType} ${room.description || ''} ${room.amenities || ''}`
+                    .toLowerCase();
+
+            if (!searchableText.includes(query)) {
+                return false;
+            }
+        }
+
         return true;
     });
 
-    // Format currency
-    const formatCurrency = (amount) => {
-        const isVietnamese = i18n.language === 'vi';
-        const currency = isVietnamese ? 'VND' : 'USD';
-        const locale = isVietnamese ? 'vi-VN' : 'en-US';
+    const availableRoomCount = rooms.filter(
+        (room) => room.status === 'AVAILABLE'
+    ).length;
 
-        return new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    // Format currency
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     useEffect(() => {
         if (location.pathname === '/rooms/manage' && canManage) {
@@ -131,7 +152,9 @@ const Rooms = () => {
             navigate('/login');
             return;
         }
-        navigate('/bookings/create');
+        navigate('/bookings/create', {
+            state: { selectedRoomId: room.id }
+        });
     };
 
     const getStatusLabel = (status) => {
@@ -211,7 +234,7 @@ const Rooms = () => {
             setGalleryItems([]);
         }
         setOpenDialog(true);
-        navigate('/rooms', { replace: true });
+        navigate(roomsManagementPath, { replace: true });
     };
 
     const handleCloseDialog = () => {
@@ -220,7 +243,7 @@ const Rooms = () => {
         setImagePreview(null);
         setSelectedFile(null);
         setGalleryItems([]);
-        navigate('/rooms', { replace: true });
+        navigate(roomsManagementPath, { replace: true });
     };
 
     // ✅ Upload ảnh lên server - dùng chung instance `api` để tự động có token
@@ -464,303 +487,580 @@ const Rooms = () => {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-                <CircularProgress size={60} />
+            <Box sx={!canManage ? { bgcolor: '#f7f6f2', minHeight: '100vh' } : undefined}>
+                {!canManage && <CustomerHeader activePage="rooms" />}
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+                    <CircularProgress size={60} sx={!canManage ? { color: '#174c40' } : undefined} />
+                </Box>
             </Box>
         );
     }
 
     return (
-        <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Box>
-                    <Typography variant="h4" fontWeight={600}> {canManage ? (t('rooms.title') || 'Quản Lý Phòng') : 'Danh sách phòng'}</Typography>
-                    <Typography variant="body2" color="textSecondary">
-                        {t('rooms.total')}: {rooms.length} {t('rooms.room')}
-                    </Typography>
-                </Box>
-                {canManage && (
-                    <Button
-                        variant="contained"
-                        startIcon={<Add />}
-                        onClick={() => handleOpenDialog()}
-                        sx={{ bgcolor: '#007bff' }}
-                    >
-                        {t('rooms.addRoom')}
-                    </Button>
-                )}
-            </Box>
+        <Box sx={!canManage ? { bgcolor: '#f7f6f2', minHeight: '100vh' } : undefined}>
+            {!canManage && <CustomerHeader activePage="rooms" />}
 
-            {!canManage && (
-                <Box>
-                    {/* ===== GUEST VIEW: card phòng đẹp ===== */}
-                    <Paper sx={{ p: 2, borderRadius: 3, mb: 3 }}>
-                        <Grid container spacing={2} alignItems="center">
-                            <Grid item xs={12} md={7}>
+            <Box sx={!canManage ? {
+                maxWidth: 1536,
+                mx: 'auto',
+                px: { xs: 2, sm: 3 },
+                py: { xs: 3, md: 4 }
+            } : undefined}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: { xs: 'flex-start', md: 'flex-end' },
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 2.5,
+                            mb: { xs: 3, md: 4 },
+                        }}
+                    >
+                        <Box>
+                            {!canManage && (
+                                <Typography
+                                    sx={{
+                                        mb: 1,
+                                        color: '#8a9b91',
+                                        fontSize: '0.72rem',
+                                        fontWeight: 800,
+                                        letterSpacing: '0.18em',
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    SkyHotel · Lưu trú
+                                </Typography>
+                            )}
+
+                            <Typography
+                                component="h1"
+                                variant="h3"
+                                sx={{
+                                    color: '#183c32',
+                                    fontWeight: 780,
+                                    letterSpacing: '-0.045em',
+                                    lineHeight: 1.08,
+                                    fontSize: { xs: '2rem', sm: '2.55rem', md: '3rem' },
+                                }}
+                            >
+                                {canManage ? (t('rooms.title') || 'Quản Lý Phòng') : 'Danh sách phòng'}
+                            </Typography>
+
+                            <Typography sx={{ mt: 1, color: '#718078', fontSize: { xs: '0.92rem', md: '1rem' } }}>
+                                {canManage
+                                    ? `${t('rooms.total')}: ${rooms.length} ${t('rooms.room')}`
+                                    : 'Khám phá các lựa chọn phòng đang có tại SkyHotel.'}
+                            </Typography>
+                        </Box>
+
+                        {canManage ? (
+                            <Button
+                                variant="contained"
+                                startIcon={<Add />}
+                                onClick={() => handleOpenDialog()}
+                                sx={{
+                                    bgcolor: '#174c40',
+                                    '&:hover': { bgcolor: '#103c32' },
+                                    borderRadius: 2.5,
+                                    px: 2.5,
+                                    py: 1.2,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {t('rooms.addRoom')}
+                            </Button>
+                        ) : (
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: { xs: 2, sm: 3 },
+                                    px: { xs: 2, sm: 2.75 },
+                                    py: 1.5,
+                                    border: '1px solid #e1eae4',
+                                    borderRadius: 3,
+                                    bgcolor: 'rgba(255,255,255,0.86)',
+                                    boxShadow: '0 8px 24px rgba(30,63,49,0.05)',
+                                }}
+                            >
+                                <Box>
+                                    <Typography
+                                        sx={{
+                                            color: '#849189',
+                                            fontSize: '0.67rem',
+                                            fontWeight: 750,
+                                            letterSpacing: '0.1em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Còn trống
+                                    </Typography>
+                                    <Typography sx={{ color: '#174c40', fontSize: '1.65rem', fontWeight: 800, lineHeight: 1.15 }}>
+                                        {availableRoomCount}
+                                    </Typography>
+                                </Box>
+
+                                <Divider orientation="vertical" flexItem />
+
+                                <Box>
+                                    <Typography
+                                        sx={{
+                                            color: '#849189',
+                                            fontSize: '0.67rem',
+                                            fontWeight: 750,
+                                            letterSpacing: '0.1em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Tổng phòng
+                                    </Typography>
+                                    <Typography sx={{ color: '#34463e', fontSize: '1.65rem', fontWeight: 800, lineHeight: 1.15 }}>
+                                        {rooms.length}
+                                    </Typography>
+                                </Box>
+                            </Paper>
+                        )}
+                    </Box>
+
+                    {!canManage && (
+                        <Box>
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    p: { xs: 2, sm: 2.5 },
+                                    mb: 3.5,
+                                    borderRadius: 3.5,
+                                    border: '1px solid #e2ebe5',
+                                    bgcolor: '#fff',
+                                    boxShadow: '0 12px 32px rgba(30,63,49,0.055)',
+                                }}
+                            >
                                 <TextField
-                                    fullWidth size="small"
-                                    placeholder="Tìm phòng (số phòng, loại, tiện ích...)"
+                                    fullWidth
+                                    placeholder="Tìm theo số phòng, loại phòng hoặc tiện nghi..."
                                     value={guestSearch}
-                                    onChange={(e) => setGuestSearch(e.target.value)}
+                                    onChange={(event) => setGuestSearch(event.target.value)}
+                                    inputProps={{ 'aria-label': 'Tìm phòng' }}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchRounded sx={{ color: '#839188' }} />
+                                            </InputAdornment>
+                                        ),
+                                    }}
+                                    sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                            minHeight: 54,
+                                            borderRadius: 2.5,
+                                            bgcolor: '#f8faf8',
+                                            '& fieldset': { borderColor: '#e4ebe6' },
+                                            '&:hover fieldset': { borderColor: '#b8cbc0' },
+                                            '&.Mui-focused fieldset': {
+                                                borderColor: '#174c40',
+                                                borderWidth: 1.5,
+                                            },
+                                        },
+                                    }}
                                 />
-                            </Grid>
-                            <Grid item xs={12} md={5}>
+
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        flexWrap: 'wrap',
+                                        gap: 1,
+                                        mt: 2.25,
+                                        mb: 1.25,
+                                    }}
+                                >
+                                    <Typography
+                                        sx={{
+                                            color: '#46574e',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 800,
+                                            letterSpacing: '0.1em',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        Loại phòng
+                                    </Typography>
+
+                                    <Typography variant="body2" sx={{ color: '#829087' }}>
+                                        {guestFilteredRooms.length} phòng phù hợp
+                                    </Typography>
+                                </Box>
+
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    {['ALL', ...Object.keys(ROOM_TYPE_LABELS)].map(type => {
+                                    {['ALL', ...Object.keys(ROOM_TYPE_LABELS)].map((type) => {
                                         const active = guestTypeFilter === type;
-                                        const count = type === 'ALL' ? rooms.length : rooms.filter(r => r.roomType === type).length;
+                                        const count =
+                                            type === 'ALL'
+                                                ? rooms.length
+                                                : rooms.filter((room) => room.roomType === type).length;
+
                                         if (type !== 'ALL' && count === 0) return null;
+
                                         return (
                                             <Chip
                                                 key={type}
-                                                label={type === 'ALL' ? `Tất cả (${count})` : `${ROOM_TYPE_LABELS[type]} (${count})`}
+                                                label={`${type === 'ALL' ? 'Tất cả' : ROOM_TYPE_LABELS[type]} · ${count}`}
                                                 onClick={() => setGuestTypeFilter(type)}
-                                                color={active ? 'primary' : 'default'}
                                                 variant={active ? 'filled' : 'outlined'}
-                                                sx={{ fontWeight: active ? 600 : 400 }}
+                                                sx={{
+                                                    minHeight: 36,
+                                                    px: 0.35,
+                                                    borderRadius: 99,
+                                                    fontWeight: active ? 750 : 550,
+                                                    color: active ? '#fff' : '#52615b',
+                                                    bgcolor: active ? '#174c40' : '#fff',
+                                                    borderColor: active ? '#174c40' : '#dfe7e2',
+                                                    transition: 'all 160ms ease',
+                                                    '&:hover': {
+                                                        bgcolor: active ? '#103c32' : '#eff5f1',
+                                                        borderColor: '#b7cbc0',
+                                                    },
+                                                }}
                                             />
                                         );
                                     })}
                                 </Box>
-                            </Grid>
-                        </Grid>
-                    </Paper>
+                            </Paper>
 
-                    <Grid container spacing={3}>
-                        {guestFilteredRooms.length === 0 && (
-                            <Grid item xs={12}>
-                                <Paper sx={{ p: 6, textAlign: 'center', borderRadius: 3 }}>
-                                    <Typography variant="h5" color="textSecondary">🔍 Không tìm thấy phòng phù hợp</Typography>
-                                </Paper>
-                            </Grid>
-                        )}
-                        {guestFilteredRooms.map((room) => {
-                            const img = roomMainImage(room);
-                            const available = room.status === 'AVAILABLE';
-                            return (
-                                <Grid item xs={12} sm={6} md={4} key={room.id}>
-                                                                        <Card
-                                        onClick={() => navigate(`/rooms/${room.id}`)}
-                                        sx={{
-                                        borderRadius: 3, overflow: 'hidden', height: '100%',
-                                        display: 'flex', flexDirection: 'column',
-                                        transition: 'transform 0.25s ease, box-shadow 0.25s ease',
-                                        '&:hover': { transform: 'translateY(-6px)', boxShadow: 8 },
-                                        position: 'relative',
-                                        cursor: 'pointer',
-                                    }}>
-                                        {/* Ảnh phòng */}
-                                        <Box sx={{
-                                            position: 'relative', height: 210, overflow: 'hidden',
-                                            bgcolor: 'linear-gradient(135deg,#e3f2fd,#f5f5f5)',
-                                        }}>
-                                            {img ? (
-                                                <CardMedia
-                                                    component="img"
-                                                    image={img}
-                                                    alt={`Phòng ${room.roomNumber}`}
-                                                    sx={{
-                                                        width: '100%', height: '100%', objectFit: 'cover',
-                                                        transition: 'transform 0.4s ease',
-                                                        '&:hover': { transform: 'scale(1.06)' },
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Box sx={{
-                                                    width: '100%', height: '100%',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                                    fontSize: 64,
-                                                }}>
-                                                    🏨
-                                                </Box>
-                                            )}
-                                            <Chip
-                                                size="small"
-                                                label={available ? '✓ Còn trống' : '✕ Hết phòng'}
-                                                color={available ? 'success' : 'default'}
-                                                sx={{
-                                                    position: 'absolute', top: 12, right: 12,
-                                                    backdropFilter: 'blur(4px)',
-                                                    fontWeight: 600,
-                                                    bgcolor: available ? 'rgba(46,125,50,0.92)' : 'rgba(97,97,97,0.92)',
-                                                    color: '#fff',
-                                                }}
-                                            />
-                                            <Chip
-                                                size="small"
-                                                label={`#${room.roomNumber}`}
-                                                sx={{
-                                                    position: 'absolute', top: 12, left: 12,
-                                                    bgcolor: 'rgba(0,0,0,0.55)', color: '#fff',
-                                                    backdropFilter: 'blur(4px)', fontWeight: 600,
-                                                }}
-                                            />
-                                        </Box>
-
-                                        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                                            <Typography variant="h6" fontWeight={700} gutterBottom>
-                                                {ROOM_TYPE_LABELS[room.roomType] || room.roomType}
+                            <Grid container spacing={{ xs: 2, md: 2.5 }}>
+                                {guestFilteredRooms.length === 0 && (
+                                    <Grid item xs={12}>
+                                        <Paper
+                                            elevation={0}
+                                            sx={{
+                                                p: { xs: 4, md: 6 },
+                                                textAlign: 'center',
+                                                borderRadius: 3.5,
+                                                border: '1px solid #e5ece7',
+                                                bgcolor: '#fff',
+                                            }}
+                                        >
+                                            <SearchRounded sx={{ mb: 1, fontSize: 38, color: '#8a9b91' }} />
+                                            <Typography variant="h6" sx={{ color: '#34463e', fontWeight: 700 }}>
+                                                Không tìm thấy phòng phù hợp
                                             </Typography>
+                                            <Typography variant="body2" sx={{ mt: 0.5, color: '#829087' }}>
+                                                Thử đổi từ khóa hoặc loại phòng bạn đang chọn.
+                                            </Typography>
+                                        </Paper>
+                                    </Grid>
+                                )}
 
-                                            <Box sx={{ display: 'flex', gap: 2, mb: 1.5, color: 'text.secondary' }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                    <People sx={{ fontSize: 17 }} />
-                                                    <Typography variant="body2">{room.capacity} khách</Typography>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                    <Layers sx={{ fontSize: 17 }} />
-                                                    <Typography variant="body2">Tầng {room.floor}</Typography>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                    <KingBed sx={{ fontSize: 17 }} />
-                                                    <Typography variant="body2">{room.roomNumber}</Typography>
-                                                </Box>
-                                            </Box>
+                                {guestFilteredRooms.map((room) => {
+                                    const img = roomMainImage(room);
+                                    const available = room.status === 'AVAILABLE';
+                                    const statusTone = {
+                                        AVAILABLE: { background: '#e7f5eb', color: '#28754a' },
+                                        BOOKED: { background: '#fff3df', color: '#946716' },
+                                        OCCUPIED: { background: '#e6f1fa', color: '#2c678e' },
+                                        MAINTENANCE: { background: '#fae9e7', color: '#a44f48' },
+                                    }[room.status] || { background: '#f0f2f0', color: '#59635d' };
 
-                                            {parseAmenities(room).length > 0 && (
-                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
-                                                    {parseAmenities(room).map((a, i) => (
-                                                        <Chip key={i} label={a} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 24 }} />
-                                                    ))}
-                                                </Box>
-                                            )}
-
-                                            {room.description && (
-                                                <Typography variant="body2" color="textSecondary" sx={{
-                                                    mb: 1.5, display: '-webkit-box',
-                                                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                                                }}>
-                                                    {room.description}
-                                                </Typography>
-                                            )}
-
-                                            <Box sx={{ mt: 'auto' }}>
-                                                <Divider sx={{ mb: 1.5 }} />
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <Box>
-                                                        <Typography variant="caption" color="textSecondary">Giá/đêm</Typography>
-                                                        <Typography variant="h6" fontWeight={700} color="primary">
-                                                            {formatCurrency(room.pricePerNight)}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Button
-                                                        variant="contained"
-                                                        disabled={!available}
-                                                        onClick={(e) => { e.stopPropagation(); handleBookNow(room); }}
-                                                        startIcon={<BookOnline />}
-                                                        sx={{
-                                                            borderRadius: 2, textTransform: 'none', fontWeight: 600,
-                                                            bgcolor: available ? 'primary.main' : 'grey.400',
-                                                        }}
-                                                    >
-                                                        {available ? 'Đặt ngay' : 'Hết phòng'}
-                                                    </Button>
-                                                </Box>
-                                            </Box>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                            );
-                        })}
-                    </Grid>
-                </Box>
-            )}
-
-            {canManage && (
-            <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-                <Table>
-                    <TableHead sx={{ bgcolor: '#f8f9fa' }}>
-                        <TableRow>
-                            <TableCell sx={{ fontWeight: 600 }}>Ảnh</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{t('rooms.room')}</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{t('rooms.type')}</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.floor')}</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.capacity')}</TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>{t('rooms.price')}</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>{t('rooms.status')}</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600 }}>Đặt phòng</TableCell>
-                            {canManage && (
-                                <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.actions')}</TableCell>
-                            )}
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {rooms.map((room) => (
-                            <TableRow key={room.id} hover>
-                                <TableCell>
-                                    <Avatar
-                                        variant="rounded"
-                                        src={room.imageUrl ? `${API_BASE_URL}${room.imageUrl}` : `https://picsum.photos/seed/${room.id}/50/50`}
-                                        sx={{ width: 50, height: 50 }}
-                                    >
-                                        🏨
-                                    </Avatar>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography fontWeight={500}>{room.roomNumber}</Typography>
-                                </TableCell>
-                                <TableCell>{room.roomType}</TableCell>
-                                <TableCell align="center">{room.floor}</TableCell>
-                                <TableCell align="center">{room.capacity}</TableCell>
-                                <TableCell align="right">
-                                    <Typography fontWeight={600} color="primary">
-                                        {formatCurrency(room.pricePerNight)}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    {getStatusChip(room.status)}
-                                </TableCell>
-                                <TableCell align="center">
-                                    <Tooltip title={room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}>
-                                        <span>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                disabled={room.status !== 'AVAILABLE'}
-                                                onClick={() => handleBookNow(room)}
-                                                startIcon={<BookOnline />}
+                                    return (
+                                        <Grid item xs={12} sm={6} md={4} lg={3} key={room.id}>
+                                            <Card
+                                                onClick={() => navigate(`/rooms/${room.id}`)}
                                                 sx={{
-                                                    bgcolor: room.status === 'AVAILABLE' ? '#007bff' : '#6c757d',
-                                                    '&:hover': { bgcolor: room.status === 'AVAILABLE' ? '#0056b3' : '#6c757d' },
-                                                    minWidth: 100,
-                                                    borderRadius: 2,
-                                                    fontSize: '0.8rem'
+                                                    borderRadius: 3.5,
+                                                    overflow: 'hidden',
+                                                    height: '100%',
+                                                    minHeight: 446,
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    border: '1px solid #e5ece7',
+                                                    boxShadow: '0 8px 24px rgba(30,63,49,0.07)',
+                                                    transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+                                                    '&:hover': {
+                                                        transform: 'translateY(-5px)',
+                                                        boxShadow: '0 18px 36px rgba(30,63,49,0.14)',
+                                                    },
+                                                    cursor: 'pointer',
                                                 }}
                                             >
-                                                {room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}
-                                            </Button>
-                                        </span>
-                                    </Tooltip>
-                                </TableCell>
-                                {canManage && (
-                                    <TableCell align="center">
-                                        <Tooltip title={i18n.language === 'vi' ? 'Sửa' : 'Edit'}>
-                                            <IconButton
-                                                size="small"
-                                                color="primary"
-                                                onClick={() => handleOpenDialog(room)}
-                                            >
-                                                <Edit />
-                                            </IconButton>
-                                        </Tooltip>
-                                        <Tooltip title={i18n.language === 'vi' ? 'Xóa' : 'Delete'}>
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                onClick={() => handleDelete(room.id)}
-                                            >
-                                                <Delete />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </TableCell>
-                                )}
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-            )}
+                                                <Box sx={{ position: 'relative', height: 218, overflow: 'hidden', bgcolor: '#e7f0eb' }}>
+                                                    {img ? (
+                                                        <CardMedia
+                                                            component="img"
+                                                            image={img}
+                                                            alt={`Phòng ${room.roomNumber}`}
+                                                            sx={{
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                objectFit: 'cover',
+                                                                transition: 'transform 0.4s ease',
+                                                                '&:hover': { transform: 'scale(1.06)' },
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Box
+                                                            sx={{
+                                                                width: '100%',
+                                                                height: '100%',
+                                                                display: 'flex',
+                                                                flexDirection: 'column',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                gap: 0.75,
+                                                                background: 'radial-gradient(circle at 50% 0%, #fff 0%, #edf4ef 58%, #dce9e1 100%)',
+                                                            }}
+                                                        >
+                                                            <HotelRounded sx={{ fontSize: 48, color: '#668879' }} />
+                                                            <Typography variant="caption" sx={{ color: '#718078', fontWeight: 600 }}>
+                                                                Ảnh phòng chưa có
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
+
+                                                    <Chip
+                                                        size="small"
+                                                        label={`${available ? '✓ ' : ''}${getStatusLabel(room.status)}`}
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 12,
+                                                            right: 12,
+                                                            fontWeight: 750,
+                                                            bgcolor: statusTone.background,
+                                                            color: statusTone.color,
+                                                            border: '1px solid rgba(255,255,255,0.75)',
+                                                            boxShadow: '0 3px 10px rgba(28,50,39,0.08)',
+                                                        }}
+                                                    />
+
+                                                    <Chip
+                                                        size="small"
+                                                        label={`#${room.roomNumber}`}
+                                                        sx={{
+                                                            position: 'absolute',
+                                                            top: 12,
+                                                            left: 12,
+                                                            bgcolor: 'rgba(24,42,34,0.72)',
+                                                            color: '#fff',
+                                                            backdropFilter: 'blur(8px)',
+                                                            fontWeight: 750,
+                                                        }}
+                                                    />
+                                                </Box>
+
+                                                <CardContent
+                                                    sx={{
+                                                        flexGrow: 1,
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        p: 2.25,
+                                                        '&:last-child': { pb: 2.25 },
+                                                    }}
+                                                >
+                                                    <Typography
+                                                        variant="h6"
+                                                        fontWeight={750}
+                                                        sx={{ color: '#263b32', fontSize: '1.12rem', mb: 1.25 }}
+                                                    >
+                                                        {ROOM_TYPE_LABELS[room.roomType] || room.roomType}
+                                                    </Typography>
+
+                                                    <Box sx={{ display: 'flex', gap: 2.25, flexWrap: 'wrap', mb: 1.5, color: '#68776f' }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.65 }}>
+                                                            <People sx={{ fontSize: 17, color: '#829188' }} />
+                                                            <Typography variant="body2">{room.capacity} khách</Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.65 }}>
+                                                            <Layers sx={{ fontSize: 17, color: '#829188' }} />
+                                                            <Typography variant="body2">Tầng {room.floor}</Typography>
+                                                        </Box>
+                                                    </Box>
+
+                                                    {parseAmenities(room).length > 0 && (
+                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
+                                                            {parseAmenities(room).map((amenity, index) => (
+                                                                <Chip
+                                                                    key={`${room.id}-${index}`}
+                                                                    label={amenity}
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    sx={{
+                                                                        fontSize: '0.7rem',
+                                                                        height: 26,
+                                                                        borderColor: '#dce6df',
+                                                                        color: '#50645a',
+                                                                        bgcolor: '#f9fbf9',
+                                                                    }}
+                                                                />
+                                                            ))}
+                                                        </Box>
+                                                    )}
+
+                                                    {room.description && (
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                mb: 1.5,
+                                                                display: '-webkit-box',
+                                                                minHeight: '2.7em',
+                                                                WebkitLineClamp: 2,
+                                                                WebkitBoxOrient: 'vertical',
+                                                                overflow: 'hidden',
+                                                                color: '#718078',
+                                                                lineHeight: 1.4,
+                                                            }}
+                                                        >
+                                                            {room.description}
+                                                        </Typography>
+                                                    )}
+
+                                                    <Box sx={{ mt: 'auto' }}>
+                                                        <Divider sx={{ mb: 1.5 }} />
+                                                        <Box
+                                                            sx={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                gap: 1,
+                                                            }}
+                                                        >
+                                                            <Box>
+                                                                <Typography variant="caption" color="textSecondary">
+                                                                    Giá/đêm
+                                                                </Typography>
+                                                                <Typography variant="h6" fontWeight={700} sx={{ color: '#174c40' }}>
+                                                                    {formatCurrency(room.pricePerNight)}
+                                                                </Typography>
+                                                            </Box>
+
+                                                            <Button
+                                                                variant="contained"
+                                                                disabled={!available}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    handleBookNow(room);
+                                                                }}
+                                                                startIcon={<BookOnline />}
+                                                                sx={{
+                                                                    borderRadius: 2,
+                                                                    textTransform: 'none',
+                                                                    fontWeight: 700,
+                                                                    px: 2,
+                                                                    bgcolor: available ? '#174c40' : '#9aa49e',
+                                                                    '&:hover': {
+                                                                        bgcolor: available ? '#103c32' : '#9aa49e',
+                                                                    },
+                                                                }}
+                                                            >
+                                                                {available ? 'Đặt ngay' : getStatusLabel(room.status)}
+                                                            </Button>
+                                                        </Box>
+                                                    </Box>
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+                                    );
+                                })}
+                            </Grid>
+                        </Box>
+                    )}
+                    {canManage && (
+                        <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                            <Table>
+                                <TableHead sx={{ bgcolor: '#f8f9fa' }}>
+                                    <TableRow>
+                                        <TableCell sx={{ fontWeight: 600 }}>Ảnh</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>{t('rooms.room')}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>{t('rooms.type')}</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.floor')}</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.capacity')}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 600 }}>{t('rooms.price')}</TableCell>
+                                        <TableCell sx={{ fontWeight: 600 }}>{t('rooms.status')}</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600 }}>Đặt phòng</TableCell>
+                                        {canManage && (
+                                            <TableCell align="center" sx={{ fontWeight: 600 }}>{t('rooms.actions')}</TableCell>
+                                        )}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {rooms.map((room) => (
+                                        <TableRow key={room.id} hover>
+                                            <TableCell>
+                                                <Avatar
+                                                    variant="rounded"
+                                                    src={room.imageUrl ? `${API_BASE_URL}${room.imageUrl}` : `https://picsum.photos/seed/${room.id}/50/50`}
+                                                    sx={{ width: 50, height: 50 }}
+                                                >
+                                                    🏨
+                                                </Avatar>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography fontWeight={500}>{room.roomNumber}</Typography>
+                                            </TableCell>
+                                            <TableCell>{room.roomType}</TableCell>
+                                            <TableCell align="center">{room.floor}</TableCell>
+                                            <TableCell align="center">{room.capacity}</TableCell>
+                                            <TableCell align="right">
+                                                <Typography fontWeight={600} color="primary">
+                                                    {formatCurrency(room.pricePerNight)}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                {getStatusChip(room.status)}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Tooltip title={room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}>
+                                                    <span>
+                                                        <Button
+                                                            variant="contained"
+                                                            size="small"
+                                                            disabled={room.status !== 'AVAILABLE'}
+                                                            onClick={() => handleBookNow(room)}
+                                                            startIcon={<BookOnline />}
+                                                            sx={{
+                                                                bgcolor: room.status === 'AVAILABLE' ? '#007bff' : '#6c757d',
+                                                                '&:hover': { bgcolor: room.status === 'AVAILABLE' ? '#0056b3' : '#6c757d' },
+                                                                minWidth: 100,
+                                                                borderRadius: 2,
+                                                                fontSize: '0.8rem'
+                                                            }}
+                                                        >
+                                                            {room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}
+                                                        </Button>
+                                                    </span>
+                                                </Tooltip>
+                                            </TableCell>
+                                            {canManage && (
+                                                <TableCell align="center">
+                                                    <Tooltip title={i18n.language === 'vi' ? 'Sửa' : 'Edit'}>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="primary"
+                                                            onClick={() => handleOpenDialog(room)}
+                                                        >
+                                                            <Edit />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title={i18n.language === 'vi' ? 'Xóa' : 'Delete'}>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => handleDelete(room.id)}
+                                                        >
+                                                            <Delete />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </TableCell>
+                                            )}
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    )}
+                </Box>
+            </Box>
 
             {/* Dialog Thêm/Sửa phòng */}
             <Dialog
@@ -842,7 +1142,7 @@ const Rooms = () => {
                             InputProps={{ inputProps: { min: 1 } }}
                         />
                         <TextField
-                            label={i18n.language === 'vi' ? 'Giá/đêm (VND)' : 'Price/Night (USD)'}
+                            label={i18n.language === 'vi' ? 'Giá/đêm (VND)' : 'Price/Night (VND)'}
                             name="pricePerNight"
                             type="number"
                             value={formData.pricePerNight}

@@ -20,7 +20,12 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+import { API_BASE_URL } from '../api/config';
+import {
+    getNotificationCategory,
+    localizeNotification
+} from '../i18n/notificationText';
+const NOTIFICATION_TABS = ['all', 'promotions', 'unread'];
 
 const Notifications = () => {
     const { t, i18n } = useTranslation();
@@ -48,7 +53,7 @@ const Notifications = () => {
             setLoading(false);
             return;
         }
-        
+
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
@@ -56,14 +61,14 @@ const Notifications = () => {
                 setLoading(false);
                 return;
             }
-            
+
             const res = await axios.get(`${API_BASE_URL}/notifications/user/${user.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             const data = res.data || [];
             console.log('📥 Notifications from API:', data);
-            
+
             // Map dữ liệu từ API sang format hiển thị
             const mappedData = data.map(item => ({
                 id: item.id,
@@ -77,7 +82,7 @@ const Notifications = () => {
                 action: item.link || null,
                 actionLabel: item.type === 'promotion' ? 'Xem khuyến mãi' : 'Xem chi tiết'
             }));
-            
+
             setNotifications(mappedData);
         } catch (error) {
             console.error('Fetch notifications error:', error);
@@ -89,7 +94,7 @@ const Notifications = () => {
 
     // Helper functions cho icon
     const getIconByType = (type) => {
-        switch(type) {
+        switch (type) {
             case 'booking': return <BookOnline />;
             case 'promotion': return <LocalOffer />;
             case 'system': return <Info />;
@@ -99,7 +104,7 @@ const Notifications = () => {
     };
 
     const getColorByType = (type) => {
-        switch(type) {
+        switch (type) {
             case 'booking': return '#1976d2';
             case 'promotion': return '#ff9800';
             case 'system': return '#4caf50';
@@ -125,7 +130,7 @@ const Notifications = () => {
             await axios.put(`${API_BASE_URL}/notifications/${id}/read`, null, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setNotifications(prev =>
                 prev.map(n => n.id === id ? { ...n, read: true } : n)
             );
@@ -143,7 +148,7 @@ const Notifications = () => {
             await axios.put(`${API_BASE_URL}/notifications/user/${user.id}/read-all`, null, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
             showSnackbar('Đã đánh dấu tất cả là đã đọc', 'success');
         } catch (error) {
@@ -158,7 +163,7 @@ const Notifications = () => {
             await axios.delete(`${API_BASE_URL}/notifications/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             setNotifications(prev => prev.filter(n => n.id !== id));
             showSnackbar('Đã xóa thông báo', 'success');
         } catch (error) {
@@ -169,7 +174,7 @@ const Notifications = () => {
 
     const handleClearAll = async () => {
         if (!window.confirm('Bạn có chắc muốn xóa tất cả thông báo?')) return;
-        
+
         try {
             const token = localStorage.getItem('token');
             // Xóa từng cái
@@ -178,7 +183,7 @@ const Notifications = () => {
                     headers: { Authorization: `Bearer ${token}` }
                 });
             }
-            
+
             setNotifications([]);
             showSnackbar('Đã xóa tất cả thông báo', 'success');
         } catch (error) {
@@ -203,7 +208,7 @@ const Notifications = () => {
         ]);
         setChatMessage('');
         showSnackbar('Đã gửi tin nhắn', 'success');
-        
+
         setTimeout(() => {
             setChatHistory(prev => [
                 ...prev,
@@ -224,18 +229,32 @@ const Notifications = () => {
     };
 
     const getFilteredNotifications = () => {
-        switch(tabValue) {
-            case 0: return notifications;
-            case 1: return notifications.filter(n => !n.read);
-            case 2: return notifications.filter(n => n.type === 'promotion');
-            case 3: return notifications.filter(n => n.type === 'booking');
-            default: return notifications;
+        const category = NOTIFICATION_TABS[tabValue] || 'all';
+
+        if (category === 'all') return notifications;
+        if (category === 'unread') {
+            return notifications.filter((notification) => !notification.read);
         }
+
+        return notifications.filter(
+            (notification) => getNotificationCategory(notification) === category
+        );
     };
 
-    const unreadCount = notifications.filter(n => !n.read).length;
-    const filtered = getFilteredNotifications();
+    const getTabCount = (category) => {
+        if (category === 'all') return notifications.length;
+        if (category === 'unread') return unreadCount;
 
+        return notifications.filter(
+            (notification) => getNotificationCategory(notification) === category
+        ).length;
+    };
+
+    const unreadCount = notifications.filter(
+        (notification) => !notification.read
+    ).length;
+
+    const filtered = getFilteredNotifications();
     if (loading) {
         return (
             <Box sx={{ width: '100%', mt: 4 }}>
@@ -256,14 +275,14 @@ const Notifications = () => {
                         🔔 {i18n.language === 'vi' ? 'Thông báo' : 'Notifications'}
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        {i18n.language === 'vi' 
-                            ? `Tổng ${notifications.length} thông báo, ${unreadCount} chưa đọc` 
+                        {i18n.language === 'vi'
+                            ? `Tổng ${notifications.length} thông báo, ${unreadCount} chưa đọc`
                             : `Total ${notifications.length} notifications, ${unreadCount} unread`}
                     </Typography>
                 </Box>
                 <Box display="flex" gap={1}>
-                    <Button 
-                        variant="outlined" 
+                    <Button
+                        variant="outlined"
                         startIcon={<Refresh />}
                         onClick={fetchNotifications}
                         size="small"
@@ -271,8 +290,8 @@ const Notifications = () => {
                         {i18n.language === 'vi' ? 'Làm mới' : 'Refresh'}
                     </Button>
                     {unreadCount > 0 && (
-                        <Button 
-                            variant="outlined" 
+                        <Button
+                            variant="outlined"
                             startIcon={<MarkEmailRead />}
                             onClick={handleMarkAllRead}
                             size="small"
@@ -281,9 +300,9 @@ const Notifications = () => {
                         </Button>
                     )}
                     {notifications.length > 0 && (
-                        <Button 
-                            variant="outlined" 
-                            color="error" 
+                        <Button
+                            variant="outlined"
+                            color="error"
                             startIcon={<Delete />}
                             onClick={handleClearAll}
                             size="small"
@@ -291,42 +310,40 @@ const Notifications = () => {
                             {i18n.language === 'vi' ? 'Xóa tất cả' : 'Clear all'}
                         </Button>
                     )}
-                    <Button 
-                        variant="contained" 
+                    <Button
+                        variant="contained"
                         startIcon={<Chat />}
-                        onClick={() => setOpenChatDialog(true)}
+                        onClick={() => navigate('/chat')}
                         sx={{ bgcolor: '#007bff' }}
                         size="small"
                     >
-                        {i18n.language === 'vi' ? 'Hỗ trợ' : 'Support'}
+                        {t('notifications.supportButton')}
                     </Button>
                 </Box>
             </Box>
 
             {/* Tabs */}
             <Paper sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
-                <Tabs 
-                    value={tabValue} 
+                <Tabs
+                    value={tabValue}
                     onChange={handleTabChange}
                     variant="scrollable"
                     scrollButtons="auto"
                 >
-                    <Tab 
-                        label={
-                            <Badge badgeContent={unreadCount} color="error" max={99}>
-                                {i18n.language === 'vi' ? 'Tất cả' : 'All'}
-                            </Badge>
-                        } 
-                    />
-                    <Tab 
-                        label={
-                            <Badge badgeContent={unreadCount} color="error" max={99}>
-                                {i18n.language === 'vi' ? 'Chưa đọc' : 'Unread'}
-                            </Badge>
-                        } 
-                    />
-                    <Tab label={i18n.language === 'vi' ? '🎉 Khuyến mãi' : '🎉 Promotions'} />
-                    <Tab label={i18n.language === 'vi' ? '📋 Đặt phòng' : '📋 Bookings'} />
+                    {NOTIFICATION_TABS.map((category) => (
+                        <Tab
+                            key={category}
+                            label={
+                                <Badge
+                                    badgeContent={getTabCount(category)}
+                                    color={category === 'unread' ? 'error' : 'primary'}
+                                    invisible={getTabCount(category) === 0}
+                                >
+                                    {t(`notifications.categories.${category}`)}
+                                </Badge>
+                            }
+                        />
+                    ))}
                 </Tabs>
             </Paper>
 
@@ -338,8 +355,8 @@ const Notifications = () => {
                         {i18n.language === 'vi' ? 'Không có thông báo' : 'No notifications'}
                     </Typography>
                     <Typography variant="body2" color="textSecondary">
-                        {i18n.language === 'vi' 
-                            ? 'Bạn sẽ nhận được thông báo khi có hoạt động mới' 
+                        {i18n.language === 'vi'
+                            ? 'Bạn sẽ nhận được thông báo khi có hoạt động mới'
                             : 'You will receive notifications when there is new activity'}
                     </Typography>
                 </Paper>
@@ -348,11 +365,11 @@ const Notifications = () => {
                     <List>
                         {filtered.map((notif, index) => (
                             <React.Fragment key={notif.id}>
-                                <ListItem 
-                                    sx={{ 
+                                <ListItem
+                                    sx={{
                                         bgcolor: notif.read ? 'transparent' : '#f0f7ff',
-                                        '&:hover': { 
-                                            bgcolor: notif.read ? '#f5f5f5' : '#e3f2fd' 
+                                        '&:hover': {
+                                            bgcolor: notif.read ? '#f5f5f5' : '#e3f2fd'
                                         },
                                         cursor: 'pointer',
                                         transition: 'all 0.3s'
@@ -364,7 +381,7 @@ const Notifications = () => {
                                     }}
                                 >
                                     <ListItemAvatar>
-                                        <Avatar sx={{ 
+                                        <Avatar sx={{
                                             bgcolor: notif.color || getColorByType(notif.type),
                                             width: 48,
                                             height: 48
@@ -379,9 +396,9 @@ const Notifications = () => {
                                                     {notif.title}
                                                 </Typography>
                                                 {!notif.read && (
-                                                    <Chip 
-                                                        label={i18n.language === 'vi' ? 'Mới' : 'New'} 
-                                                        size="small" 
+                                                    <Chip
+                                                        label={i18n.language === 'vi' ? 'Mới' : 'New'}
+                                                        size="small"
                                                         color="primary"
                                                         sx={{ height: 20, fontSize: '0.6rem' }}
                                                     />
@@ -390,10 +407,10 @@ const Notifications = () => {
                                         }
                                         secondary={
                                             <Box>
-                                                <Typography 
-                                                    variant="body2" 
-                                                    color="textSecondary" 
-                                                    sx={{ 
+                                                <Typography
+                                                    variant="body2"
+                                                    color="textSecondary"
+                                                    sx={{
                                                         mb: 0.5,
                                                         display: '-webkit-box',
                                                         WebkitLineClamp: 2,
@@ -412,8 +429,8 @@ const Notifications = () => {
                                     <Box display="flex" gap={0.5} sx={{ flexShrink: 0 }}>
                                         {!notif.read && (
                                             <Tooltip title={i18n.language === 'vi' ? 'Đánh dấu đã đọc' : 'Mark as read'}>
-                                                <IconButton 
-                                                    size="small" 
+                                                <IconButton
+                                                    size="small"
                                                     onClick={(e) => { e.stopPropagation(); handleMarkRead(notif.id); }}
                                                     sx={{ color: '#1976d2' }}
                                                 >
@@ -422,8 +439,8 @@ const Notifications = () => {
                                             </Tooltip>
                                         )}
                                         <Tooltip title={i18n.language === 'vi' ? 'Xóa' : 'Delete'}>
-                                            <IconButton 
-                                                size="small" 
+                                            <IconButton
+                                                size="small"
                                                 onClick={(e) => { e.stopPropagation(); handleDelete(notif.id); }}
                                                 sx={{ color: '#d32f2f' }}
                                             >
@@ -440,16 +457,16 @@ const Notifications = () => {
             )}
 
             {/* Notification Detail Dialog */}
-            <Dialog 
-                open={openDetailDialog} 
+            <Dialog
+                open={openDetailDialog}
                 onClose={() => setOpenDetailDialog(false)}
                 maxWidth="sm"
                 fullWidth
             >
                 {selectedNotification && (
                     <>
-                        <DialogTitle sx={{ 
-                            bgcolor: selectedNotification.color || getColorByType(selectedNotification.type), 
+                        <DialogTitle sx={{
+                            bgcolor: selectedNotification.color || getColorByType(selectedNotification.type),
                             color: 'white',
                             display: 'flex',
                             alignItems: 'center',
@@ -472,9 +489,9 @@ const Notifications = () => {
                                 </Typography>
                             </Box>
                             {selectedNotification.action && (
-                                <Button 
-                                    fullWidth 
-                                    variant="contained" 
+                                <Button
+                                    fullWidth
+                                    variant="contained"
                                     sx={{ mt: 2, bgcolor: '#007bff' }}
                                     onClick={() => {
                                         setOpenDetailDialog(false);
@@ -495,8 +512,8 @@ const Notifications = () => {
             </Dialog>
 
             {/* Chat Dialog */}
-            <Dialog 
-                open={openChatDialog} 
+            <Dialog
+                open={openChatDialog}
                 onClose={() => setOpenChatDialog(false)}
                 maxWidth="sm"
                 fullWidth
@@ -505,12 +522,12 @@ const Notifications = () => {
                     <Chat /> {i18n.language === 'vi' ? 'Hỗ trợ trực tuyến' : 'Live Support'}
                 </DialogTitle>
                 <DialogContent sx={{ p: 2 }}>
-                    <Box sx={{ 
-                        height: 300, 
-                        overflowY: 'auto', 
-                        mb: 2, 
-                        p: 1, 
-                        bgcolor: '#f5f5f5', 
+                    <Box sx={{
+                        height: 300,
+                        overflowY: 'auto',
+                        mb: 2,
+                        p: 1,
+                        bgcolor: '#f5f5f5',
                         borderRadius: 2,
                         '&::-webkit-scrollbar': {
                             width: 6
@@ -525,7 +542,7 @@ const Notifications = () => {
                         }
                     }}>
                         {chatHistory.map((msg) => (
-                            <Box 
+                            <Box
                                 key={msg.id}
                                 sx={{
                                     display: 'flex',
@@ -533,9 +550,9 @@ const Notifications = () => {
                                     mb: 1
                                 }}
                             >
-                                <Paper 
-                                    sx={{ 
-                                        p: 1.5, 
+                                <Paper
+                                    sx={{
+                                        p: 1.5,
                                         maxWidth: '80%',
                                         bgcolor: msg.from === 'user' ? '#007bff' : 'white',
                                         color: msg.from === 'user' ? 'white' : 'text.primary',
@@ -546,8 +563,8 @@ const Notifications = () => {
                                     <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
                                         {msg.message}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ 
-                                        display: 'block', 
+                                    <Typography variant="caption" sx={{
+                                        display: 'block',
                                         textAlign: 'right',
                                         color: msg.from === 'user' ? 'rgba(255,255,255,0.7)' : 'text.secondary',
                                         mt: 0.5
@@ -572,10 +589,10 @@ const Notifications = () => {
                                 }
                             }}
                         />
-                        <Button 
-                            variant="contained" 
+                        <Button
+                            variant="contained"
                             onClick={handleSendChat}
-                            sx={{ 
+                            sx={{
                                 bgcolor: '#007bff',
                                 minWidth: 50,
                                 borderRadius: 2
@@ -600,8 +617,8 @@ const Notifications = () => {
                 onClose={() => setOpenSnackbar(false)}
                 anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
-                <Alert 
-                    onClose={() => setOpenSnackbar(false)} 
+                <Alert
+                    onClose={() => setOpenSnackbar(false)}
                     severity={snackbarSeverity}
                     sx={{ borderRadius: 2, boxShadow: 3 }}
                 >

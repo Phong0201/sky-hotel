@@ -81,12 +81,14 @@ export const ChatProvider = ({ children }) => {
         const fetchUnread = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const res = await axios.get(`${API_BASE_URL}/api/chat/unread/${user.id}`, {
+                const res = await axios.get(`${API_ORIGIN}/api/chat/unread/${user.id}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
+
                 const unread = (res.data || []).filter(
-                    (m) => m.senderId !== user.id && (m.isRead === false || m.isRead === null)
+                    (message) => message.senderId !== user.id && message.isRead !== true
                 );
+
                 setUnreadCount(unread.length);
             } catch (error) {
                 console.error('Fetch unread error:', error);
@@ -98,19 +100,21 @@ export const ChatProvider = ({ children }) => {
         return () => clearInterval(interval);
     }, [user?.id, user?.role]);
 
-    const markAsRead = async (targetUserIdOverride) => {
+    const markAsRead = useCallback(async (targetUserIdOverride) => {
         const idToUse = targetUserIdOverride || user?.id;
         if (!idToUse) return;
+
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`${API_BASE_URL}/api/chat/read/${idToUse}`, {}, {
+            await axios.put(`${API_ORIGIN}/api/chat/read/${idToUse}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+
             if (!targetUserIdOverride) setUnreadCount(0);
         } catch (error) {
             console.error('Mark as read error:', error);
         }
-    };
+    }, [user?.id]);
 
     const sendMessage = async (messageText) => {
         if (!messageText.trim()) return;

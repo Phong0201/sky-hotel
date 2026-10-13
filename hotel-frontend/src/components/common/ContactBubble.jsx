@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useChat } from '../../context/ChatContext';
+import { normalizePhoneForTel } from '../../utils/phone';
 import { Box, Typography, Paper, Grow, IconButton, Tooltip, Avatar, Divider } from '@mui/material';
 import {
     Close, Phone, Chat as ChatIcon, Facebook,
@@ -30,6 +32,7 @@ export const HOTEL_CONTACT = {
 const ContactBubble = () => {
     const navigate = useNavigate();
     const { isAuthenticated, user } = useAuth();
+    const { unreadCount = 0 } = useChat();
     const [open, setOpen] = useState(false);
     // Thông tin liên hệ - admin sửa trong trang Cài đặt (mặc định nếu chưa đặt)
     const [contact, setContact] = useState({ ...HOTEL_CONTACT, tagline: 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7' });
@@ -191,37 +194,51 @@ const ContactBubble = () => {
             </Grow>
 
             {/* Nút bong bóng nổi */}
-            <Tooltip title="Liên hệ hỗ trợ">
-                <Box
-                    onClick={() => setOpen(!open)}
+            <Tooltip title={t('contact.tooltip')}>
+                <Badge
+                    badgeContent={unreadCount}
+                    color="error"
+                    max={99}
+                    overlap="circular"
+                    invisible={!unreadCount}
                     sx={{
                         position: 'fixed',
                         bottom: { xs: 20, sm: 30 },
                         right: { xs: 16, sm: 30 },
-                        width: 60, height: 60, borderRadius: '50%',
-                        background: open
-                            ? 'linear-gradient(135deg, #37474f, #546e7a)'
-                            : 'linear-gradient(135deg, #0d2d87 0%, #1967d2 100%)',
-                        color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', zIndex: 12001,
-                        boxShadow: '0 8px 24px rgba(25,103,210,0.45)',
-                        transition: 'transform 0.2s ease, background 0.25s ease',
-                        '&:hover': { transform: 'scale(1.08)' },
-                        '&:active': { transform: 'scale(0.95)' },
+                        zIndex: 12001,
+                        '& .MuiBadge-badge': {
+                            minWidth: 23,
+                            height: 23,
+                            px: 0.6,
+                            border: '2px solid #fff',
+                            fontWeight: 800,
+                            boxShadow: '0 3px 10px rgba(180, 0, 0, 0.35)'
+                        }
                     }}
                 >
-                    {open ? <Close sx={{ fontSize: 30 }} /> : (
-                        <Box sx={{ position: 'relative', display: 'flex' }}>
-                            <ChatIcon sx={{ fontSize: 28 }} />
-                            <Box sx={{
-                                position: 'absolute', top: -2, right: -4,
-                                width: 12, height: 12, borderRadius: '50%',
-                                bgcolor: '#4ade80', border: '2px solid #fff',
-                            }} />
-                        </Box>
-                    )}
-                </Box>
+                    <Fab
+                        aria-label={t('contact.tooltip')}
+                        onClick={() => setOpen((previous) => !previous)}
+                        sx={{
+                            width: 60,
+                            height: 60,
+                            minHeight: 60,
+                            color: '#fff',
+                            background: open
+                                ? 'linear-gradient(135deg, #37474f, #546e7a)'
+                                : 'linear-gradient(135deg, #0d2d87 0%, #1967d2 100%)',
+                            boxShadow: '0 8px 24px rgba(25,103,210,0.45)',
+                            '&:hover': {
+                                background: open
+                                    ? 'linear-gradient(135deg, #37474f, #546e7a)'
+                                    : 'linear-gradient(135deg, #0d2d87 0%, #1967d2 100%)',
+                                transform: 'scale(1.06)'
+                            }
+                        }}
+                    >
+                        {open ? <Close sx={{ fontSize: 30 }} /> : <ChatIcon sx={{ fontSize: 28 }} />}
+                    </Fab>
+                </Badge>
             </Tooltip>
         </>
     );

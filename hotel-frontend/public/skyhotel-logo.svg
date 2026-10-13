@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 100">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#79d8f2"/>
+      <stop offset="1" stop-color="#287db8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Biểu tượng trời -->
+  <rect x="6" y="6" width="88" height="88" rx="26" fill="url(#sky)"/>
+  <circle cx="72" cy="26" r="12" fill="#ffd878"/>
+
+  <!-- Mây -->
+  <path
+    d="M17 49c0-8 6-14 14-14 2-9 10-15 19-15 10 0 18 7 19 17 8 1 14 7 14 15 0 9-7 15-16 15H33c-9 0-16-7-16-18z"
+    fill="#fff"
+  />
+
+  <!-- Chân trời và khách sạn -->
+  <path d="M7 72c18-10 33-9 46-3 14 7 26 4 41-2v27H7z" fill="#e8fbff"/>
+  <path d="M43 89V61l15-10 15 10v28z" fill="#174c60"/>
+  <path d="M39 63l19-14 19 14" fill="none" stroke="#ffd878" stroke-width="3"/>
+  <g fill="#fff2c9">
+    <rect x="49" y="64" width="5" height="7" rx="1"/>
+    <rect x="62" y="64" width="5" height="7" rx="1"/>
+    <rect x="55" y="77" width="6" height="12" rx="1"/>
+  </g>
+
+  <!-- Chữ thương hiệu -->
+  <text
+    x="112"
+    y="63"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="43"
+    font-weight="700"
+    letter-spacing="-1.5"
+    fill="#173b55"
+  >Sky<tspan fill="#147f91">Hotel</tspan></text>
+
+  <path d="M114 78h214" stroke="#c9a45d" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="337" cy="78" r="3" fill="#c9a45d"/>
+</svg>

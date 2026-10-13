@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/settings")
@@ -31,6 +33,36 @@ public class SettingController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String UPLOAD_DIR = "uploads/backgrounds/";
+    private final String AMENITY_UPLOAD_DIR = "uploads/amenities/";
+
+    private static final Set<String> PUBLIC_SETTING_KEYS = Set.of(
+            "supportPhone",
+            "supportEmail",
+            "supportAddress",
+            "supportHours",
+            "facebookUrl",
+            "fanpageUrl",
+            "zaloUrl",
+            "messengerUrl",
+            "contactTagline",
+            "welcomeMessage",
+            "brandDescription",
+            "homeAmenities"
+    );
+
+    @GetMapping("/public")
+    public ResponseEntity<List<Setting>> getPublicSettings() {
+        List<Setting> result = new ArrayList<>();
+
+        for (Setting setting : settingService.getAllSettings()) {
+            if (setting.getKey() != null &&
+                    PUBLIC_SETTING_KEYS.contains(setting.getKey())) {
+                result.add(setting);
+            }
+        }
+
+        return ResponseEntity.ok(result);
+    }
 
     // ============ GET ALL SETTINGS ============
     @GetMapping
@@ -171,6 +203,45 @@ public class SettingController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Upload failed: " + e.getMessage()));
+        }
+    }
+    @PostMapping("/amenities/upload")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> uploadAmenityImage(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "Vui lòng chọn ảnh"));
+            }
+
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "File phải là ảnh"));
+            }
+
+            Path uploadDirectory = Paths.get(AMENITY_UPLOAD_DIR);
+            Files.createDirectories(uploadDirectory);
+
+            String originalName = file.getOriginalFilename() == null
+                    ? "amenity-image"
+                    : file.getOriginalFilename();
+
+            // Loại bỏ ký tự có thể tạo thành đường dẫn ngoài thư mục upload
+            String safeName = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
+            String fileName = UUID.randomUUID() + "_" + safeName;
+
+            Files.write(uploadDirectory.resolve(fileName), file.getBytes());
+
+            Map<String, String> response = new HashMap<>();
+            response.put("url", "/uploads/amenities/" + fileName);
+            response.put("fileName", fileName);
+
+            return ResponseEntity.ok(response);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Upload ảnh thất bại: " + e.getMessage()));
         }
     }
 

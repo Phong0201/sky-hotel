@@ -97,7 +97,10 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/api/rooms").permitAll()
                         .requestMatchers("/api/rooms/**").permitAll()
                         .requestMatchers("/api/reviews").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/settings").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/settings/public",
+                                "/api/settings/backgrounds"
+                        ).permitAll()
                         .requestMatchers("/api/reviews/**").permitAll()
                         .requestMatchers("/api/upload/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
@@ -142,6 +145,7 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/api/promotions/create").hasRole("ADMIN")
                         .requestMatchers("/api/promotions/update/**").hasRole("ADMIN")
                         .requestMatchers("/api/promotions/delete/**").hasRole("ADMIN")
+                        .requestMatchers("/api/settings", "/api/settings/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )

@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { API_BASE_URL } from '../../api/config';
+import {
+    getNotificationCategory,
+    localizeNotification
+} from '../../i18n/notificationText';
 import {
     IconButton, Badge, Menu, MenuItem, Typography,
     Box, Avatar, List, ListItem, ListItemText,
     ListItemAvatar, Divider, Button, Tooltip,
     CircularProgress, Chip, Dialog, DialogTitle,
-    DialogContent, DialogActions
+    DialogContent, DialogActions, Tabs, Tab
 } from '@mui/material';
 import {
     Notifications as NotificationsIcon,
@@ -17,15 +23,17 @@ import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+const CATEGORY_KEYS = ['all', 'promotions', 'unread'];
 
 const NotificationBell = () => {
     const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
     const { user, isAdmin, isReceptionist } = useAuth();
     const [anchorEl, setAnchorEl] = useState(null);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [activeCategory, setActiveCategory] = useState('all');
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [openDetailDialog, setOpenDetailDialog] = useState(false);
     const intervalRef = useRef(null);
@@ -35,24 +43,23 @@ const NotificationBell = () => {
     // Fetch notifications
     const fetchNotifications = async () => {
         if (!user?.id) return;
-        
+
         try {
             const token = localStorage.getItem('token');
             if (!token) return;
-            
+
             console.log('📤 Fetching notifications for user:', user.id);
-            
+
             const res = await axios.get(`${API_BASE_URL}/notifications/user/${user.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            
+
             console.log('📥 Notifications from API:', res.data);
-            
-            const data = res.data || [];
-            setNotifications(data.slice(0, 5));
-            
-            const unread = data.filter(n => !n.isRead).length;
-            setUnreadCount(unread);
+
+            const data = Array.isArray(res.data) ? res.data : [];
+            setNotifications(data);
+            setUnreadCount(data.filter((notification) => !notification.isRead).length);
+
         } catch (error) {
             console.error('Fetch notifications error:', error);
         }
@@ -61,11 +68,11 @@ const NotificationBell = () => {
     // Fetch unread count only
     const fetchUnreadCount = async () => {
         if (!user?.id) return;
-        
+
         try {
             const token = localStorage.getItem('token');
             if (!token) return;
-            
+
             const res = await axios.get(`${API_BASE_URL}/notifications/user/${user.id}/count`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -81,7 +88,7 @@ const NotificationBell = () => {
         if (user?.id) {
             fetchNotifications();
             fetchUnreadCount();
-            
+
             intervalRef.current = setInterval(() => {
                 fetchUnreadCount();
                 if (anchorEl) {
@@ -89,7 +96,7 @@ const NotificationBell = () => {
                 }
             }, 15000);
         }
-        
+
         return () => {
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
@@ -142,31 +149,31 @@ const NotificationBell = () => {
         if (!notif.isRead) {
             handleMarkRead(notif.id);
         }
-        
+
         handleClose();
-        
+
         console.log('📤 Click notification:', notif);
-        
+
         if (notif.link) {
             navigate(notif.link);
             return;
         }
-        
+
         if (notif.type === 'booking') {
             let bookingId = null;
-            
+
             const match1 = notif.message?.match(/#BK(\d+)/);
             if (match1) {
                 bookingId = match1[1];
             }
-            
+
             if (!bookingId) {
                 const match2 = notif.message?.match(/#(\d+)/);
                 if (match2) {
                     bookingId = match2[1];
                 }
             }
-            
+
             if (bookingId) {
                 navigate(`/my-bookings/${bookingId}`);
             } else {
@@ -187,23 +194,23 @@ const NotificationBell = () => {
         try {
             const token = localStorage.getItem('token');
             let bookingId = null;
-            
+
             const match = notif.message?.match(/#BK(\d+)/);
             if (match) {
                 bookingId = match[1];
             }
-            
+
             if (!bookingId) {
                 toast.error('Không tìm thấy ID đặt phòng');
                 return;
             }
-            
+
             await axios.patch(
                 `${API_BASE_URL}/bookings/${bookingId}/status?status=${status}`,
                 null,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            
+
             toast.success(`✅ Đã ${status === 'CONFIRMED' ? 'xác nhận' : 'hủy'} đặt phòng!`);
             fetchNotifications();
             // Cập nhật lại danh sách thông báo
@@ -221,7 +228,7 @@ const NotificationBell = () => {
     };
 
     const getNotificationIcon = (type) => {
-        switch(type) {
+        switch (type) {
             case 'booking': return <BookOnline />;
             case 'promotion': return <LocalOffer />;
             case 'system': return <Info />;
@@ -231,7 +238,7 @@ const NotificationBell = () => {
     };
 
     const getNotificationColor = (type) => {
-        switch(type) {
+        switch (type) {
             case 'booking': return '#1976d2';
             case 'promotion': return '#ff9800';
             case 'system': return '#4caf50';
@@ -241,7 +248,7 @@ const NotificationBell = () => {
     };
 
     const getNotificationAction = (type) => {
-        switch(type) {
+        switch (type) {
             case 'booking': return 'Xem đặt phòng';
             case 'promotion': return 'Xem khuyến mãi';
             case 'system': return 'Xem chi tiết';
@@ -266,6 +273,27 @@ const NotificationBell = () => {
         }
     };
 
+    const getCategoryCount = (category) => {
+        if (category === 'all') return notifications.length;
+
+        if (category === 'unread') {
+            return notifications.filter((notification) => !notification.isRead).length;
+        }
+
+        return notifications.filter(
+            (notification) => getNotificationCategory(notification) === category
+        ).length;
+    };
+
+    const visibleNotifications = notifications
+        .filter((notification) => {
+            if (activeCategory === 'all') return true;
+            if (activeCategory === 'unread') return !notification.isRead;
+
+            return getNotificationCategory(notification) === activeCategory;
+        })
+        .slice(0, 5);
+
     return (
         <>
             <Tooltip title="Thông báo">
@@ -284,10 +312,15 @@ const NotificationBell = () => {
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 PaperProps={{
                     sx: {
-                        width: 420,
-                        maxHeight: 500,
-                        borderRadius: 2,
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+                        width: { xs: 'calc(100vw - 24px)', sm: 390 },
+                        maxWidth: 'calc(100vw - 24px)',
+                        maxHeight: 'min(620px, calc(100vh - 90px))',
+                        p: 0,
+                        overflow: 'hidden',
+                        borderRadius: '20px',
+                        border: '1px solid #e3ebe5',
+                        boxShadow: '0 22px 64px rgba(20, 52, 38, 0.20)',
+                        '& .MuiMenu-list': { p: 0 }
                     }
                 }}
             >
@@ -296,10 +329,10 @@ const NotificationBell = () => {
                         <Typography variant="subtitle1" fontWeight={600}>
                             Thông báo
                             {unreadCount > 0 && (
-                                <Chip 
-                                    label={`${unreadCount} mới`} 
-                                    size="small" 
-                                    color="primary" 
+                                <Chip
+                                    label={`${unreadCount} mới`}
+                                    size="small"
+                                    color="primary"
                                     sx={{ ml: 1 }}
                                 />
                             )}
@@ -312,12 +345,74 @@ const NotificationBell = () => {
                     </Box>
                 </Box>
 
+                <Tabs
+                    value={activeCategory}
+                    onChange={(_, value) => setActiveCategory(value)}
+                    variant="fullWidth"
+                    aria-label={t('notifications.title')}
+                    sx={{
+                        px: 1,
+                        minHeight: 50,
+                        bgcolor: '#f7faf8',
+                        borderBottom: '1px solid #edf1ee',
+                        '& .MuiTabs-indicator': { display: 'none' },
+                        '& .MuiTab-root': {
+                            minWidth: 0,
+                            minHeight: 38,
+                            mx: 0.35,
+                            my: 0.7,
+                            px: 0.7,
+                            borderRadius: 99,
+                            color: '#64736b',
+                            textTransform: 'none',
+                            fontSize: '0.78rem',
+                            fontWeight: 700
+                        },
+                        '& .MuiTab-root.Mui-selected': {
+                            color: '#fff',
+                            bgcolor: '#174c40'
+                        }
+                    }}
+                >
+                    {CATEGORY_KEYS.map((category) => {
+                        const count = getCategoryCount(category);
+
+                        return (
+                            <Tab
+                                key={category}
+                                value={category}
+                                label={
+                                    <Box component="span" display="flex" alignItems="center" gap={0.65}>
+                                        {t(`notifications.categories.${category}`)}
+                                        {count > 0 && (
+                                            <Box
+                                                component="span"
+                                                sx={{
+                                                    px: 0.7,
+                                                    borderRadius: 99,
+                                                    bgcolor: activeCategory === category
+                                                        ? 'rgba(255,255,255,0.2)'
+                                                        : '#e9efeb',
+                                                    color: activeCategory === category ? '#fff' : '#52635a',
+                                                    fontSize: '0.65rem',
+                                                    lineHeight: 1.6
+                                                }}
+                                            >
+                                                {count > 99 ? '99+' : count}
+                                            </Box>
+                                        )}
+                                    </Box>
+                                }
+                            />
+                        );
+                    })}
+                </Tabs>
                 <Box sx={{ maxHeight: 350, overflowY: 'auto' }}>
                     {loading ? (
                         <Box sx={{ p: 3, textAlign: 'center' }}>
                             <CircularProgress size={30} />
                         </Box>
-                    ) : notifications.length === 0 ? (
+                    ) : visibleNotifications.length === 0 ? (
                         <Box sx={{ p: 3, textAlign: 'center' }}>
                             <NotificationsIcon sx={{ fontSize: 40, color: '#e0e0e0' }} />
                             <Typography variant="body2" color="textSecondary">
@@ -325,10 +420,10 @@ const NotificationBell = () => {
                             </Typography>
                         </Box>
                     ) : (
-                        notifications.map((notif, index) => (
+                        visibleNotifications.map((notif, index) => (
                             <Box key={notif.id}>
-                                <ListItem 
-                                    sx={{ 
+                                <ListItem
+                                    sx={{
                                         bgcolor: notif.isRead ? 'transparent' : '#f0f7ff',
                                         cursor: 'pointer',
                                         '&:hover': { bgcolor: notif.isRead ? '#f5f5f5' : '#e3f2fd' },
@@ -346,13 +441,13 @@ const NotificationBell = () => {
                                         <ListItemText
                                             primary={
                                                 <Typography variant="body2" fontWeight={notif.isRead ? 400 : 600}>
-                                                    {notif.title}
+                                                    {localizeNotification(notif, i18n.language).title}
                                                 </Typography>
                                             }
                                             secondary={
                                                 <Box>
                                                     <Typography variant="caption" color="textSecondary" display="block" noWrap>
-                                                        {notif.message}
+                                                        {localizeNotification(notif, i18n.language).message}
                                                     </Typography>
                                                     <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.6rem' }}>
                                                         {formatDateTime(notif.createdAt)}
@@ -361,23 +456,23 @@ const NotificationBell = () => {
                                             }
                                         />
                                         {!notif.isRead && (
-                                            <Box sx={{ 
-                                                width: 8, 
-                                                height: 8, 
-                                                borderRadius: '50%', 
+                                            <Box sx={{
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: '50%',
                                                 bgcolor: '#1976d2',
                                                 flexShrink: 0,
                                                 ml: 1
                                             }} />
                                         )}
                                     </Box>
-                                    
+
                                     {/* ============ ACTION CHO ADMIN ============ */}
                                     {canManage && notif.type === 'booking' && notif.message?.includes('#BK') && (
                                         <Box display="flex" gap={1} mt={1}>
-                                            <Button 
-                                                size="small" 
-                                                color="success" 
+                                            <Button
+                                                size="small"
+                                                color="success"
                                                 variant="contained"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -388,9 +483,9 @@ const NotificationBell = () => {
                                                 <CheckCircle sx={{ fontSize: 14, mr: 0.5 }} />
                                                 Xác nhận
                                             </Button>
-                                            <Button 
-                                                size="small" 
-                                                color="error" 
+                                            <Button
+                                                size="small"
+                                                color="error"
                                                 variant="outlined"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -403,17 +498,17 @@ const NotificationBell = () => {
                                             </Button>
                                         </Box>
                                     )}
-                                    
+
                                     <Box display="flex" justifyContent="flex-end" width="100%" mt={0.5}>
-                                        <Button 
-                                            size="small" 
-                                            variant="text" 
+                                        <Button
+                                            size="small"
+                                            variant="text"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleViewDetail(notif);
                                             }}
-                                            sx={{ 
-                                                fontSize: '0.6rem', 
+                                            sx={{
+                                                fontSize: '0.6rem',
                                                 color: '#1976d2',
                                                 textTransform: 'none'
                                             }}
@@ -422,16 +517,16 @@ const NotificationBell = () => {
                                         </Button>
                                     </Box>
                                 </ListItem>
-                                {index < notifications.length - 1 && <Divider />}
+                                {index < visibleNotifications.length - 1 && <Divider />}
                             </Box>
                         ))
                     )}
                 </Box>
 
                 <Box sx={{ p: 1.5, borderTop: '1px solid #e0e0e0', textAlign: 'center' }}>
-                    <Button 
-                        fullWidth 
-                        variant="text" 
+                    <Button
+                        fullWidth
+                        variant="text"
                         onClick={() => {
                             handleClose();
                             navigate('/notifications');
@@ -444,16 +539,16 @@ const NotificationBell = () => {
             </Menu>
 
             {/* ============ DETAIL DIALOG ============ */}
-            <Dialog 
-                open={openDetailDialog} 
+            <Dialog
+                open={openDetailDialog}
                 onClose={() => setOpenDetailDialog(false)}
                 maxWidth="sm"
                 fullWidth
             >
                 {selectedNotification && (
                     <>
-                        <DialogTitle sx={{ 
-                            bgcolor: selectedNotification.color || getNotificationColor(selectedNotification.type), 
+                        <DialogTitle sx={{
+                            bgcolor: selectedNotification.color || getNotificationColor(selectedNotification.type),
                             color: 'white',
                             display: 'flex',
                             justifyContent: 'space-between',
@@ -477,15 +572,15 @@ const NotificationBell = () => {
                                     📅 {formatDateTime(selectedNotification.createdAt)}
                                 </Typography>
                                 <Typography variant="caption" color="textSecondary" sx={{ textTransform: 'capitalize' }}>
-                                    📂 {selectedNotification.type === 'booking' ? 'Đặt phòng' : 
-                                        selectedNotification.type === 'promotion' ? 'Khuyến mãi' : 
-                                        selectedNotification.type === 'chat' ? 'Hỗ trợ' : 'Hệ thống'}
+                                    📂 {selectedNotification.type === 'booking' ? 'Đặt phòng' :
+                                        selectedNotification.type === 'promotion' ? 'Khuyến mãi' :
+                                            selectedNotification.type === 'chat' ? 'Hỗ trợ' : 'Hệ thống'}
                                 </Typography>
                             </Box>
                             <Box mt={2} display="flex" gap={1}>
-                                <Button 
-                                    fullWidth 
-                                    variant="contained" 
+                                <Button
+                                    fullWidth
+                                    variant="contained"
                                     sx={{ bgcolor: '#007bff' }}
                                     onClick={() => {
                                         setOpenDetailDialog(false);
