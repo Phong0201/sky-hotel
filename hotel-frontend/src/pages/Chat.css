@@ -1381,6 +1381,7 @@
     left: auto;
     right: 0;
 }
+
 .action-popup {
     bottom: calc(100% + 8px);
     max-height: min(280px, calc(100dvh - 96px));
@@ -1396,6 +1397,7 @@
 .action-popup.below.active {
     transform: translateY(0) scale(1);
 }
+
 .message-reply {
     display: flex;
     flex-direction: column;
@@ -1453,6 +1455,7 @@
 .message.sent .message-reply-quote-text {
     color: rgba(255, 255, 255, .94);
 }
+
 .reply-composer-preview {
     display: flex;
     align-items: center;
@@ -1504,6 +1507,7 @@
     background: #e8efea;
     color: #315d48;
 }
+
 .chat-messages {
     position: relative;
 }
@@ -1532,4 +1536,524 @@
 
 .chat-scroll-to-bottom svg {
     font-size: 24px;
+}
+
+/* ===== Admin chat: bố cục, sidebar và panel thông tin ===== */
+.admin-chat-view {
+    width: min(1480px, calc(100% - 32px));
+    height: min(800px, calc(100dvh - 136px));
+    min-height: 560px;
+    max-height: none;
+    margin: 16px auto 24px;
+    overflow: hidden;
+    border: 1px solid #e1e9e4;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 18px 48px rgba(26, 52, 38, .10);
+}
+
+.admin-chat-view .messenger-sidebar {
+    flex: 0 0 320px;
+    width: 320px;
+    min-width: 280px;
+    background: #f7f9f8;
+    border-right: 1px solid #e5ebe7;
+}
+
+.admin-chat-view .sidebar-header {
+    flex: 0 0 auto;
+    padding: 18px 16px 12px;
+    background: #fff;
+}
+
+.admin-chat-view .sidebar-title {
+    margin-bottom: 14px;
+}
+
+.admin-chat-view .sidebar-title h3 {
+    color: #20372e;
+    font-size: 18px;
+    letter-spacing: -.02em;
+}
+
+.admin-chat-view .search-box.always-visible input {
+    box-sizing: border-box;
+    border: 1px solid #e8eee9;
+    background: #f6f8f6;
+}
+
+.admin-chat-view .search-box.always-visible input:focus {
+    border-color: #a9c8b6;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(49, 112, 83, .08);
+}
+
+.admin-chat-view .filter-tabs {
+    gap: 6px;
+    padding: 4px 0 0;
+}
+
+.admin-chat-view .filter-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.admin-chat-view .filter-tab.active {
+    color: #fff;
+    background: #174c40;
+}
+
+.admin-chat-view .user-list {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.admin-chat-view .user-item {
+    align-items: center;
+    gap: 0;
+    margin-bottom: 4px;
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 13px;
+}
+
+.admin-chat-view .user-item:hover {
+    background: #eef3ef;
+}
+
+.admin-chat-view .user-item.active {
+    background: #e9f3ed;
+    box-shadow: inset 3px 0 0 #2f7656;
+}
+
+.admin-chat-view .user-item .user-avatar {
+    width: 44px;
+    height: 44px;
+    margin-right: 0;
+    background: linear-gradient(145deg, #3885ef, #1768d2);
+    box-shadow: 0 4px 10px rgba(24, 105, 210, .15);
+}
+
+.admin-chat-view .user-item .presence-dot {
+    right: 0;
+    bottom: 0;
+}
+
+.admin-chat-view .user-info {
+    min-width: 0;
+    margin-left: 12px;
+}
+
+.admin-chat-view .user-item-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.admin-chat-view .user-name {
+    overflow: hidden;
+    margin-bottom: 2px;
+    color: #26382f;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-chat-view .user-item-time {
+    flex: 0 0 auto;
+    color: #849088;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.admin-chat-view .user-last-message {
+    overflow: hidden;
+    color: #77837c;
+    text-overflow: ellipsis;
+}
+
+.admin-chat-view .user-name.unread,
+.admin-chat-view .user-last-message.unread {
+    color: #244d38;
+}
+
+.admin-chat-view .unread-dot {
+    background: #2378e5;
+}
+
+.admin-chat-view .messenger-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    background: #fff;
+}
+
+.admin-chat-view .chat-header {
+    flex: 0 0 auto;
+    min-height: 74px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #e7ece9;
+}
+
+.admin-chat-view .chat-header-info {
+    min-width: 0;
+    gap: 12px;
+}
+
+.admin-chat-view .chat-header-info h3 {
+    color: #20372e;
+}
+
+.admin-chat-view .chat-status {
+    display: inline-block;
+    margin-top: 3px;
+    color: #76847c;
+}
+
+.admin-chat-view .chat-header-actions {
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.admin-chat-view .chat-header-actions .action-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 12px;
+    color: #52665b;
+}
+
+.admin-chat-view .chat-header-actions .action-btn:hover,
+.admin-chat-view .chat-header-actions .action-btn.active {
+    color: #174c40;
+    background: #edf5ef;
+}
+
+.admin-chat-view .messenger-body {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.admin-chat-view .messenger-chat-column {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.admin-chat-view .chat-messages {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 22px clamp(16px, 3vw, 42px);
+    background:
+        radial-gradient(circle at 95% 0%, rgba(224, 239, 228, .35), transparent 30%),
+        #f8faf9;
+}
+
+.admin-chat-view .message {
+    max-width: min(78%, 680px);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(25, 51, 38, .06);
+}
+
+.admin-chat-view .message.sent {
+    background: #1877e5;
+}
+
+.admin-chat-view .message.received {
+    border: 1px solid #e7ece9;
+    background: #fff;
+}
+
+.admin-chat-view .composer {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 8px;
+    padding: 11px 16px;
+    border-top: 1px solid #e7ece9;
+    background: #fff;
+}
+
+.admin-chat-view .composer-input-wrap {
+    min-width: 0;
+    border: 1px solid #edf1ee;
+    background: #f5f7f6;
+}
+
+.admin-chat-view .composer-input-wrap:focus-within {
+    border-color: #a9c8b6;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(49, 112, 83, .08);
+}
+
+.admin-chat-view .info-panel {
+    display: flex;
+    flex: 0 0 310px;
+    flex-direction: column;
+    width: 310px;
+    min-width: 280px;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid #e5ebe7;
+    background: #fff;
+}
+
+.admin-chat-view .info-panel-header,
+.admin-chat-view .info-panel-tabs {
+    flex: 0 0 auto;
+}
+
+.admin-chat-view .info-panel-header {
+    color: #263b30;
+    background: #fbfcfb;
+}
+
+.admin-chat-view .info-panel-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
+@media (max-width: 1050px) {
+    .admin-chat-view .messenger-sidebar {
+        flex-basis: 280px;
+        width: 280px;
+    }
+
+    .admin-chat-view .info-panel {
+        flex-basis: 280px;
+        width: 280px;
+        min-width: 260px;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-chat-view {
+        width: 100%;
+        height: calc(100dvh - 64px);
+        min-height: 460px;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        flex-direction: column;
+    }
+
+    .admin-chat-view .messenger-sidebar {
+        flex: 0 0 178px;
+        width: 100%;
+        min-width: 0;
+        max-height: 178px;
+        border-right: 0;
+        border-bottom: 1px solid #e5ebe7;
+    }
+
+    .admin-chat-view .messenger-main {
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
+    .admin-chat-view .chat-header {
+        min-height: 64px;
+        padding: 9px 12px;
+    }
+
+    .admin-chat-view .chat-header-actions {
+        gap: 0;
+    }
+
+    .admin-chat-view .chat-header-actions .action-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 18px;
+    }
+
+    .admin-chat-view .info-panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(320px, 92vw);
+        min-width: 0;
+        z-index: 40;
+        box-shadow: -8px 0 28px rgba(20, 38, 31, .18);
+    }
+
+    .admin-chat-view .composer {
+        gap: 4px;
+        padding: 8px;
+    }
+
+    .admin-chat-view .chat-messages {
+        padding: 14px 12px;
+    }
+
+    .admin-chat-view .message {
+        max-width: 90%;
+    }
+}
+
+/* Avatar cạnh tin nhận được trong admin chat */
+.admin-chat-view .message-wrapper {
+    width: 100%;
+    align-items: stretch;
+}
+
+.admin-chat-view .message-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+}
+
+.admin-chat-view .message-row.sent {
+    justify-content: flex-end;
+}
+
+.admin-chat-view .message-row.received {
+    justify-content: flex-start;
+}
+
+.admin-chat-view .message-row .message {
+    max-width: min(78%, 680px);
+}
+
+.admin-chat-view .message-avatar {
+    display: flex;
+    flex: 0 0 30px;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-bottom: 4px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #dfeee5;
+    color: #174c40;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-chat-view .user-avatar,
+.admin-chat-view .chat-avatar,
+.admin-chat-view .info-avatar-large,
+.admin-chat-view .message-avatar {
+    overflow: hidden;
+}
+
+.admin-chat-view .user-avatar img,
+.admin-chat-view .chat-avatar img,
+.admin-chat-view .info-avatar-large img,
+.admin-chat-view .message-avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+/* Neo popup thao tác vào đúng bong bóng tin nhắn */
+.admin-chat-view .message-wrapper {
+    width: 100%;
+    align-items: stretch;
+}
+
+.admin-chat-view .message-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.admin-chat-view .message-row.received {
+    justify-content: flex-start;
+}
+
+.admin-chat-view .message-row.sent {
+    justify-content: flex-end;
+}
+
+.admin-chat-view .message-anchor {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: fit-content;
+    min-width: 0;
+    max-width: min(72vw, 680px);
+}
+
+.admin-chat-view .message-row.sent .message-anchor {
+    align-items: flex-end;
+}
+
+.admin-chat-view .message-anchor .message {
+    max-width: 100%;
+}
+
+/* Reaction nằm cạnh bong bóng, không ở giữa toàn bộ khung chat */
+.admin-chat-view .message-anchor .reaction-popup {
+    right: auto;
+    bottom: calc(100% + 6px);
+    left: 0;
+    transform: scale(.9);
+    transform-origin: bottom left;
+}
+
+.admin-chat-view .message-anchor .reaction-popup.active {
+    transform: scale(1);
+}
+
+.admin-chat-view .message-row.sent .message-anchor .reaction-popup {
+    right: 0;
+    left: auto;
+    transform-origin: bottom right;
+}
+
+/* Menu thao tác nằm sát bong bóng */
+.admin-chat-view .message-anchor .action-popup {
+    right: 0;
+    left: auto;
+    bottom: calc(100% + 6px);
+}
+
+/* Đưa emoji picker tới gần nút emoji trên composer */
+.admin-chat-view .messenger-chat-column,
+.user-chat-view .messenger-main {
+    position: relative;
+}
+
+.admin-chat-view .emoji-picker-wrapper {
+    top: auto;
+    right: 64px;
+    bottom: 72px;
+    left: auto;
+    z-index: 1200;
+}
+
+.user-chat-view .emoji-picker-wrapper {
+    top: auto;
+    right: 68px;
+    bottom: 78px;
+    left: auto;
+    z-index: 1200;
+}
+
+@media (max-width: 600px) {
+
+    .admin-chat-view .emoji-picker-wrapper,
+    .user-chat-view .emoji-picker-wrapper {
+        right: 8px;
+        bottom: 68px;
+        width: min(320px, calc(100vw - 16px));
+    }
 }

@@ -15,8 +15,10 @@ import axios from 'axios';
 import './Chat.css';
 import Picker from 'emoji-picker-react';
 import toast from 'react-hot-toast';
-
-const API_BASE_URL = 'http://localhost:9981';
+import {
+    API_ORIGIN as API_BASE_URL,
+    resolveAssetUrl
+} from '../api/config';
 const MUTED_KEY = 'chat_muted_users';
 const HIDDEN_MESSAGES_KEY = 'chat_hidden_messages';
 const REPLY_MESSAGE_PREFIX = '__SKYHOTEL_REPLY_V1__:';
@@ -85,6 +87,27 @@ const getPresenceInfo = (lastActiveAt) => {
     return { online: false, text: `Hoạt động ${diffDay} ngày trước` };
 };
 
+const ChatAvatar = ({ person, className }) => {
+    const displayName =
+        (person?.fullName || person?.username || 'U').trim() || 'U';
+
+    return (
+        <div
+            className={className}
+            title={person?.fullName || person?.username || 'Ảnh đại diện'}
+        >
+            {person?.avatar ? (
+                <img
+                    src={resolveAssetUrl(person.avatar)}
+                    alt=""
+                />
+            ) : (
+                displayName.charAt(0).toUpperCase()
+            )}
+        </div>
+    );
+};
+
 const Chat = () => {
     const { user } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -136,9 +159,15 @@ const Chat = () => {
     const EMOJI_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
     useEffect(() => {
-        if (isAdmin) {
-            loadAllUsers();
-        }
+        if (!isAdmin) return;
+
+        loadAllUsers();
+
+        const refreshTimer = window.setInterval(() => {
+            loadAllUsers(true);
+        }, 5000);
+
+        return () => window.clearInterval(refreshTimer);
     }, [isAdmin]);
 
     // MOI: neu duoc dieu huong toi voi ?userId=xxx (bam "Nhan tin" tu trang Nguoi dung)
@@ -221,21 +250,44 @@ const Chat = () => {
         return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    const loadAllUsers = async () => {
-        setLoadingUsers(true);
+    const loadAllUsers = async (silent = false) => {
+        if (!silent) setLoadingUsers(true);
+
         try {
             const token = localStorage.getItem('token');
             const res = await axios.get(`${API_BASE_URL}/api/chat/users`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setUsers(res.data || []);
-            if (res.data.length > 0 && !activeChatUserId) {
-                selectChatUser(res.data[0].id);
+
+            const chatUsers = Array.isArray(res.data) ? [...res.data] : [];
+
+            // Đảm bảo user có tin mới nhất đứng trước.
+            const getLastMessageTime = (chatUser) => {
+                const time = new Date(
+                    chatUser.lastMessage?.createdAt || 0
+                ).getTime();
+
+                return Number.isFinite(time) ? time : 0;
+            };
+
+            chatUsers.sort(
+                (a, b) => getLastMessageTime(b) - getLastMessageTime(a)
+            );
+
+            setUsers(chatUsers);
+
+            // Chỉ chọn hội thoại ban đầu; lúc refresh nền không đổi khung chat admin đang xem.
+            if (!silent && chatUsers.length > 0 && !activeChatUserId) {
+                const firstChat =
+                    chatUsers.find((chatUser) => chatUser.lastMessage) ||
+                    chatUsers[0];
+
+                selectChatUser(firstChat.id);
             }
         } catch (error) {
             console.error('Load users error:', error);
         } finally {
-            setLoadingUsers(false);
+            if (!silent) setLoadingUsers(false);
         }
     };
 
@@ -773,8 +825,18 @@ const Chat = () => {
     // Ngoai le: user dang duoc chon (activeChatUserId) van hien du chua co tin nhan,
     // de admin co the go tin nhan dau tien khi bam "Nhan tin" tu trang Nguoi dung.
     const filteredUsers = users.filter(u => {
-        const name = (u.fullName || u.username || '').toLowerCase();
-        if (!name.includes(searchTerm.toLowerCase())) return false;
+        const query = searchTerm.trim().toLowerCase();
+        const searchableText = [
+            u.fullName,
+            u.username,
+            u.email,
+            u.phoneNumber
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        if (!searchableText.includes(query)) return false;
 
         const hasHistory = !!u.lastMessage;
         const isCurrentlyActive = u.id === activeChatUserId;
@@ -786,6 +848,36 @@ const Chat = () => {
 
     const activeUser = users.find(u => u.id === activeChatUserId);
     const activePresence = activeUser ? getPresenceInfo(presenceMap[activeUser.id]) : null;
+
+    useEffect(() => {
+        if (!isAdmin || activeChatUserId == null || messages.length === 0) return;
+
+        // Lịch sử chat được sắp xếp cũ trước, mới sau.
+        const latestMessage = messages[messages.length - 1];
+
+        // Không lấy nhầm tin của hội thoại trước khi vừa chuyển khách.
+        const belongsToActiveChat =
+            String(latestMessage.senderId) === String(activeChatUserId) ||
+            String(latestMessage.targetUserId) === String(activeChatUserId);
+
+        if (!belongsToActiveChat) return;
+
+        setUsers((currentUsers) =>
+            currentUsers.map((chatUser) =>
+                String(chatUser.id) === String(activeChatUserId)
+                    ? {
+                        ...chatUser,
+                        lastMessage: {
+                            message: latestMessage.message,
+                            createdAt: latestMessage.createdAt,
+                            senderId: latestMessage.senderId
+                        },
+                        hasUnread: false
+                    }
+                    : chatUser
+            )
+        );
+    }, [isAdmin, activeChatUserId, messages]);
 
     const matchedMessages = msgSearchTerm.trim()
         ? messages.filter(m => !m.isRecalled && m.message?.toLowerCase().includes(msgSearchTerm.toLowerCase()))
@@ -983,7 +1075,16 @@ const Chat = () => {
                                         {showReaction && !msg.isRecalled && (
                                             <div className="reaction-popup active">
                                                 {EMOJI_REACTIONS.map(emoji => (
-                                                    <button key={emoji} className="reaction-option" onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}>{emoji}</button>
+                                                    <button
+                                                        key={emoji}
+                                                        className="reaction-option"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleAddReaction(msg.id, emoji);
+                                                        }}
+                                                    >
+                                                        {emoji}
+                                                    </button>
                                                 ))}
                                             </div>
                                         )}
@@ -1031,7 +1132,7 @@ const Chat = () => {
                     )}
                 </div>
                 {renderLightbox()}
-            </div>
+            </div >
         );
     }
 
@@ -1039,7 +1140,7 @@ const Chat = () => {
     // ADMIN VIEW - kieu Messenger theo anh mau
     // ============================================================
     return (
-        <div className="messenger-container">
+        <div className="messenger-container admin-chat-view">
             <div className="messenger-sidebar">
                 <div className="sidebar-header">
                     <div className="sidebar-title">
@@ -1083,17 +1184,29 @@ const Chat = () => {
                                     onClick={() => handleSelectUser(u.id)}
                                 >
                                     <div className="user-avatar-wrap">
-                                        <div className="user-avatar">
-                                            {u.fullName?.charAt(0) || u.username?.charAt(0) || 'U'}
-                                        </div>
+                                        <ChatAvatar person={u} className="user-avatar" />
                                         <span className={`presence-dot ${presence.online ? 'online' : 'offline'}`} />
                                     </div>
                                     <div className="user-info">
-                                        <div className={`user-name ${u.hasUnread ? 'unread' : ''}`}>
-                                            {u.fullName || u.username}
+                                        <div className="user-item-heading">
+                                            <div className={`user-name ${u.hasUnread ? 'unread' : ''}`}>
+                                                {u.fullName || u.username}
+                                            </div>
+
+                                            {u.lastMessage?.createdAt && (
+                                                <time className="user-item-time">
+                                                    {new Date(u.lastMessage.createdAt).toLocaleTimeString('vi-VN', {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </time>
+                                            )}
                                         </div>
+
                                         <div className={`user-last-message ${u.hasUnread ? 'unread' : ''}`}>
-                                            {u.lastMessage?.message || 'Chưa có tin nhắn'}
+                                            {u.lastMessage?.message
+                                                ? getMessagePreview(u.lastMessage)
+                                                : 'Chưa có tin nhắn'}
                                         </div>
                                     </div>
                                     {u.hasUnread && <span className="unread-dot" />}
@@ -1107,12 +1220,10 @@ const Chat = () => {
             <div className="messenger-main">
                 {activeUser ? (
                     <>
-                        //<div className="chat-header">
+                        <div className="chat-header">
                             <div className="chat-header-info">
                                 <div className="user-avatar-wrap">
-                                    <div className="chat-avatar">
-                                        {activeUser.fullName?.charAt(0) || activeUser.username?.charAt(0) || 'U'}
-                                    </div>
+                                    <ChatAvatar person={activeUser} className="chat-avatar" />
                                     <span className={`presence-dot ${activePresence.online ? 'online' : 'offline'}`} />
                                 </div>
                                 <div>
@@ -1139,171 +1250,218 @@ const Chat = () => {
                                     {messages.length === 0 ? (
                                         <div className="empty-chat">
                                             <div className="empty-icon">💬</div>
-                                            <p>No messages yet</p>
-                                            <span>Start chatting with {activeUser.fullName || activeUser.username}!</span>
+                                            <p>Chưa có tin nhắn</p>
+                                            <span>Bắt đầu trò chuyện với {activeUser.fullName || activeUser.username}.</span>
                                         </div>
                                     ) : (
                                         messages.map((msg, index) => {
-                                            const isSent = msg.senderId === user?.id;
+                                            const isSent = isOwnMessage(msg);
                                             const reactions = getMessageReactions(msg);
                                             const isHovered = hoveredMessageId === msg.id;
                                             const showReaction = showReactionPopup === msg.id;
                                             const showAction = actionMessage?.id === msg.id;
 
                                             return (
-                                                <div key={index} className={`message-wrapper ${isSent ? 'sent' : 'received'}`}>
-                                                    <div
-                                                        className={`message ${isSent ? 'sent' : 'received'} ${isHovered ? 'hovered' : ''}`}
-                                                        onMouseEnter={() => handleMouseEnter(msg.id)}
-                                                        onMouseLeave={handleMouseLeave}
-                                                    >
-                                                        <div className="message-content">
-                                                            {renderMessage(msg)}
-                                                            <span className="message-time">
-                                                                {new Date(msg.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                                                                {isSent && ' ✅'}
-                                                            </span>
-                                                            {reactions && Object.keys(reactions).length > 0 && (
-                                                                <div className="message-reactions">
-                                                                    {Object.entries(reactions).map(([emoji, count]) => (
-                                                                        <span key={emoji} className="reaction-badge">{emoji} {count}</span>
+                                                <div
+                                                    key={msg.id ?? index}
+                                                    className={`message-wrapper ${isSent ? 'sent' : 'received'}`}
+                                                >
+                                                    <div className={`message-row ${isSent ? 'sent' : 'received'}`}>
+                                                        {!isSent && (
+                                                            <ChatAvatar
+                                                                person={activeUser}
+                                                                className="message-avatar"
+                                                            />
+                                                        )}
+
+                                                        <div className="message-anchor">
+
+                                                            <div
+                                                                className={`message ${isSent ? 'sent' : 'received'} ${isHovered ? 'hovered' : ''}`}
+                                                                onMouseEnter={() => handleMouseEnter(msg.id)}
+                                                                onMouseLeave={handleMouseLeave}
+                                                            >
+                                                                <div className="message-content">
+                                                                    {renderMessage(msg)}
+
+                                                                    <span className="message-time">
+                                                                        {new Date(msg.createdAt).toLocaleTimeString('vi-VN', {
+                                                                            hour: '2-digit',
+                                                                            minute: '2-digit'
+                                                                        })}
+                                                                        {isSent && ' ✅'}
+                                                                    </span>
+
+                                                                    {reactions && Object.keys(reactions).length > 0 && (
+                                                                        <div className="message-reactions">
+                                                                            {Object.entries(reactions).map(([emoji, count]) => (
+                                                                                <span key={emoji} className="reaction-badge">
+                                                                                    {emoji} {count}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {isHovered && !msg.isRecalled && (
+                                                                    <div className="message-actions">
+                                                                        <button
+                                                                            className="action-btn-icon reaction-btn-icon"
+                                                                            onClick={(event) => handleReactionClick(msg, event)}
+                                                                            title="Thả cảm xúc"
+                                                                        >
+                                                                            😊
+                                                                        </button>
+                                                                        <button
+                                                                            className="action-btn-icon more-btn-icon"
+                                                                            onClick={(event) => handleMoreClick(msg, event)}
+                                                                            title="Thao tác khác"
+                                                                        >
+                                                                            ⋮
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {showReaction && !msg.isRecalled && (
+                                                                <div className="reaction-popup active">
+                                                                    {EMOJI_REACTIONS.map((emoji) => (
+                                                                        <button
+                                                                            key={emoji}
+                                                                            className="reaction-option"
+                                                                            onClick={(event) => {
+                                                                                event.stopPropagation();
+                                                                                handleAddReaction(msg.id, emoji);
+                                                                            }}
+                                                                        >
+                                                                            {emoji}
+                                                                        </button>
                                                                     ))}
                                                                 </div>
                                                             )}
+
+                                                            {renderActionPopup(msg, showAction)}
                                                         </div>
-                                                        {isHovered && !msg.isRecalled && (
-                                                            <div className="message-actions">
-                                                                <button className="action-btn-icon reaction-btn-icon" onClick={(e) => handleReactionClick(msg, e)} title="Thả cảm xúc">😊</button>
-                                                                <button className="action-btn-icon more-btn-icon" onClick={(e) => handleMoreClick(msg, e)} title="Thao tác khác">⋮</button>
-                                                            </div>
-                                                        )}
                                                     </div>
-                                                    {showReaction && !msg.isRecalled && (
-                                                        <div className="reaction-popup active">
-                                                            {EMOJI_REACTIONS.map(emoji => (
-                                                                <button key={emoji} className="reaction-option" onClick={(e) => { e.stopPropagation(); handleAddReaction(msg.id, emoji); }}>{emoji}</button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {renderActionPopup(msg, showAction)}
                                                 </div>
                                             );
                                         })
                                     )}
                                     <div ref={messagesEndRef} />
+
+                                    {
+                                        showScrollToBottom && messages.length > 0 && (
+                                            <button
+                                                type="button"
+                                                className="chat-scroll-to-bottom"
+                                                onClick={scrollToBottom}
+                                                title="Cuộn xuống tin nhắn mới nhất"
+                                                aria-label="Cuộn xuống tin nhắn mới nhất"
+                                            >
+                                                <KeyboardArrowDownRounded />
+                                            </button>
+                                        )
+                                    }
                                 </div>
-                                <div ref={messagesEndRef} />
-                                {showScrollToBottom && messages.length > 0 && (
-                                    <button
-                                        type="button"
-                                        className="chat-scroll-to-bottom"
-                                        onClick={scrollToBottom}
-                                        title="Cuộn xuống tin nhắn mới nhất"
-                                        aria-label="Cuộn xuống tin nhắn mới nhất"
-                                    >
-                                        <KeyboardArrowDownRounded />
-                                    </button>
+
+                                {renderComposer()}
+
+                                {showEmojiPicker && (
+                                    <div className="emoji-picker-wrapper">
+                                        <Picker onEmojiClick={onEmojiClick} />
+                                    </div>
                                 )}
                             </div>
 
-                            {renderComposer()}
-                            {showEmojiPicker && (
-                                <div className="emoji-picker-wrapper">
-                                    <Picker onEmojiClick={onEmojiClick} />
-                                </div>
-                            )}
-                        </div>
+                            {showInfoPanel && (
+                                <div className="info-panel">
+                                    <div className="info-panel-header">
+                                        <span>Chi tiết hội thoại</span>
+                                        <button onClick={() => setShowInfoPanel(false)}>✕</button>
+                                    </div>
 
-                        {/* Panel thong tin khach hang */}
-                        {showInfoPanel && (
-                            <div className="info-panel">
-                                <div className="info-panel-header">
-                                    <span>Chi tiết hội thoại</span>
-                                    <button onClick={() => setShowInfoPanel(false)}>✕</button>
-                                </div>
+                                    <div className="info-panel-tabs">
+                                        <button className={infoTab === 'info' ? 'active' : ''} onClick={() => handleOpenInfoTab('info')}>Thông tin</button>
+                                        <button className={infoTab === 'bookings' ? 'active' : ''} onClick={() => handleOpenInfoTab('bookings')}>Lịch sử đặt phòng</button>
+                                        <button className={infoTab === 'search' ? 'active' : ''} onClick={() => handleOpenInfoTab('search')}>Tìm tin nhắn</button>
+                                    </div>
 
-                                <div className="info-panel-tabs">
-                                    <button className={infoTab === 'info' ? 'active' : ''} onClick={() => handleOpenInfoTab('info')}>Thông tin</button>
-                                    <button className={infoTab === 'bookings' ? 'active' : ''} onClick={() => handleOpenInfoTab('bookings')}>Lịch sử đặt phòng</button>
-                                    <button className={infoTab === 'search' ? 'active' : ''} onClick={() => handleOpenInfoTab('search')}>Tìm tin nhắn</button>
-                                </div>
+                                    <div className="info-panel-body">
+                                        {infoTab === 'info' && (
+                                            <div className="info-tab-content">
+                                                <div className="info-avatar-large">
+                                                    {activeUser.fullName?.charAt(0) || activeUser.username?.charAt(0) || 'U'}
+                                                </div>
+                                                <h4>{activeUser.fullName || activeUser.username}</h4>
+                                                <p className="info-row"><b>Username:</b> {activeUser.username}</p>
+                                                <p className="info-row"><b>Email:</b> {activeUser.email || 'Chưa có'}</p>
+                                                <p className="info-row"><b>SĐT:</b> {activeUser.phoneNumber || 'Chưa có'}</p>
+                                                <p className="info-row"><b>Trạng thái:</b> {activePresence.text}</p>
 
-                                <div className="info-panel-body">
-                                    {infoTab === 'info' && (
-                                        <div className="info-tab-content">
-                                            <div className="info-avatar-large">
-                                                {activeUser.fullName?.charAt(0) || activeUser.username?.charAt(0) || 'U'}
+                                                <div className="mute-toggle-row">
+                                                    <span>🔕 Tắt thông báo hội thoại này</span>
+                                                    <label className="switch">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={mutedUsers.includes(activeUser.id)}
+                                                            onChange={() => toggleMute(activeUser.id)}
+                                                        />
+                                                        <span className="slider" />
+                                                    </label>
+                                                </div>
                                             </div>
-                                            <h4>{activeUser.fullName || activeUser.username}</h4>
-                                            <p className="info-row"><b>Username:</b> {activeUser.username}</p>
-                                            <p className="info-row"><b>Email:</b> {activeUser.email || 'Chưa có'}</p>
-                                            <p className="info-row"><b>SĐT:</b> {activeUser.phoneNumber || 'Chưa có'}</p>
-                                            <p className="info-row"><b>Trạng thái:</b> {activePresence.text}</p>
+                                        )}
 
-                                            <div className="mute-toggle-row">
-                                                <span>🔕 Tắt thông báo hội thoại này</span>
-                                                <label className="switch">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={mutedUsers.includes(activeUser.id)}
-                                                        onChange={() => toggleMute(activeUser.id)}
-                                                    />
-                                                    <span className="slider" />
-                                                </label>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {infoTab === 'bookings' && (
-                                        <div className="info-tab-content">
-                                            {bookingsLoading ? (
-                                                <p>Đang tải...</p>
-                                            ) : bookingsError ? (
-                                                <p className="info-empty">Chưa thể tải lịch sử đặt phòng (cần bổ sung API phía backend).</p>
-                                            ) : bookingHistory.length === 0 ? (
-                                                <p className="info-empty">Khách hàng chưa có lịch sử đặt phòng.</p>
-                                            ) : (
-                                                bookingHistory.map((b, idx) => (
-                                                    <div className="booking-item" key={idx}>
-                                                        <div><b>Phòng:</b> {b.roomNumber || b.room?.roomNumber || '—'}</div>
-                                                        <div><b>Trạng thái:</b> {b.status}</div>
-                                                        <div><b>Ngày:</b> {b.checkInDate} → {b.checkOutDate}</div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {infoTab === 'search' && (
-                                        <div className="info-tab-content">
-                                            <input
-                                                type="text"
-                                                className="msg-search-input"
-                                                placeholder="Nhập từ khóa tìm trong hội thoại..."
-                                                value={msgSearchTerm}
-                                                onChange={(e) => setMsgSearchTerm(e.target.value)}
-                                            />
-                                            <div className="msg-search-results">
-                                                {msgSearchTerm.trim() === '' ? (
-                                                    <p className="info-empty">Nhập từ khóa để tìm tin nhắn đã gửi.</p>
-                                                ) : matchedMessages.length === 0 ? (
-                                                    <p className="info-empty">Không tìm thấy tin nhắn phù hợp.</p>
+                                        {infoTab === 'bookings' && (
+                                            <div className="info-tab-content">
+                                                {bookingsLoading ? (
+                                                    <p>Đang tải...</p>
+                                                ) : bookingsError ? (
+                                                    <p className="info-empty">Chưa thể tải lịch sử đặt phòng (cần bổ sung API phía backend).</p>
+                                                ) : bookingHistory.length === 0 ? (
+                                                    <p className="info-empty">Khách hàng chưa có lịch sử đặt phòng.</p>
                                                 ) : (
-                                                    matchedMessages.map((m, idx) => (
-                                                        <div className="msg-search-item" key={idx}>
-                                                            <div className="msg-search-text">{m.message}</div>
-                                                            <div className="msg-search-time">
-                                                                {new Date(m.createdAt).toLocaleString('vi-VN')}
-                                                            </div>
+                                                    bookingHistory.map((b, idx) => (
+                                                        <div className="booking-item" key={idx}>
+                                                            <div><b>Phòng:</b> {b.roomNumber || b.room?.roomNumber || '—'}</div>
+                                                            <div><b>Trạng thái:</b> {b.status}</div>
+                                                            <div><b>Ngày:</b> {b.checkInDate} → {b.checkOutDate}</div>
                                                         </div>
                                                     ))
                                                 )}
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+
+                                        {infoTab === 'search' && (
+                                            <div className="info-tab-content">
+                                                <input
+                                                    type="text"
+                                                    className="msg-search-input"
+                                                    placeholder="Nhập từ khóa tìm trong hội thoại..."
+                                                    value={msgSearchTerm}
+                                                    onChange={(e) => setMsgSearchTerm(e.target.value)}
+                                                />
+                                                <div className="msg-search-results">
+                                                    {msgSearchTerm.trim() === '' ? (
+                                                        <p className="info-empty">Nhập từ khóa để tìm tin nhắn đã gửi.</p>
+                                                    ) : matchedMessages.length === 0 ? (
+                                                        <p className="info-empty">Không tìm thấy tin nhắn phù hợp.</p>
+                                                    ) : (
+                                                        matchedMessages.map((m, idx) => (
+                                                            <div className="msg-search-item" key={idx}>
+                                                                <div className="msg-search-text">{m.message}</div>
+                                                                <div className="msg-search-time">
+                                                                    {new Date(m.createdAt).toLocaleString('vi-VN')}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </>
                 ) : (
                     <div className="no-chat-selected">
@@ -1314,7 +1472,7 @@ const Chat = () => {
                 )}
             </div>
             {renderLightbox()}
-        </div >
+        </div>
     );
 };
 

@@ -304,6 +304,7 @@ const Layout = () => {
                     width: drawerWidth,
                     flexShrink: 0,
                     '& .MuiDrawer-paper': {
+                        overflowX: 'hidden',
                         width: drawerWidth,
                         boxSizing: 'border-box',
                         transform: open
@@ -319,7 +320,28 @@ const Layout = () => {
             >
                 <Toolbar />
 
-                <Box sx={{ overflow: 'auto', mt: 2 }}>
+                <Box
+                    sx={{
+                        mt: 2,
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        '& .MuiListItem-root': {
+                            width: 'calc(100% - 16px)',
+                            minWidth: 0,
+                            boxSizing: 'border-box'
+                        },
+                        '& .MuiListItemText-root': {
+                            minWidth: 0
+                        },
+                        '& .MuiListItemText-primary': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }
+                    }}
+                >
                     <List>
                         {menuItems.map((item) => (
                             <ListItem
@@ -361,6 +383,7 @@ const Layout = () => {
 
             <Box
                 component="main"
+                className={isStaff ? 'admin-shell' : undefined}
                 sx={{
                     flexGrow: 1,
                     p: 3,

@@ -432,7 +432,7 @@
     display: none;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: all 0.2s;
 }
 
@@ -455,7 +455,7 @@
     background: white;
     border-radius: 20px;
     padding: 8px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     display: flex;
     gap: 4px;
     z-index: 1000;
@@ -531,7 +531,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .empty-chat {
@@ -682,6 +684,7 @@
         opacity: 0;
         transform: translateX(-50%) translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
@@ -696,11 +699,11 @@
         width: 280px;
         min-width: 280px;
     }
-    
+
     .message {
         max-width: 85%;
     }
-    
+
     .emoji-picker-wrapper .epr-main {
         width: 280px !important;
         height: 300px !important;
@@ -716,7 +719,7 @@
         max-height: none;
         border: none;
     }
-    
+
     .messenger-sidebar {
         width: 100%;
         min-width: unset;
@@ -724,58 +727,58 @@
         border-right: none;
         border-bottom: 1px solid #e4e6eb;
     }
-    
+
     .user-item {
         padding: 8px 12px;
     }
-    
+
     .user-item .user-avatar {
         width: 36px;
         height: 36px;
         font-size: 14px;
     }
-    
+
     .chat-header {
         padding: 10px 16px;
     }
-    
+
     .chat-messages {
         padding: 12px 16px;
     }
-    
+
     .message {
         max-width: 90%;
     }
-    
+
     .chat-input {
         padding: 10px 12px;
         gap: 6px;
     }
-    
+
     .chat-input input {
         font-size: 13px;
         padding: 6px 12px;
     }
-    
+
     .send-btn {
         padding: 6px 14px;
         font-size: 14px;
     }
-    
+
     .input-btn {
         font-size: 18px;
         padding: 4px 6px;
     }
-    
+
     .sidebar-title h3 {
         font-size: 16px;
     }
-    
+
     .filter-tab {
         font-size: 12px;
         padding: 4px 12px;
     }
-    
+
     .emoji-picker-wrapper .epr-main {
         width: 260px !important;
         height: 280px !important;
@@ -787,26 +790,89 @@
     .messenger-sidebar {
         max-height: 200px;
     }
-    
+
     .user-name {
         font-size: 13px;
     }
-    
+
     .user-last-message {
         font-size: 12px;
     }
-    
+
     .user-time {
         font-size: 10px;
     }
-    
+
     .chat-header-info h3 {
         font-size: 14px;
     }
-    
+
     .chat-avatar {
         width: 32px;
         height: 32px;
         font-size: 14px;
     }
+}
+
+/* Bộ giao diện chung cho trang quản trị */
+.admin-shell {
+    color: #20372e;
+}
+
+.admin-shell .MuiTypography-h4,
+.admin-shell .MuiTypography-h5,
+.admin-shell .MuiTypography-h6 {
+    color: #173b30;
+    font-weight: 700;
+    letter-spacing: -.02em;
+}
+
+.admin-shell .MuiPaper-root {
+    border: 1px solid #e6ede8;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(25, 54, 40, .06);
+}
+
+.admin-shell .MuiCardContent-root {
+    padding: 22px;
+}
+
+.admin-shell .MuiTableContainer-root {
+    overflow-x: auto;
+    border: 1px solid #e6ede8;
+    border-radius: 14px;
+    box-shadow: none;
+}
+
+.admin-shell .MuiTableHead-root {
+    background: #f4f8f5;
+}
+
+.admin-shell .MuiTableCell-head {
+    color: #456154;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.admin-shell .MuiTableBody-root .MuiTableRow-root:hover {
+    background: #f7faf8;
+}
+
+.admin-shell .MuiButton-root {
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: none;
+}
+
+.admin-shell .MuiOutlinedInput-root {
+    border-radius: 10px;
+}
+
+.admin-shell .MuiChip-root {
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.admin-shell .MuiAlert-root {
+    border-radius: 12px;
 }

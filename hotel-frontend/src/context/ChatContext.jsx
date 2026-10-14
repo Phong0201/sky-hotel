@@ -182,7 +182,7 @@ export const ChatProvider = ({ children }) => {
 
         try {
             const token = localStorage.getItem('token');
-            const url = `${API_BASE_URL}/api/chat/history/${user.id}/${activeChatUserId}`;
+            const url = `${API_ORIGIN}/api/chat/history/${user.id}/${activeChatUserId}`;
             const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
