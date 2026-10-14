@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext';
 import { userAPI } from '../api/user';
 import toast from 'react-hot-toast';
 import AvatarEditor from 'react-avatar-editor';
-import api from '../api/axiosConfig';
 
 const fieldSx = {
     '& .MuiOutlinedInput-root': {
@@ -76,7 +75,7 @@ const Profile = () => {
             if (formData.phoneNumber) data.phoneNumber = formData.phoneNumber;
             if (formData.avatar) data.avatar = formData.avatar;
 
-            const response = await userAPI.updateCurrentUser(data);
+            const response = await userAPI.updateCurrentUser(user.username, data);
             updateUser(response.data);
             setSuccess('Thông tin cá nhân đã được cập nhật.');
             toast.success('Cập nhật thông tin thành công!');
@@ -127,9 +126,7 @@ const Profile = () => {
             const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
             setLoading(true);
 
-            await api.patch('/users/me/avatar', dataUrl, {
-                headers: { 'Content-Type': 'application/json' }
-            });
+            await userAPI.updateAvatar(user.username, dataUrl);
 
             updateUser({ ...user, avatar: dataUrl });
             setFormData((current) => ({ ...current, avatar: dataUrl }));
@@ -148,9 +145,7 @@ const Profile = () => {
     const handleRemoveAvatar = async () => {
         try {
             setLoading(true);
-            await api.patch('/users/me/avatar', '', {
-                headers: { 'Content-Type': 'application/json' }
-            });
+            await userAPI.updateAvatar(user.username, '');
 
             updateUser({ ...user, avatar: '' });
             setFormData((current) => ({ ...current, avatar: '' }));
@@ -173,8 +168,8 @@ const Profile = () => {
     const createdAt = user.createdAt ? new Date(user.createdAt) : null;
     const memberSince =
         createdAt &&
-        !Number.isNaN(createdAt.getTime()) &&
-        createdAt.getFullYear() >= 2000
+            !Number.isNaN(createdAt.getTime()) &&
+            createdAt.getFullYear() >= 2000
             ? createdAt.toLocaleDateString('vi-VN', {
                 day: 'numeric',
                 month: 'long',

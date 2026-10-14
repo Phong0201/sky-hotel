@@ -1,19 +1,19 @@
 {
   "nav": {
-  "home": "Home",
-  "dashboard": "Dashboard",
-  "chat": "Chat",
-  "notifications": "Notifications",
-  "myBookings": "My bookings",
-  "rooms": "Rooms",
-  "reviews": "Manage reviews",
-  "bookings": "Manage bookings",
-  "manageRooms": "Manage rooms",
-  "payments": "Manage payments",
-  "users": "Users",
-  "promotions": "Promotions",
-  "settings": "Settings"
-},
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "notifications": "Notifications",
+    "myBookings": "My bookings",
+    "rooms": "Rooms",
+    "reviews": "Manage reviews",
+    "bookings": "Manage bookings",
+    "manageRooms": "Manage rooms",
+    "payments": "Manage payments",
+    "users": "Users",
+    "promotions": "Offers/Promotions",
+    "settings": "Settings"
+  },
   "app": {
     "title": "🏨 Hotel Management",
     "welcome": "Welcome",
@@ -192,7 +192,9 @@
   },
   "notifications": {
     "title": "Notifications",
+    "newCount": "{{count}} new",
     "markAllRead": "Mark all read",
+    "viewAll": "View all notifications",
     "loading": "Loading notifications…",
     "noNotifications": "No notifications yet",
     "viewDetails": "View details",
@@ -221,7 +223,12 @@
       "promotions": "Promotions",
       "bookings": "Bookings",
       "payments": "Payments",
-      "support": "Chat"
+      "support": "Chat",
+      "categories": {
+        "all": "All",
+        "promotions": "Offers/Promotions",
+        "unread": "Unread"
+      }
     }
   },
   "createBooking": {

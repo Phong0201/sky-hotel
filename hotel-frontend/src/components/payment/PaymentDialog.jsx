@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatHotelCurrency } from '../../utils/currency';
 import { useTranslation } from 'react-i18next';
 import {
     Box, Typography, Dialog, DialogTitle, DialogContent, IconButton,
@@ -30,15 +31,8 @@ const PaymentDialog = ({ open, onClose, booking, onUpdated }) => {
     const [payments, setPayments] = useState([]);
     const [method, setMethod] = useState('VNPAY');
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '0 ₫';
-        return new Intl.NumberFormat(i18n.language === 'vi' ? 'vi-VN' : 'en-US', {
-            style: 'currency',
-            currency: i18n.language === 'vi' ? 'VND' : 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     const getFinalPrice = () => {
         if (!booking) return 0;

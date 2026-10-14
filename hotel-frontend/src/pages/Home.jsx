@@ -93,8 +93,25 @@ const getRoomImage = (roomType) => {
   return images[roomType] || images['DOUBLE'];
 };
 
+const ROOM_TYPE_LABELS = {
+  SINGLE: { vi: 'Phòng đơn', en: 'Single' },
+  DOUBLE: { vi: 'Phòng đôi', en: 'Double' },
+  TWIN: { vi: 'Phòng Twin', en: 'Twin' },
+  SUITE: { vi: 'Phòng Suite', en: 'Suite' },
+  FAMILY: { vi: 'Phòng gia đình', en: 'Family' },
+  DELUXE: { vi: 'Phòng Deluxe', en: 'Deluxe' },
+  STANDARD: { vi: 'Phòng tiêu chuẩn', en: 'Standard' },
+  EXECUTIVE: { vi: 'Phòng Executive', en: 'Executive' }
+};
+
+const getRoomTypeLabel = (roomType, isVietnamese) => {
+  const labels = ROOM_TYPE_LABELS[roomType];
+  return labels ? labels[isVietnamese ? 'vi' : 'en'] : (roomType || '');
+};
+
 const Home = () => {
   const { t, i18n } = useTranslation();
+  const isVietnamese = i18n.language?.startsWith('vi');
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
   const [rooms, setRooms] = useState([]);
@@ -164,7 +181,7 @@ const Home = () => {
   // 👉 THÔNG TIN LIÊN HỆ (admin sửa trong trang Cài đặt)
   const [supportSettings, setSupportSettings] = useState({
     welcomeMessage: '',
-    supportPhone: '1900 1234',
+    supportPhone: '',
     supportEmail: 'support@skyhotel.vn',
     supportAddress: 'Số 1 Đường Biên Sông, Phủ Lý, Hà Nam, Việt Nam',
     fanpageUrl: 'https://facebook.com/skyhotel',
@@ -204,7 +221,7 @@ const Home = () => {
       setSupportSettings((previous) => ({
         ...previous,
         welcomeMessage: settingsMap.welcomeMessage || '',
-        supportPhone: settingsMap.supportPhone || previous.supportPhone,
+        supportPhone: settingsMap.supportPhone || '',
         supportEmail: settingsMap.supportEmail || previous.supportEmail,
         supportAddress: settingsMap.supportAddress || previous.supportAddress,
         fanpageUrl: settingsMap.fanpageUrl || previous.fanpageUrl,
@@ -1241,7 +1258,7 @@ const Home = () => {
                   />
 
                   <Chip
-                    label={room.roomType}
+                    label={getRoomTypeLabel(room.roomType, isVietnamese)}
                     size="small"
                     sx={{
                       position: 'absolute',
@@ -1289,7 +1306,9 @@ const Home = () => {
                       minHeight: 44
                     }}
                   >
-                    {room.description || 'Không gian nghỉ ngơi thoải mái cho chuyến đi của bạn.'}
+                    {isVietnamese
+                      ? (room.description || 'Không gian nghỉ ngơi thoải mái cho chuyến đi của bạn.')
+                      : (room.descriptionEn || 'A comfortable room for a relaxing stay.')}
                   </Typography>
 
                   {stats.total > 0 && (

@@ -6,6 +6,7 @@ import {
     getNotificationCategory,
     localizeNotification
 } from '../../i18n/notificationText';
+import { localizeApiError } from '../../i18n/errorText';
 import {
     IconButton, Badge, Menu, MenuItem, Typography,
     Box, Avatar, List, ListItem, ListItemText,
@@ -123,7 +124,7 @@ const NotificationBell = () => {
                 prev.map(n => n.id === id ? { ...n, isRead: true } : n)
             );
             setUnreadCount(prev => Math.max(0, prev - 1));
-            toast.success('Đã đánh dấu đã đọc');
+            toast.success(t('notifications.markReadSuccess'));
         } catch (error) {
             console.error('Mark read error:', error);
         }
@@ -138,7 +139,7 @@ const NotificationBell = () => {
             });
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
             setUnreadCount(0);
-            toast.success('Đã đánh dấu tất cả là đã đọc');
+            toast.success(t('notifications.markAllReadSuccess'));
         } catch (error) {
             console.error('Mark all read error:', error);
         }
@@ -193,15 +194,11 @@ const NotificationBell = () => {
     const handleBookingAction = async (notif, status) => {
         try {
             const token = localStorage.getItem('token');
-            let bookingId = null;
-
             const match = notif.message?.match(/#BK(\d+)/);
-            if (match) {
-                bookingId = match[1];
-            }
+            const bookingId = match?.[1];
 
             if (!bookingId) {
-                toast.error('Không tìm thấy ID đặt phòng');
+                toast.error(t('notifications.bookingIdMissing'));
                 return;
             }
 
@@ -211,12 +208,22 @@ const NotificationBell = () => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            toast.success(`✅ Đã ${status === 'CONFIRMED' ? 'xác nhận' : 'hủy'} đặt phòng!`);
-            fetchNotifications();
-            // Cập nhật lại danh sách thông báo
+            toast.success(
+                status === 'CONFIRMED'
+                    ? t('notifications.bookingConfirmed')
+                    : t('notifications.bookingCancelled')
+            );
+
+            await fetchNotifications();
         } catch (error) {
             console.error('Booking action error:', error);
-            toast.error(error.response?.data || 'Thao tác thất bại');
+            toast.error(
+                localizeApiError(
+                    error.response?.data,
+                    i18n.language,
+                    t('notifications.actionFailed')
+                )
+            );
         }
     };
 
@@ -247,27 +254,34 @@ const NotificationBell = () => {
         }
     };
 
-    const getNotificationAction = (type) => {
-        switch (type) {
-            case 'booking': return 'Xem đặt phòng';
-            case 'promotion': return 'Xem khuyến mãi';
-            case 'system': return 'Xem chi tiết';
-            case 'chat': return 'Trả lời';
-            default: return 'Xem chi tiết';
+    const getNotificationAction = (notification) => {
+        const category = getNotificationCategory(notification);
+
+        if (category === 'bookings' || category === 'payments') {
+            return t('notifications.viewBooking');
         }
+        if (category === 'promotions') {
+            return t('notifications.viewPromotion');
+        }
+        if (category === 'support') {
+            return t('notifications.reply');
+        }
+        return t('notifications.viewDetails');
     };
 
     const formatDateTime = (dateString) => {
         if (!dateString) return '';
         try {
             const date = new Date(dateString);
-            return date.toLocaleString('vi-VN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            return date.toLocaleString(
+                i18n.language?.startsWith('vi') ? 'vi-VN' : 'en-US',
+                {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
         } catch (e) {
             return dateString;
         }
@@ -296,7 +310,7 @@ const NotificationBell = () => {
 
     return (
         <>
-            <Tooltip title="Thông báo">
+            <Tooltip title={t('notifications.title')}>
                 <IconButton color="inherit" onClick={handleOpen}>
                     <Badge badgeContent={unreadCount} color="error" max={99}>
                         <NotificationsIcon />
@@ -310,27 +324,42 @@ const NotificationBell = () => {
                 onClose={handleClose}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                PaperProps={{
-                    sx: {
-                        width: { xs: 'calc(100vw - 24px)', sm: 390 },
-                        maxWidth: 'calc(100vw - 24px)',
-                        maxHeight: 'min(620px, calc(100vh - 90px))',
-                        p: 0,
-                        overflow: 'hidden',
-                        borderRadius: '20px',
-                        border: '1px solid #e3ebe5',
-                        boxShadow: '0 22px 64px rgba(20, 52, 38, 0.20)',
-                        '& .MuiMenu-list': { p: 0 }
+                slotProps={{
+                    paper: {
+                        sx: {
+                            boxSizing: 'border-box',
+                            width: 'min(430px, calc(100vw - 16px))',
+                            height: 'min(460px, calc(100dvh - 80px))',
+                            maxWidth: 'calc(100vw - 16px)',
+                            maxHeight: 'calc(100dvh - 80px)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            borderRadius: 3,
+                            overflow: 'hidden',
+                            boxShadow: '0 18px 55px rgba(20, 38, 31, 0.2)',
+                            border: '1px solid #e6ece8'
+                        }
+                    },
+                    list: {
+                        sx: {
+                            display: 'flex',
+                            flexDirection: 'column',
+                            width: '100%',
+                            height: '100%',
+                            minHeight: 0,
+                            p: 0,
+                            overflow: 'hidden'
+                        }
                     }
                 }}
             >
-                <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
+                <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', flexShrink: 0 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography variant="subtitle1" fontWeight={600}>
-                            Thông báo
+                            {t('notifications.title')}
                             {unreadCount > 0 && (
                                 <Chip
-                                    label={`${unreadCount} mới`}
+                                    label={t('notifications.newCount', { count: unreadCount })}
                                     size="small"
                                     color="primary"
                                     sx={{ ml: 1 }}
@@ -339,7 +368,7 @@ const NotificationBell = () => {
                         </Typography>
                         {unreadCount > 0 && (
                             <Button size="small" onClick={handleMarkAllRead}>
-                                Đọc tất cả
+                                {t('notifications.markAllRead')}
                             </Button>
                         )}
                     </Box>
@@ -353,6 +382,7 @@ const NotificationBell = () => {
                     sx={{
                         px: 1,
                         minHeight: 50,
+                        flexShrink: 0,
                         bgcolor: '#f7faf8',
                         borderBottom: '1px solid #edf1ee',
                         '& .MuiTabs-indicator': { display: 'none' },
@@ -407,7 +437,14 @@ const NotificationBell = () => {
                         );
                     })}
                 </Tabs>
-                <Box sx={{ maxHeight: 350, overflowY: 'auto' }}>
+                <Box
+                    sx={{
+                        flex: '1 1 auto',
+                        minHeight: 0,
+                        overflowY: 'auto',
+                        bgcolor: '#fbfcfb'
+                    }}
+                >
                     {loading ? (
                         <Box sx={{ p: 3, textAlign: 'center' }}>
                             <CircularProgress size={30} />
@@ -416,7 +453,7 @@ const NotificationBell = () => {
                         <Box sx={{ p: 3, textAlign: 'center' }}>
                             <NotificationsIcon sx={{ fontSize: 40, color: '#e0e0e0' }} />
                             <Typography variant="body2" color="textSecondary">
-                                Không có thông báo
+                                {t('notifications.noNotifications')}
                             </Typography>
                         </Box>
                     ) : (
@@ -481,7 +518,7 @@ const NotificationBell = () => {
                                                 sx={{ fontSize: '0.65rem', py: 0.5, minWidth: 80 }}
                                             >
                                                 <CheckCircle sx={{ fontSize: 14, mr: 0.5 }} />
-                                                Xác nhận
+                                                {t('notifications.confirm')}
                                             </Button>
                                             <Button
                                                 size="small"
@@ -494,7 +531,7 @@ const NotificationBell = () => {
                                                 sx={{ fontSize: '0.65rem', py: 0.5, minWidth: 80 }}
                                             >
                                                 <Cancel sx={{ fontSize: 14, mr: 0.5 }} />
-                                                Hủy
+                                                {t('notifications.cancel')}
                                             </Button>
                                         </Box>
                                     )}
@@ -513,7 +550,7 @@ const NotificationBell = () => {
                                                 textTransform: 'none'
                                             }}
                                         >
-                                            {getNotificationAction(notif.type)}
+                                            {getNotificationAction(notif)}
                                         </Button>
                                     </Box>
                                 </ListItem>
@@ -523,7 +560,7 @@ const NotificationBell = () => {
                     )}
                 </Box>
 
-                <Box sx={{ p: 1.5, borderTop: '1px solid #e0e0e0', textAlign: 'center' }}>
+                <Box sx={{ p: 1.5, borderTop: '1px solid #e0e0e0', textAlign: 'center', flexShrink: 0 }}>
                     <Button
                         fullWidth
                         variant="text"
@@ -533,7 +570,7 @@ const NotificationBell = () => {
                         }}
                         sx={{ color: '#1976d2', fontWeight: 600 }}
                     >
-                        Xem tất cả thông báo
+                        {t('notifications.viewAll')}
                     </Button>
                 </Box>
             </Menu>
@@ -556,7 +593,7 @@ const NotificationBell = () => {
                         }}>
                             <Box display="flex" alignItems="center" gap={1}>
                                 {selectedNotification.icon || getNotificationIcon(selectedNotification.type)}
-                                {selectedNotification.title}
+                                {localizeNotification(selectedNotification, i18n.language).title}
                             </Box>
                             <IconButton onClick={() => setOpenDetailDialog(false)} sx={{ color: 'white' }}>
                                 <CloseIcon />
@@ -564,17 +601,19 @@ const NotificationBell = () => {
                         </DialogTitle>
                         <DialogContent sx={{ mt: 2 }}>
                             <Typography variant="body1" paragraph sx={{ whiteSpace: 'pre-wrap' }}>
-                                {selectedNotification.message}
+                                {localizeNotification(selectedNotification, i18n.language).message}
                             </Typography>
                             <Divider sx={{ my: 2 }} />
                             <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={1}>
                                 <Typography variant="caption" color="textSecondary">
                                     📅 {formatDateTime(selectedNotification.createdAt)}
                                 </Typography>
-                                <Typography variant="caption" color="textSecondary" sx={{ textTransform: 'capitalize' }}>
-                                    📂 {selectedNotification.type === 'booking' ? 'Đặt phòng' :
-                                        selectedNotification.type === 'promotion' ? 'Khuyến mãi' :
-                                            selectedNotification.type === 'chat' ? 'Hỗ trợ' : 'Hệ thống'}
+                                <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                    sx={{ textTransform: 'capitalize' }}
+                                >
+                                    📂 {t(`notifications.categories.${getNotificationCategory(selectedNotification)}`)}
                                 </Typography>
                             </Box>
                             <Box mt={2} display="flex" gap={1}>
@@ -604,13 +643,13 @@ const NotificationBell = () => {
                                         }
                                     }}
                                 >
-                                    {getNotificationAction(selectedNotification.type)}
+                                    {getNotificationAction(selectedNotification)}
                                 </Button>
                             </Box>
                         </DialogContent>
                         <DialogActions>
                             <Button onClick={() => setOpenDetailDialog(false)}>
-                                Đóng
+                                {t('notifications.close')}
                             </Button>
                         </DialogActions>
                     </>

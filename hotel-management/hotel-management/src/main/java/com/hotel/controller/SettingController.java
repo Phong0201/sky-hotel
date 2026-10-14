@@ -36,32 +36,24 @@ public class SettingController {
     private final String AMENITY_UPLOAD_DIR = "uploads/amenities/";
 
     private static final Set<String> PUBLIC_SETTING_KEYS = Set.of(
-            "supportPhone",
-            "supportEmail",
-            "supportAddress",
-            "supportHours",
-            "facebookUrl",
-            "fanpageUrl",
-            "zaloUrl",
-            "messengerUrl",
-            "contactTagline",
-            "welcomeMessage",
-            "brandDescription",
-            "homeAmenities"
+            "supportPhone", "supportEmail", "supportAddress", "supportHours",
+            "facebookUrl", "fanpageUrl", "zaloUrl", "messengerUrl",
+            "contactTagline", "contactTaglineEn",
+            "welcomeMessage", "welcomeMessageEn",
+            "brandDescription", "brandDescriptionEn", "homeAmenities"
     );
 
     @GetMapping("/public")
-    public ResponseEntity<List<Setting>> getPublicSettings() {
-        List<Setting> result = new ArrayList<>();
+    public ResponseEntity<List<Map<String, String>>> getPublicSettings() {
+        List<Map<String, String>> settings = settingService.getAllSettings().stream()
+                .filter(setting -> PUBLIC_SETTING_KEYS.contains(setting.getKey()))
+                .map(setting -> Map.of(
+                        "key", setting.getKey(),
+                        "value", setting.getValue() == null ? "" : setting.getValue()
+                ))
+                .toList();
 
-        for (Setting setting : settingService.getAllSettings()) {
-            if (setting.getKey() != null &&
-                    PUBLIC_SETTING_KEYS.contains(setting.getKey())) {
-                result.add(setting);
-            }
-        }
-
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(settings);
     }
 
     // ============ GET ALL SETTINGS ============

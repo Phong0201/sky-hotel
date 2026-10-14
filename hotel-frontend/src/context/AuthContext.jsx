@@ -1,4 +1,10 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    useCallback
+} from 'react';
 import { authAPI } from '../api/auth';
 import api from '../api/axiosConfig';
 
@@ -22,9 +28,9 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         const userStr = localStorage.getItem('user');
-        
+
         console.log('🔐 AuthProvider - Token:', token ? '✅ exists' : '❌ none');
-        
+
         if (token && userStr) {
             try {
                 const user = JSON.parse(userStr);
@@ -43,22 +49,22 @@ export const AuthProvider = ({ children }) => {
             console.log('📤 Login request:', username);
             const response = await authAPI.login(username, password);
             console.log('📥 Login response:', response.data);
-            
+
             const { token, user } = response.data;
-            
+
             localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify(user));
             localStorage.setItem('username', username);
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            
+
             console.log('✅ Login successful - User:', user.username);
             setUser(user);
             return { success: true };
         } catch (error) {
             console.error('❌ Login error:', error);
-            return { 
-                success: false, 
-                error: error.response?.data?.message || 'Login failed' 
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Login failed'
             };
         }
     };
@@ -68,9 +74,9 @@ export const AuthProvider = ({ children }) => {
             const response = await authAPI.register(userData);
             return { success: true, data: response.data };
         } catch (error) {
-            return { 
-                success: false, 
-                error: error.response?.data?.message || 'Registration failed' 
+            return {
+                success: false,
+                error: error.response?.data?.message || 'Registration failed'
             };
         }
     };

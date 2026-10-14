@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { formatHotelCurrency } from '../utils/currency';
 import { Box, Typography, Paper, Button, Divider, CircularProgress, Chip } from '@mui/material';
 import { CheckCircle, Cancel, ReceiptLong, Home, ArrowBack } from '@mui/icons-material';
 import { paymentAPI } from '../api/payment';
@@ -36,11 +37,8 @@ const PaymentResult = () => {
         return () => clearTimeout(timer);
     }, [paymentId]);
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '';
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(amount));
-    };
-
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
     const isPaid = payment?.paymentStatus === 'COMPLETED';
 
     return (

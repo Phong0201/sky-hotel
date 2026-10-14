@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { formatHotelCurrency } from '../utils/currency';
+import { normalizePhoneForTel } from '../utils/phone';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -112,10 +113,14 @@ const RoomDetail = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   // Thông tin liên hệ hỗ trợ
   const [supportSettings, setSupportSettings] = useState({
-    supportPhone: '1900 1234',
+    supportPhone: '',
     supportEmail: 'support@skyhotel.vn',
     facebookUrl: ''
   });
+
+  const supportPhoneForTel = normalizePhoneForTel(
+    supportSettings.supportPhone
+  );
 
   useEffect(() => {
     fetchRoom();
@@ -180,7 +185,7 @@ const RoomDetail = () => {
       const map = {};
       data.forEach(item => { map[item.key] = item.value; });
       setSupportSettings({
-        supportPhone: map.supportPhone || '1900 1234',
+        supportPhone: map.supportPhone || '',
         supportEmail: map.supportEmail || 'support@skyhotel.vn',
         facebookUrl: map.facebookUrl || ''
       });
@@ -812,8 +817,25 @@ const RoomDetail = () => {
                     variant="outlined"
                     startIcon={<Phone />}
                     fullWidth
-                    onClick={() => { window.location.href = `tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`; }}
-                    sx={{ justifyContent: 'flex-start', py: 1.05, px: 1.5, borderRadius: 2, color: '#52635b', borderColor: '#e5e8e2', textTransform: 'none', fontWeight: 650, '&:hover': { bgcolor: '#f6f8f5', borderColor: '#315f53' } }}
+                    disabled={!supportPhoneForTel}
+                    onClick={() => {
+                      if (!supportPhoneForTel) return;
+                      window.location.href = `tel:${supportPhoneForTel}`;
+                    }}
+                    sx={{
+                      justifyContent: 'flex-start',
+                      py: 1.05,
+                      px: 1.5,
+                      borderRadius: 2,
+                      color: '#52635b',
+                      borderColor: '#e5e8e2',
+                      textTransform: 'none',
+                      fontWeight: 650,
+                      '&:hover': {
+                        bgcolor: '#f6f8f5',
+                        borderColor: '#315f53'
+                      }
+                    }}
                   >
                     Gọi điện trực tiếp
                   </Button>

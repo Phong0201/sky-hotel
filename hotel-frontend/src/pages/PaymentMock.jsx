@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { formatHotelCurrency } from '../utils/currency';
 import {
     Box, Typography, Paper, TextField, Button, Divider,
     CircularProgress, Chip, Alert
@@ -25,10 +26,8 @@ const PaymentMock = () => {
     const [cardDate, setCardDate] = useState('07/15');
     const [processing, setProcessing] = useState(false);
 
-    const formatCurrency = (amount) => {
-        if (!amount) return '0 ₫';
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(amount));
-    };
+    const formatCurrency = (amount) =>
+        formatHotelCurrency(amount, i18n.language);
 
     const finish = (success) => {
         navigate(`/payment/result?success=${success}&bookingId=${bookingId || ''}&paymentId=${paymentId || ''}`, { replace: true });

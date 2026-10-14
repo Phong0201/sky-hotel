@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { formatHotelCurrency } from '../utils/currency';
 import {
     Box, Typography, Paper, Grid, TextField, MenuItem, InputAdornment,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -15,10 +16,8 @@ import {
 import { paymentAPI, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_COLORS, PAYMENT_STATUS_COLORS } from '../api/payment';
 import toast from 'react-hot-toast';
 
-const formatCurrency = (amount) => {
-    if (amount == null) return '0 ₫';
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(amount));
-};
+const formatCurrency = (amount) =>
+    formatHotelCurrency(amount, i18n.language);
 
 const formatDateTime = (s) => {
     if (!s) return 'N/A';

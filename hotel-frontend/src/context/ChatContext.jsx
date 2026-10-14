@@ -1,9 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, {
+    createContext,
+    useContext,
+    useState,
+    useEffect,
+    useCallback
+} from 'react';
 import { useAuth } from './AuthContext';
+import { API_BASE_URL } from '../api/config';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const ChatContext = createContext(null);
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+
 
 export const useChat = () => {
     const context = useContext(ChatContext);
@@ -21,7 +30,12 @@ export const ChatProvider = ({ children }) => {
     const [isConnected, setIsConnected] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
 
-    const API_BASE_URL = 'http://localhost:9981';
+    // `${API_BASE_URL}/presence/heartbeat`
+    //     `${API_BASE_URL}/chat/history/${user.id}/${activeChatUserId}`
+    //     `${API_BASE_URL}/chat/unread/${user.id}`
+    //     `${API_BASE_URL}/chat/read/${idToUse}`
+    //     `${API_BASE_URL}/chat/send`
+    //     `${API_BASE_URL}/chat/history/${user.id}/${targetUserId}`
     const ADMIN_ID = 1;
 
     useEffect(() => {
@@ -37,7 +51,7 @@ export const ChatProvider = ({ children }) => {
         const sendHeartbeat = async () => {
             try {
                 const token = localStorage.getItem('token');
-                await axios.post(`${API_BASE_URL}/api/presence/heartbeat`, {}, {
+                await axios.post(`${API_ORIGIN}/api/presence/heartbeat`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
             } catch (error) {
@@ -56,7 +70,7 @@ export const ChatProvider = ({ children }) => {
         const fetchMessages = async () => {
             try {
                 const token = localStorage.getItem('token');
-                const url = `${API_BASE_URL}/api/chat/history/${user.id}/${activeChatUserId}`;
+                const url = `${API_ORIGIN}/api/chat/history/${user.id}/${activeChatUserId}`;
                 const res = await axios.get(url, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
@@ -86,7 +100,9 @@ export const ChatProvider = ({ children }) => {
                 });
 
                 const unread = (res.data || []).filter(
-                    (message) => message.senderId !== user.id && message.isRead !== true
+                    (message) =>
+                        String(message.senderId) !== String(user.id) &&
+                        message.isRead !== true
                 );
 
                 setUnreadCount(unread.length);
@@ -142,11 +158,11 @@ export const ChatProvider = ({ children }) => {
 
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`${API_BASE_URL}/api/chat/send`, msg, {
+            await axios.post(`${API_ORIGIN}/api/chat/send`, msg, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            const url = `${API_BASE_URL}/api/chat/history/${user.id}/${targetUserId}`;
+            const url = `${API_ORIGIN}/api/chat/history/${user.id}/${targetUserId}`;
             const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });

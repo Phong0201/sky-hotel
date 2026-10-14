@@ -1,8 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { API_BASE_URL } from '../../api/config';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../../context/ChatContext';
 import { normalizePhoneForTel } from '../../utils/phone';
-import { Box, Typography, Paper, Grow, IconButton, Tooltip, Avatar, Divider } from '@mui/material';
+import {
+    Box,
+    Typography,
+    Paper,
+    Grow,
+    IconButton,
+    Tooltip,
+    Avatar,
+    Divider,
+    Badge,
+    Fab
+} from '@mui/material';
 import {
     Close, Phone, Chat as ChatIcon, Facebook,
     Email as EmailIcon, SupportAgent
@@ -10,14 +23,12 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981';
-
 /**
  * Cấu hình liên hệ MẶC ĐỊNH — admin có thể đổi trong trang Cài đặt
  * (mấy giá trị bên dưới chỉ dùng khi chưa từng lưu Cài đặt)
  */
 export const HOTEL_CONTACT = {
-    phone: '19001234',
+    phone: '',
     zalo: 'https://zalo.me/0987654321',
     messenger: 'https://m.me/skyhotel',
     email: 'support@skyhotel.vn',
@@ -30,6 +41,7 @@ export const HOTEL_CONTACT = {
  * 3. Messenger (m.me)           4. Zalo (zalo.me)     5. Email (mailto:)
  */
 const ContactBubble = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { isAuthenticated, user } = useAuth();
     const { unreadCount = 0 } = useChat();
@@ -39,13 +51,13 @@ const ContactBubble = () => {
 
     useEffect(() => {
         // Đọc cấu hình liên hệ admin đã sửa trong Cài đặt (GET public)
-        axios.get(`${API_BASE_URL}/api/settings`)
+        axios.get(`${API_BASE_URL}/settings/public`)
             .then(res => {
                 const map = {};
                 (res.data || []).forEach(item => { map[item.key] = item.value; });
                 setContact(prev => ({
                     ...prev,
-                    phone: map.supportPhone || prev.phone,
+                    phone: map.supportPhone || '',
                     zalo: map.zaloUrl || prev.zalo,
                     messenger: map.messengerUrl || prev.messenger,
                     email: map.supportEmail || prev.email,
@@ -58,6 +70,7 @@ const ContactBubble = () => {
     // Ẩn với admin/lễ tân (họ là người trả lời, không cần liên hệ chính mình)
     if (user && (user.role === 'ADMIN' || user.role === 'RECEPTIONIST')) return null;
 
+    const telPhone = normalizePhoneForTel(contact.phone);
     const options = [
         {
             key: 'call',
@@ -66,7 +79,11 @@ const ContactBubble = () => {
             desc: `Hotline ${contact.phone}`,
             color: '#2e7d32',
             bg: '#e8f5e9',
-            onClick: () => window.open(`tel:${contact.phone}`, '_self'),
+            onClick: () => {
+                if (telPhone) {
+                    window.location.href = `tel:${telPhone}`;
+                }
+            },
         },
         {
             key: 'chat',
@@ -112,7 +129,7 @@ const ContactBubble = () => {
             bg: '#fdecea',
             onClick: () => window.open(`mailto:${contact.email}?subject=[SkyHotel] Hỗ trợ khách hàng`, '_self'),
         },
-    ];
+    ].filter((option) => option.key !== 'call' || Boolean(telPhone));
 
     return (
         <>

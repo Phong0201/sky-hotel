@@ -207,6 +207,12 @@ const Chat = () => {
     }, [activeChatUserId]);
 
     useEffect(() => {
+        if (!isAdmin && user?.id) {
+            markAsRead();
+        }
+    }, [isAdmin, user?.id, markAsRead]);
+
+    useEffect(() => {
         const handleClickOutside = () => {
             setActionMessage(null);
             setShowReactionPopup(null);
@@ -904,42 +910,32 @@ const Chat = () => {
         return (
             <div className="messenger-container user-chat-view">
                 <div className="messenger-main" style={{ width: '100%' }}>
-                    <div className="chat-header">
+                    <div className="chat-header customer-chat-header">
                         <div className="chat-header-info">
-                            <div className="chat-avatar" style={{ background: '#e53e3e' }}>A</div>
-                            <div>
-                                <div className="chat-header customer-chat-header">
-                                    <div className="chat-header-info">
-                                        <div className="chat-avatar support-chat-avatar">
-                                            <SupportAgentRounded />
-                                        </div>
+                            <div className="chat-avatar support-chat-avatar">
+                                <SupportAgentRounded />
+                            </div>
 
-                                        <div className="customer-chat-title-group">
-                                            <h3>Hỗ trợ khách hàng SkyHotel</h3>
-                                            <span className="customer-chat-subtitle">
-                                                Tư vấn đặt phòng và hỗ trợ trong thời gian lưu trú
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="customer-chat-meta">
-                                        <div className={`customer-chat-connection ${isConnected ? 'connected' : 'disconnected'}`}>
-                                            <span className="customer-chat-connection-dot" />
-                                            {isConnected ? 'Đang kết nối' : 'Đang kết nối lại'}
-                                        </div>
-                                        <div className="customer-chat-privacy">
-                                            <LockRounded fontSize="small" />
-                                            Tin nhắn riêng tư
-                                        </div>
-                                    </div>
-                                </div>
-                                <span className="chat-status">
-                                    {isConnected ? '🟢 Online' : '⚪ Offline'}
+                            <div className="customer-chat-title-group">
+                                <h3>Hỗ trợ khách hàng SkyHotel</h3>
+                                <span className="customer-chat-subtitle">
+                                    Tư vấn đặt phòng và hỗ trợ trong thời gian lưu trú
                                 </span>
                             </div>
                         </div>
-                    </div>
 
+                        <div className="customer-chat-meta">
+                            <div className={`customer-chat-connection ${isConnected ? 'connected' : 'disconnected'}`}>
+                                <span className="customer-chat-connection-dot" />
+                                {isConnected ? 'Đang kết nối' : 'Đang kết nối lại'}
+                            </div>
+
+                            <div className="customer-chat-privacy">
+                                <LockRounded fontSize="small" />
+                                Tin nhắn riêng tư
+                            </div>
+                        </div>
+                    </div>
                     <div className="chat-messages customer-chat-messages" ref={chatMessagesRef} onScroll={handleScroll}>
                         {messages.length === 0 ? (
                             <div className="empty-chat">
@@ -1111,7 +1107,7 @@ const Chat = () => {
             <div className="messenger-main">
                 {activeUser ? (
                     <>
-                        <div className="chat-header">
+                        //<div className="chat-header">
                             <div className="chat-header-info">
                                 <div className="user-avatar-wrap">
                                     <div className="chat-avatar">
