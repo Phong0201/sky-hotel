@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { normalizePhoneForTel } from '../utils/phone';
 import { formatHotelCurrency } from '../utils/currency';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     Box, Grid, Paper, Typography, Card, CardContent,
@@ -31,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { bookingAPI } from '../api/booking';
 import { roomAPI } from '../api/room';
 import { userAPI } from '../api/user';
+import { StatCard, StatusDonut, RevenueBars, QuickActionButton } from '../components/staff/StaffWidgets';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 import { API_BASE_URL } from '../api/config';
@@ -40,6 +41,7 @@ const API_URL = API_BASE_URL;
 const Dashboard = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, isAdmin, isReceptionist } = useAuth();
     const [loading, setLoading] = useState(true);
     const [tabValue, setTabValue] = useState(0);
@@ -61,6 +63,12 @@ const Dashboard = () => {
         activeUsers: 0
     });
     const [recentBookings, setRecentBookings] = useState([]);
+    const [allBookings, setAllBookings] = useState([]);
+    const [allRooms, setAllRooms] = useState([]);
+    const [roomDate, setRoomDate] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
     const [upcomingBookings, setUpcomingBookings] = useState([]);
     const [favoriteRooms, setFavoriteRooms] = useState([]);
     const [notifications, setNotifications] = useState([]);
@@ -82,6 +90,9 @@ const Dashboard = () => {
     });
     const [revenuePeriod, setRevenuePeriod] = useState('MONTH');
     const [revenueData, setRevenueData] = useState([]);
+    const [selectedRevenuePeriod, setSelectedRevenuePeriod] = useState('');
+    const [statusPreset, setStatusPreset] = useState('ALL');
+    const [selectedStatus, setSelectedStatus] = useState('');
     const [totalRevenuePeriod, setTotalRevenuePeriod] = useState(0);
 
     // Filter states
@@ -94,6 +105,13 @@ const Dashboard = () => {
     const [openNotificationDialog, setOpenNotificationDialog] = useState(false);
 
     const canManage = isAdmin || isReceptionist;
+
+    // (PHẦN 6) Doanh thu là TRANG RIÊNG /revenue — Tổng quan là /dashboard
+    const isRevenuePage = location.pathname === '/revenue';
+    useEffect(() => {
+        setTabValue(location.pathname === '/revenue' ? 1 : 0);
+    }, [location.pathname]);
+
     const sortedUpcomingBookings = [...upcomingBookings].sort(
         (a, b) => new Date(a.checkIn) - new Date(b.checkIn)
     );
@@ -303,9 +321,11 @@ const Dashboard = () => {
         try {
             const bookingsRes = await bookingAPI.getAll();
             const bookings = bookingsRes.data || [];
+            setAllBookings(bookings);
 
             const roomsRes = await roomAPI.getAll();
             const rooms = roomsRes.data || [];
+            setAllRooms(rooms);
 
             const usersRes = await userAPI.getAll();
             const users = usersRes.data || [];
@@ -520,9 +540,150 @@ const Dashboard = () => {
         setSelectedYear('');
         handlePeriodChange({ target: { value: revenuePeriod } });
     };
+    // ===== (THÊM PHẦN 3) Lọc nhanh doanh thu =====
+    const handleQuickRevenueRange = (type) => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+
+        if (type === 'ALL') {
+            handlePeriodChange({ target: { value: 'MONTH' } });
+            return;
+        }
+        if (type === 'TODAY') {
+            setRevenuePeriod('DAY');
+            handleDateFilter(`${y}-${m}-${d}`);
+            return;
+        }
+        if (type === 'THIS_MONTH') {
+            setRevenuePeriod('MONTH');
+            handleMonthFilter(`${y}-${m}`);
+            return;
+        }
+        if (type === 'LAST_MONTH') {
+            const prev = new Date(y, now.getMonth() - 1, 1);
+            setRevenuePeriod('MONTH');
+            handleMonthFilter(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`);
+            return;
+        }
+        if (type === 'THIS_YEAR') {
+            setRevenuePeriod('YEAR');
+            handleYearFilter(String(y));
+        }
+    };
 
     const handleStatusClick = (status) => {
         navigate(`/bookings?status=${status}`);
+    };
+    // (THÊM) So sánh doanh thu kỳ gần nhất với kỳ trước + chỉ số phụ
+    const _sortedRev = [...revenueData].sort((a, b) => String(a.period).localeCompare(String(b.period)));
+    const _lastRev = _sortedRev[_sortedRev.length - 1];
+    const _prevRev = _sortedRev[_sortedRev.length - 2];
+    const _growthPct = (_prevRev && _prevRev.revenue > 0 && _lastRev)
+        ? ((Number(_lastRev.revenue || 0) - Number(_prevRev.revenue || 0)) / Number(_prevRev.revenue)) * 100
+        : null;
+    const _totalBookingsRev = revenueData.reduce((sum, item) => sum + (item.bookings || 0), 0);
+    const _avgPerBooking = _totalBookingsRev > 0 ? (totalRevenuePeriod || 0) / _totalBookingsRev : 0;
+    const _bestPeriod = _sortedRev.length
+        ? _sortedRev.reduce((best, item) => (Number(item.revenue || 0) > Number(best.revenue || 0) ? item : best), _sortedRev[0])
+        : null;
+    // (THÊM PHẦN 5) Đếm trạng thái đặt phòng theo Hôm nay / Tháng này / Năm nay / Tất cả
+    const _skNow = new Date();
+    const _statusTodayKey = `${_skNow.getFullYear()}-${String(_skNow.getMonth() + 1).padStart(2, '0')}-${String(_skNow.getDate()).padStart(2, '0')}`;
+    const _statusInRange = (b) => {
+        const ci = String(b.checkInDate || b.checkIn || '').slice(0, 10);
+        if (statusPreset === 'TODAY') return ci === _statusTodayKey;
+        if (statusPreset === 'MONTH') return ci.slice(0, 7) === _statusTodayKey.slice(0, 7);
+        if (statusPreset === 'YEAR') return ci.slice(0, 4) === _statusTodayKey.slice(0, 4);
+        return true;
+    };
+    const statusCounts = {
+        PENDING: allBookings.filter((b) => _statusInRange(b) && b.status === 'PENDING').length,
+        CONFIRMED: allBookings.filter((b) => _statusInRange(b) && b.status === 'CONFIRMED').length,
+        CHECKED_IN: allBookings.filter((b) => _statusInRange(b) && b.status === 'CHECKED_IN').length,
+        CHECKED_OUT: allBookings.filter((b) => _statusInRange(b) && b.status === 'CHECKED_OUT').length,
+        CANCELLED: allBookings.filter((b) => _statusInRange(b) && b.status === 'CANCELLED').length,
+    };
+    const statusTotalInRange = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+
+    // (THÊM PHẦN 5) Bấm vào 1 kỳ doanh thu -> ra các đơn tạo nên doanh thu kỳ đó
+    const _periodKeyOf = (dateValue) => {
+        const d = new Date(dateValue);
+        if (Number.isNaN(d.getTime())) return '';
+        if (revenuePeriod === 'DAY') return d.toLocaleDateString('en-CA');
+        if (revenuePeriod === 'YEAR') return String(d.getFullYear());
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const revenueDetailBookings = selectedRevenuePeriod
+        ? allBookings.filter((b) => ['CONFIRMED', 'CHECKED_OUT'].includes(b.status)
+            && _periodKeyOf(b.checkInDate || b.checkIn) === selectedRevenuePeriod)
+        : [];
+
+    // (THÊM) Xuất bảng doanh thu ra CSV (mở được bằng Excel)
+    // (SỬA PHẦN 7) CSV giàu dữ liệu: bảng tổng hợp + chi tiết từng đơn bên dưới
+    const handleExportRevenueCsv = () => {
+        const esc = (c) => `"${String(c ?? '').replace(/"/g, '""')}"`;
+        const nightsOf = (b) => {
+            const inMs = new Date(b.checkInDate || b.checkIn).getTime();
+            const outMs = new Date(b.checkOutDate || b.checkOut).getTime();
+            return Number.isNaN(inMs) || Number.isNaN(outMs) ? 0 : Math.max(Math.round((outMs - inMs) / 86400000), 0);
+        };
+        const bookingsOf = (period) => allBookings.filter((b) => ['CONFIRMED', 'CHECKED_OUT'].includes(b.status)
+            && _periodKeyOf(b.checkInDate || b.checkIn) === period);
+
+        const lines = [];
+        lines.push(['THỐNG KÊ DOANH THU THEO ' + revenuePeriod, '', '', '', '', '', '', '', '', '']);
+        lines.push(['Xuất lúc', new Date().toLocaleString('vi-VN'), '', '', '', '', '', '', '', '']);
+        lines.push([]);
+        lines.push(['Kỳ', 'Doanh thu (VND)', 'Số đơn', 'Doanh thu TB/đơn (VND)', 'Doanh thu kỳ trước (VND)', 'Tăng trưởng %', 'Số khách', 'Số phòng', 'Số đêm', 'Tỷ trọng %']);
+
+        revenueData.forEach((item, idx) => {
+            const prev = idx > 0 ? Number(revenueData[idx - 1].revenue || 0) : 0;
+            const revenue = Number(item.revenue || 0);
+            const growth = prev > 0 ? (((revenue - prev) / prev) * 100).toFixed(1) : '';
+            const share = totalRevenuePeriod > 0 ? ((revenue / totalRevenuePeriod) * 100).toFixed(1) : '0';
+            const avg = item.bookings > 0 ? Math.round(revenue / item.bookings) : 0;
+            const nights = bookingsOf(item.period).reduce((sum, b) => sum + nightsOf(b), 0);
+            lines.push([item.period, Math.round(revenue), item.bookings || 0, avg, idx > 0 ? Math.round(prev) : '', growth, item.guests || 0, item.rooms || 0, nights, share]);
+        });
+
+        lines.push(['TỔNG', Math.round(totalRevenuePeriod || 0), revenueData.reduce((s, i) => s + (i.bookings || 0), 0), '', '', '', revenueData.reduce((s, i) => s + (i.guests || 0), 0), '', '', '100']);
+        lines.push([]);
+        lines.push(['CHI TIẾT TỪNG ĐƠN TRONG CÁC KỲ TRÊN', '', '', '', '', '', '', '', '', '']);
+        lines.push(['Mã đơn', 'Kỳ', 'Khách hàng', 'Số điện thoại', 'Email', 'Phòng', 'Loại phòng', 'Check-in', 'Check-out', 'Số đêm', 'Số khách', 'Trạng thái', 'Số tiền (VND)']);
+
+        revenueData.forEach((item) => {
+            bookingsOf(item.period)
+                .slice()
+                .sort((a, b) => new Date(a.checkInDate || a.checkIn) - new Date(b.checkInDate || b.checkIn))
+                .forEach((b) => {
+                    lines.push([
+                        b.id, item.period,
+                        b.guestFullName || b.user?.fullName || '',
+                        b.guestPhone || b.user?.phoneNumber || '',
+                        b.guestEmail || b.user?.email || '',
+                        b.room?.roomNumber || '',
+                        b.room?.roomType || '',
+                        String(b.checkInDate || b.checkIn || '').slice(0, 10),
+                        String(b.checkOutDate || b.checkOut || '').slice(0, 10),
+                        nightsOf(b),
+                        b.numberOfGuests || b.guests || 1,
+                        b.status,
+                        Math.round(Number(b.finalPrice ?? b.totalPrice ?? 0)),
+                    ]);
+                });
+        });
+
+        const csv = lines.map((r) => r.map(esc).join(',')).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `thong-ke-doanh-thu-${revenuePeriod.toLowerCase()}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast.success('Đã xuất file CSV (có chi tiết từng đơn)');
     };
 
     const handleCardClick = (path) => {
@@ -615,6 +776,60 @@ const Dashboard = () => {
         localStorage.setItem('favoriteRooms', JSON.stringify(newFavorites));
     };
 
+    // ===== (THÊM) Số liệu vận hành hôm nay cho khối tổng quan nhân viên =====
+    const _now = new Date();
+    const _todayKey = `${_now.getFullYear()}-${`${_now.getMonth() + 1}`.padStart(2, '0')}-${`${_now.getDate()}`.padStart(2, '0')}`;
+    const arrivalsToday = allBookings.filter(
+        (b) => String(b.checkInDate || '').slice(0, 10) === _todayKey && ['PENDING', 'CONFIRMED'].includes(b.status)
+    );
+    const departuresToday = allBookings.filter(
+        (b) => String(b.checkOutDate || '').slice(0, 10) === _todayKey && b.status === 'CHECKED_IN'
+    );
+    const occupancyPct = stats.totalRooms
+        ? Math.round(((stats.occupiedRooms || 0) / stats.totalRooms) * 100)
+        : 0;
+    const handleQuickStatus = async (id, status) => {
+        try {
+            await bookingAPI.updateStatus(id, status);
+            toast.success(`Đã cập nhật đặt phòng #${id}`);
+            fetchAdminDashboard();
+        } catch (e) {
+            toast.error(e.response?.data || 'Cập nhật thất bại');
+        }
+    };
+    // (THÊM) Hủy nhanh đặt phòng đang chờ
+    const handleQuickCancel = async (id) => {
+        if (!window.confirm(`Hủy đặt phòng #${id}?`)) return;
+        try {
+            await bookingAPI.cancel(id);
+            toast.success(`Đã hủy đặt phòng #${id}`);
+            fetchAdminDashboard();
+        } catch (e) {
+            toast.error(e.response?.data || 'Hủy thất bại');
+        }
+    };
+
+    // ===== (THÊM PHẦN 4) Sơ đồ phòng theo ngày =====
+    const bookingByRoomOnDate = {};
+    allBookings
+        .filter((b) => ['PENDING', 'CONFIRMED', 'CHECKED_IN'].includes(b.status)
+            && String(b.checkInDate || '').slice(0, 10) <= roomDate
+            && roomDate < String(b.checkOutDate || '').slice(0, 10))
+        .forEach((b) => {
+            if (b.room?.id) bookingByRoomOnDate[b.room.id] = b;
+        });
+    const roomDaySummary = {
+        booked: allRooms.filter((r) => bookingByRoomOnDate[r.id] && bookingByRoomOnDate[r.id].status !== 'PENDING').length,
+        pending: allRooms.filter((r) => bookingByRoomOnDate[r.id]?.status === 'PENDING').length,
+        maintenance: allRooms.filter((r) => r.status === 'MAINTENANCE').length,
+    };
+    roomDaySummary.free = Math.max(allRooms.length - roomDaySummary.booked - roomDaySummary.pending - roomDaySummary.maintenance, 0);
+    const shiftRoomDate = (days) => {
+        const d = new Date(`${roomDate}T00:00:00`);
+        d.setDate(d.getDate() + days);
+        setRoomDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -635,7 +850,7 @@ const Dashboard = () => {
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
                     <Typography variant="h4" fontWeight={700}>
-                        {t('dashboard.title') || '📊 Tổng Quan'}
+                        {isRevenuePage ? (i18n.language === 'vi' ? '💰 Doanh thu' : '💰 Revenue') : (t('dashboard.title') || '📊 Tổng Quan')}
                     </Typography>
                     <Box display="flex" alignItems="center" gap={1} sx={{ mt: 0.5 }}>
                         <Typography variant="body2" color="textSecondary">
@@ -703,32 +918,205 @@ const Dashboard = () => {
                 </Box>
             </Box>
 
-            {/* Tabs - Chỉ hiển thị cho Admin */}
-            {canManage && (
-                <Paper sx={{ borderRadius: 3, overflow: 'hidden', mb: 3 }}>
-                    <Tabs
-                        value={tabValue}
-                        onChange={handleTabChange}
-                        variant="fullWidth"
-                        sx={{
-                            '& .MuiTab-root': {
-                                py: 2,
-                                fontWeight: 600
-                            }
-                        }}
-                    >
-                        <Tab
-                            icon={<DashboardIcon />}
-                            iconPosition="start"
-                            label={i18n.language === 'vi' ? 'Tổng quan' : 'Overview'}
-                        />
-                        <Tab
-                            icon={<RevenueIcon />}
-                            iconPosition="start"
-                            label={i18n.language === 'vi' ? 'Doanh thu' : 'Revenue'}
-                        />
-                    </Tabs>
-                </Paper>
+            {/* ============ (THÊM) KHỐI TỔNG QUAN NHÂN VIÊN ============ */}
+            {canManage && !isRevenuePage && (
+                <Box sx={{ mb: 3 }}>
+                    {/* ===== (PHẦN 8) TRUNG TÂM ĐIỀU HÀNH HÔM NAY ===== */}
+                    <Paper sx={{ p: 2.5, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1.5} mb={2}>
+                            <Typography variant="h6" fontWeight={800}>🎛️ {i18n.language === 'vi' ? 'Trung tâm điều hành hôm nay' : "Today's operations center"}</Typography>
+                            <Box display="flex" gap={1} flexWrap="wrap">
+                                <Chip color="success" label={`${i18n.language === 'vi' ? 'Đang ở' : 'In-house'}: ${stats.checkedInBookings || 0}`} />
+                                <Chip color="info" label={`${i18n.language === 'vi' ? 'Nhận hôm nay' : 'Arrivals'}: ${arrivalsToday.length}`} />
+                                <Chip color="warning" label={`${i18n.language === 'vi' ? 'Trả hôm nay' : 'Departures'}: ${departuresToday.length}`} />
+                                <Chip color="error" label={`${i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}: ${stats.pendingBookings || 0}`} />
+                            </Box>
+                        </Box>
+                        <Box display="flex" gap={1.2} flexWrap="wrap">
+                            <QuickActionButton label={i18n.language === 'vi' ? '🛎️ Nhận / trả phòng' : '🛎️ Arrivals board'} onClick={() => navigate('/operations')} />
+                            <QuickActionButton label={i18n.language === 'vi' ? '💰 Doanh thu' : '💰 Revenue'} onClick={() => navigate('/revenue')} />
+                            <QuickActionButton label={i18n.language === 'vi' ? '📋 Đặt phòng' : '📋 Bookings'} onClick={() => navigate('/bookings')} />
+                            <QuickActionButton label={i18n.language === 'vi' ? '➕ Đặt phòng mới' : '➕ New booking'} onClick={() => navigate('/bookings/create')} />
+                            <QuickActionButton label={i18n.language === 'vi' ? '🛏️ Quản lý phòng' : '🛏️ Rooms'} onClick={() => navigate('/admin/rooms')} />
+                            <QuickActionButton label={i18n.language === 'vi' ? '💳 Thanh toán' : '💳 Payments'} onClick={() => navigate('/payments')} />
+                        </Box>
+                    </Paper>
+                    <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
+                        <Grid item xs={12}>
+                            <Paper sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                                    <Box>
+                                        <Typography variant="h6" fontWeight={700}>
+                                            🛎️ {i18n.language === 'vi' ? 'Nhận & trả phòng hôm nay' : 'Today arrivals & departures'}
+                                        </Typography>
+                                        <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+                                            {i18n.language === 'vi'
+                                                ? `Hôm nay có ${arrivalsToday.length} lượt nhận phòng và ${departuresToday.length} lượt trả phòng.`
+                                                : `${arrivalsToday.length} arrivals and ${departuresToday.length} departures today.`}
+                                        </Typography>
+                                    </Box>
+                                    <Box display="flex" gap={1}>
+                                        <Chip color="info" label={`${i18n.language === 'vi' ? 'Nhận phòng' : 'Check-in'}: ${arrivalsToday.length}`} />
+                                        <Chip color="warning" label={`${i18n.language === 'vi' ? 'Trả phòng' : 'Check-out'}: ${departuresToday.length}`} />
+                                        <Button variant="contained" onClick={() => navigate('/operations')} sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5, bgcolor: '#174c40', '&:hover': { bgcolor: '#123f35' } }}>
+                                            {i18n.language === 'vi' ? 'Mở mục Nhận / trả phòng' : 'Open arrivals board'} →
+                                        </Button>
+                                    </Box>
+                                </Box>
+                            </Paper>
+                        </Grid>
+                    </Grid>
+                    {/* (THÊM) Việc cần xử lý: đặt phòng đang chờ xác nhận */}
+                    <Paper sx={{ p: 2.5, mt: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                            <Typography variant="h6" fontWeight={700}>
+                                ⏳ {i18n.language === 'vi' ? 'Việc cần xử lý — Đặt phòng chờ xác nhận' : 'Action needed — Pending bookings'}
+                                <Chip label={allBookings.filter((b) => b.status === 'PENDING').length} color="warning" size="small" sx={{ ml: 1.5, fontWeight: 700 }} />
+                            </Typography>
+                            <Button size="small" onClick={() => navigate('/bookings?status=PENDING')} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                                {i18n.language === 'vi' ? 'Mở trang Đặt phòng' : 'Open bookings'} →
+                            </Button>
+                        </Box>
+                        {allBookings.filter((b) => b.status === 'PENDING').length === 0 ? (
+                            <Typography variant="body2" color="textSecondary">
+                                {i18n.language === 'vi' ? 'Không có đặt phòng nào đang chờ. Tốt lắm!' : 'No pending bookings.'}
+                            </Typography>
+                        ) : (
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableBody>
+                                        {allBookings
+                                            .filter((b) => b.status === 'PENDING')
+                                            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                            .slice(0, 8)
+                                            .map((b) => (
+                                                <TableRow key={`pending-${b.id}`} hover>
+                                                    <TableCell>#{b.id}</TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2" fontWeight={600}>{b.guestFullName || b.user?.fullName || '—'}</Typography>
+                                                        <Typography variant="caption" color="textSecondary">
+                                                            {i18n.language === 'vi' ? 'Phòng' : 'Room'} {b.room?.roomNumber || '—'} • {String(b.checkInDate || '').slice(0, 10)} → {String(b.checkOutDate || '').slice(0, 10)}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell>{formatCurrency(b.finalPrice ?? b.totalPrice ?? 0)}</TableCell>
+                                                    <TableCell align="right">
+                                                        <Box display="flex" gap={1} justifyContent="flex-end">
+                                                            <Button size="small" variant="outlined" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', borderRadius: 2 }}>
+                                                                {i18n.language === 'vi' ? 'Xem' : 'View'}
+                                                            </Button>
+                                                            <Button size="small" variant="outlined" color="error" onClick={() => handleQuickCancel(b.id)} sx={{ textTransform: 'none', borderRadius: 2 }}>
+                                                                {i18n.language === 'vi' ? 'Huỷ' : 'Cancel'}
+                                                            </Button>
+                                                            <Button size="small" variant="contained" color="success" onClick={() => handleQuickStatus(b.id, 'CONFIRMED')} sx={{ textTransform: 'none', borderRadius: 2 }}>
+                                                                {i18n.language === 'vi' ? 'Xác nhận' : 'Confirm'}
+                                                            </Button>
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </Paper>
+
+                    {/* ===== (THÊM PHẦN 4) SƠ ĐỒ PHÒNG THEO NGÀY ===== */}
+                    <Paper sx={{ p: 2.5, mt: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2}>
+                            <Typography variant="h6" fontWeight={700}>
+                                🏨 {i18n.language === 'vi' ? 'Sơ đồ phòng theo ngày' : 'Rooms by date'}
+                            </Typography>
+                            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                                <Button size="small" variant="outlined" onClick={() => shiftRoomDate(-1)} sx={{ textTransform: 'none', borderRadius: 5 }}>
+                                    ← {i18n.language === 'vi' ? 'Hôm qua' : 'Yesterday'}
+                                </Button>
+                                <TextField
+                                    size="small"
+                                    type="date"
+                                    value={roomDate}
+                                    onChange={(e) => setRoomDate(e.target.value)}
+                                    sx={{ width: 180 }}
+                                    InputLabelProps={{ shrink: true }}
+                                    inputProps={{ lang: 'vi-VN' }}
+                                />
+                                <Button size="small" variant="outlined" onClick={() => shiftRoomDate(1)} sx={{ textTransform: 'none', borderRadius: 5 }}>
+                                    {i18n.language === 'vi' ? 'Ngày mai' : 'Tomorrow'} →
+                                </Button>
+                            </Box>
+                        </Box>
+
+                        <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+                            <Chip size="small" color="success" label={`${i18n.language === 'vi' ? 'Trống' : 'Free'}: ${roomDaySummary.free}`} />
+                            <Chip size="small" color="primary" label={`${i18n.language === 'vi' ? 'Đã có khách đặt' : 'Booked'}: ${roomDaySummary.booked}`} />
+                            <Chip size="small" color="warning" label={`${i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}: ${roomDaySummary.pending}`} />
+                            <Chip size="small" label={`${i18n.language === 'vi' ? 'Bảo trì' : 'Maintenance'}: ${roomDaySummary.maintenance}`} />
+                        </Box>
+
+                        {allRooms.length === 0 ? (
+                            <Typography variant="body2" color="textSecondary">
+                                {i18n.language === 'vi' ? 'Chưa tải được danh sách phòng.' : 'No rooms loaded.'}
+                            </Typography>
+                        ) : (
+                            <Grid container spacing={1.5}>
+                                {[...allRooms]
+                                    .sort((a, b) => String(a.roomNumber).localeCompare(String(b.roomNumber), 'vi', { numeric: true }))
+                                    .map((room) => {
+                                        const bk = bookingByRoomOnDate[room.id];
+                                        const isMaintenance = room.status === 'MAINTENANCE';
+                                        const meta = isMaintenance
+                                            ? { label: i18n.language === 'vi' ? 'Bảo trì' : 'Maintenance', color: 'default', bar: '#bdbdbd', bg: '#f7f7f7' }
+                                            : !bk
+                                                ? { label: i18n.language === 'vi' ? 'Trống' : 'Free', color: 'success', bar: '#1f9d63', bg: '#eef8f2' }
+                                                : bk.status === 'PENDING'
+                                                    ? { label: i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending', color: 'warning', bar: '#e8862e', bg: '#fff3e0' }
+                                                    : { label: bk.status === 'CHECKED_IN' ? (i18n.language === 'vi' ? 'Đang ở' : 'In-house') : (i18n.language === 'vi' ? 'Đã đặt' : 'Booked'), color: 'error', bar: '#d32f2f', bg: '#fdecea' };
+                                        return (
+                                            <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
+                                                <Box
+                                                    onClick={bk ? () => navigate(`/my-bookings/${bk.id}`) : undefined}
+                                                    title={bk ? `${bk.guestFullName || bk.user?.fullName || ''} • ${String(bk.checkInDate || '').slice(0, 10)} → ${String(bk.checkOutDate || '').slice(0, 10)}` : undefined}
+                                                    sx={{
+                                                        p: 1.5, height: '100%', borderRadius: 3, bgcolor: meta.bg,
+                                                        border: '1px solid #e4ece7', borderTop: `4px solid ${meta.bar}`,
+                                                        cursor: bk ? 'pointer' : 'default',
+                                                        transition: 'all .15s ease',
+                                                        '&:hover': bk ? { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(14,36,27,.12)' } : {},
+                                                    }}>
+                                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                                        <Typography variant="h6" fontWeight={800}>{room.roomNumber}</Typography>
+                                                        <Chip size="small" label={meta.label} color={meta.color} sx={{ height: 20, fontSize: 10.5, fontWeight: 700 }} />
+                                                    </Box>
+                                                    <Typography variant="caption" color="textSecondary" display="block">
+                                                        {room.roomType} • {i18n.language === 'vi' ? 'Tầng' : 'Floor'} {room.floor} • {room.capacity} {i18n.language === 'vi' ? 'khách' : 'guests'}
+                                                    </Typography>
+                                                    {bk ? (
+                                                        <Box sx={{ mt: 1 }}>
+                                                            <Typography variant="body2" fontWeight={600} noWrap>
+                                                                {bk.guestFullName || bk.user?.fullName || '—'}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="textSecondary" display="block">
+                                                                {String(bk.checkInDate || '').slice(0, 10)} → {String(bk.checkOutDate || '').slice(0, 10)}
+                                                            </Typography>
+                                                            <Button size="small" onClick={() => navigate(`/my-bookings/${bk.id}`)} sx={{ textTransform: 'none', p: 0, mt: 0.5, fontWeight: 700 }}>
+                                                                {i18n.language === 'vi' ? 'Xem đơn' : 'View'} #{bk.id} →
+                                                            </Button>
+                                                        </Box>
+                                                    ) : (
+                                                        !isMaintenance && (
+                                                            <Button size="small" onClick={() => navigate('/bookings/create')} sx={{ textTransform: 'none', p: 0, mt: 1, fontWeight: 700 }}>
+                                                                + {i18n.language === 'vi' ? 'Đặt phòng này' : 'Book this room'}
+                                                            </Button>
+                                                        )
+                                                    )}
+                                                </Box>
+                                            </Grid>
+                                        );
+                                    })}
+                            </Grid>
+                        )}
+                    </Paper>
+
+                </Box>
             )}
 
             {/* ============ USER DASHBOARD ============ */}
@@ -1612,83 +2000,237 @@ const Dashboard = () => {
                     {/* Tab Panel 2: Revenue */}
                     {tabValue === 1 && (
                         <Box>
+                            {/* ===== (THÊM PHẦN 5) Thẻ thống kê + trạng thái theo ngày/tháng/năm (dời từ Tổng quan sang) ===== */}
+                            <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
+                                <Grid item xs={12} sm={6} lg={3}>
+                                    <StatCard icon={<AttachMoney />} label={i18n.language === 'vi' ? 'Doanh thu hôm nay' : 'Revenue today'}
+                                        value={formatCurrency(stats.todayRevenue || 0)}
+                                        sub={`${i18n.language === 'vi' ? 'Tổng doanh thu' : 'Total'}: ${formatCurrency(stats.totalRevenue || 0)}`}
+                                        accent="#1f9d63" />
+                                </Grid>
+                                <Grid item xs={12} sm={6} lg={3}>
+                                    <StatCard icon={<Pending />} label={i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}
+                                        value={stats.pendingBookings || 0}
+                                        sub={`${stats.totalBookings || 0} ${i18n.language === 'vi' ? 'đặt phòng toàn hệ thống' : 'bookings total'}`}
+                                        accent="#e07f2e" />
+                                </Grid>
+                                <Grid item xs={12} sm={6} lg={3}>
+                                    <StatCard icon={<MeetingRoom />} label={i18n.language === 'vi' ? 'Công suất phòng' : 'Occupancy'}
+                                        value={`${occupancyPct}%`}
+                                        sub={`${stats.occupiedRooms || 0}/${stats.totalRooms || 0} ${i18n.language === 'vi' ? 'phòng đang có khách' : 'rooms occupied'}`}
+                                        accent="#7a5fd0" />
+                                </Grid>
+                                <Grid item xs={12} sm={6} lg={3}>
+                                    <StatCard icon={<Event />} label={i18n.language === 'vi' ? 'Nhận / trả phòng hôm nay' : 'Arrivals / departures'}
+                                        value={`${arrivalsToday.length} / ${departuresToday.length}`}
+                                        sub={i18n.language === 'vi' ? 'lượt nhận phòng / trả phòng' : 'check-ins / check-outs'}
+                                        accent="#2f7fd1" />
+                                </Grid>
+                            </Grid>
+
+                            <Paper sx={{ p: 2.5, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2}>
+                                    <Typography variant="h6" fontWeight={700}>
+                                        📊 {i18n.language === 'vi' ? 'Trạng thái đặt phòng' : 'Booking status'}
+                                    </Typography>
+                                    <ToggleButtonGroup
+                                        size="small" exclusive value={statusPreset}
+                                        onChange={(event, value) => { if (value) setStatusPreset(value); }}
+                                        sx={{
+                                            bgcolor: '#f1f6f3', borderRadius: 2.5, p: 0.4,
+                                            '& .MuiToggleButton-root': { border: 'none', borderRadius: '10px !important', px: 1.6, py: 0.6, textTransform: 'none', fontWeight: 700, color: '#5c7267' },
+                                            '& .Mui-selected': { bgcolor: '#174c40 !important', color: '#fff !important' },
+                                        }}
+                                    >
+                                        <ToggleButton value="ALL">{i18n.language === 'vi' ? 'Tất cả' : 'All'}</ToggleButton>
+                                        <ToggleButton value="TODAY">{i18n.language === 'vi' ? 'Theo ngày' : 'Day'}</ToggleButton>
+                                        <ToggleButton value="MONTH">{i18n.language === 'vi' ? 'Theo tháng' : 'Month'}</ToggleButton>
+                                        <ToggleButton value="YEAR">{i18n.language === 'vi' ? 'Theo năm' : 'Year'}</ToggleButton>
+                                    </ToggleButtonGroup>
+                                </Box>
+                                <StatusDonut
+                                    centerValue={statusTotalInRange}
+                                    centerLabel={i18n.language === 'vi' ? 'đặt phòng' : 'bookings'}
+                                    selectedLabel={selectedStatus}
+                                    onSelect={(seg) => setSelectedStatus(seg.code || '')}
+                                    segments={[
+                                        { code: 'PENDING', label: 'Chờ xác nhận', color: '#e6a817', value: statusCounts.PENDING },
+                                        { code: 'CONFIRMED', label: 'Đã xác nhận', color: '#2f7fd1', value: statusCounts.CONFIRMED },
+                                        { code: 'CHECKED_IN', label: 'Đang ở', color: '#1f9d63', value: statusCounts.CHECKED_IN },
+                                        { code: 'CHECKED_OUT', label: 'Đã trả phòng', color: '#84958b', value: statusCounts.CHECKED_OUT },
+                                        { code: 'CANCELLED', label: 'Đã huỷ', color: '#d9534f', value: statusCounts.CANCELLED },
+                                    ].filter((x) => x.value > 0)}
+                                />
+                                {/* (PHẦN 8) Ấn vào 1 màu trên biểu đồ -> chi tiết đơn của trạng thái đó */}
+                                {selectedStatus && (
+                                    <Box sx={{ mt: 2, p: 2, borderRadius: 3, bgcolor: '#fbfdfc', border: '1px solid #e4ece7' }}>
+                                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
+                                            <Typography variant="subtitle2" fontWeight={800}>
+                                                {{
+                                                    PENDING: '⏳ Chờ xác nhận', CONFIRMED: '✅ Đã xác nhận', CHECKED_IN: '🛏️ Đang ở',
+                                                    CHECKED_OUT: '🧳 Đã trả phòng', CANCELLED: '❌ Đã huỷ',
+                                                }[selectedStatus] || selectedStatus}
+                                                <Chip size="small" sx={{ ml: 1, fontWeight: 700 }} label={`${allBookings.filter((b) => _statusInRange(b) && b.status === selectedStatus).length} ${i18n.language === 'vi' ? 'đơn' : 'bookings'}`} />
+                                            </Typography>
+                                            <Button size="small" onClick={() => setSelectedStatus('')} sx={{ textTransform: 'none' }}>{i18n.language === 'vi' ? 'Đóng' : 'Close'} ✕</Button>
+                                        </Box>
+                                        {allBookings.filter((b) => _statusInRange(b) && b.status === selectedStatus).length === 0 ? (
+                                            <Typography variant="body2" color="textSecondary">{i18n.language === 'vi' ? 'Không có đơn nào ở trạng thái này trong khoảng đang chọn.' : 'No bookings with this status in range.'}</Typography>
+                                        ) : (
+                                            allBookings
+                                                .filter((b) => _statusInRange(b) && b.status === selectedStatus)
+                                                .slice()
+                                                .sort((a, b) => new Date(b.createdAt || b.checkInDate) - new Date(a.createdAt || a.checkInDate))
+                                                .slice(0, 8)
+                                                .map((b) => (
+                                                    <Box key={`st-${b.id}`} display="flex" justifyContent="space-between" alignItems="center" gap={1} sx={{ py: 0.9, borderTop: '1px dashed #e7ede8', flexWrap: 'wrap' }}>
+                                                        <Typography variant="body2">
+                                                            <b>#{b.id}</b> • {b.guestFullName || b.user?.fullName || '—'} • {i18n.language === 'vi' ? 'Phòng' : 'Room'} {b.room?.roomNumber || '—'}
+                                                            <Typography component="span" variant="caption" color="textSecondary"> {String(b.checkInDate || '').slice(0, 10)} → {String(b.checkOutDate || '').slice(0, 10)}</Typography>
+                                                        </Typography>
+                                                        <Box display="flex" alignItems="center" gap={1}>
+                                                            <Typography variant="body2" fontWeight={700}>{formatCurrency(b.finalPrice ?? b.totalPrice ?? 0)}</Typography>
+                                                            <Button size="small" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', fontWeight: 700 }}>{i18n.language === 'vi' ? 'Xem' : 'View'} →</Button>
+                                                        </Box>
+                                                    </Box>
+                                                ))
+                                        )}
+                                        <Typography variant="caption" color="textSecondary">{i18n.language === 'vi' ? 'Đang lọc theo: ' : 'Range: '}{{ ALL: i18n.language === 'vi' ? 'Tất cả' : 'All', TODAY: i18n.language === 'vi' ? 'Theo ngày' : 'Day', MONTH: i18n.language === 'vi' ? 'Theo tháng' : 'Month', YEAR: i18n.language === 'vi' ? 'Theo năm' : 'Year' }[statusPreset]}</Typography>
+                                    </Box>
+                                )}
+                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1.5 }}>
+                                    {i18n.language === 'vi'
+                                        ? 'Đếm theo ngày nhận phòng (check-in) trong khoảng đang chọn.'
+                                        : 'Counted by check-in date in the selected range.'}
+                                </Typography>
+                            </Paper>
+
                             <Paper sx={{ p: 3, borderRadius: 3 }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={3}>
                                     <Box>
-                                        <Typography variant="h6" fontWeight={600}>
+                                        <Typography variant="h6" fontWeight={700}>
                                             💰 {i18n.language === 'vi' ? 'Thống kê doanh thu' : 'Revenue Statistics'}
                                         </Typography>
+                                        <Typography variant="caption" color="textSecondary">
+                                            {i18n.language === 'vi'
+                                                ? 'Tính theo ngày nhận phòng, chỉ gồm đơn đã xác nhận / đã trả phòng'
+                                                : 'By check-in date, confirmed / checked-out bookings only'}
+                                        </Typography>
                                     </Box>
-                                    <Box display="flex" gap={2} alignItems="center">
-                                        <FormControl size="small" sx={{ minWidth: 120 }}>
-                                            <InputLabel>{i18n.language === 'vi' ? 'Kỳ' : 'Period'}</InputLabel>
-                                            <Select
-                                                value={revenuePeriod}
-                                                onChange={handlePeriodChange}
-                                                label={i18n.language === 'vi' ? 'Kỳ' : 'Period'}
-                                            >
-                                                <MenuItem value="DAY">{i18n.language === 'vi' ? 'Ngày' : 'Day'}</MenuItem>
-                                                <MenuItem value="MONTH">{i18n.language === 'vi' ? 'Tháng' : 'Month'}</MenuItem>
-                                                <MenuItem value="YEAR">{i18n.language === 'vi' ? 'Năm' : 'Year'}</MenuItem>
-                                            </Select>
-                                        </FormControl>
+                                    <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+                                        <ToggleButtonGroup
+                                            size="small"
+                                            exclusive
+                                            value={revenuePeriod}
+                                            onChange={(event, value) => {
+                                                if (value) handlePeriodChange({ target: { value } });
+                                            }}
+                                            sx={{
+                                                bgcolor: '#f1f6f3', borderRadius: 2.5, p: 0.4,
+                                                '& .MuiToggleButton-root': {
+                                                    border: 'none', borderRadius: '10px !important', px: 2, py: 0.7,
+                                                    textTransform: 'none', fontWeight: 700, color: '#5c7267',
+                                                },
+                                                '& .Mui-selected': {
+                                                    bgcolor: '#174c40 !important', color: '#fff !important',
+                                                    boxShadow: '0 4px 10px rgba(23,76,64,.25)',
+                                                },
+                                            }}
+                                        >
+                                            <ToggleButton value="DAY">{i18n.language === 'vi' ? 'Ngày' : 'Day'}</ToggleButton>
+                                            <ToggleButton value="MONTH">{i18n.language === 'vi' ? 'Tháng' : 'Month'}</ToggleButton>
+                                            <ToggleButton value="YEAR">{i18n.language === 'vi' ? 'Năm' : 'Year'}</ToggleButton>
+                                        </ToggleButtonGroup>
+                                        <Button variant="contained" onClick={handleExportRevenueCsv}
+                                            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5, height: 40, bgcolor: '#1f9d63', '&:hover': { bgcolor: '#177a4b' } }}>
+                                            ⬇ {i18n.language === 'vi' ? 'Xuất CSV' : 'Export CSV'}
+                                        </Button>
                                     </Box>
                                 </Box>
 
-                                {/* Filter Section */}
-                                <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f8f9fa' }}>
-                                    <Grid container spacing={2} alignItems="center">
-                                        <Grid item xs={12} md={3}>
-                                            <Typography variant="subtitle2" fontWeight={600}>
-                                                {i18n.language === 'vi' ? '📅 Lọc theo kỳ' : '📅 Filter by period'}
-                                            </Typography>
-                                        </Grid>
-                                        <Grid item xs={12} md={9}>
-                                            <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
-                                                {revenuePeriod === 'DAY' && (
-                                                    <TextField
-                                                        size="small"
-                                                        type="date"
-                                                        value={selectedDate}
-                                                        onChange={(e) => handleDateFilter(e.target.value)}
-                                                        sx={{ minWidth: 180 }}
-                                                        label={i18n.language === 'vi' ? 'Chọn ngày' : 'Select date'}
-                                                        InputLabelProps={{ shrink: true }}
-                                                    />
-                                                )}
-                                                {revenuePeriod === 'MONTH' && (
-                                                    <TextField
-                                                        size="small"
-                                                        type="month"
-                                                        value={selectedMonth}
-                                                        onChange={(e) => handleMonthFilter(e.target.value)}
-                                                        sx={{ minWidth: 180 }}
-                                                        label={i18n.language === 'vi' ? 'Chọn tháng' : 'Select month'}
-                                                        InputLabelProps={{ shrink: true }}
-                                                    />
-                                                )}
-                                                {revenuePeriod === 'YEAR' && (
-                                                    <TextField
-                                                        size="small"
-                                                        type="number"
-                                                        value={selectedYear}
-                                                        onChange={(e) => handleYearFilter(e.target.value)}
-                                                        sx={{ minWidth: 180 }}
-                                                        label={i18n.language === 'vi' ? 'Chọn năm' : 'Select year'}
-                                                        inputProps={{ min: 2000, max: 2100 }}
-                                                    />
-                                                )}
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    onClick={handleResetFilter}
-                                                    startIcon={<Refresh />}
-                                                >
-                                                    {i18n.language === 'vi' ? 'Xem tất cả' : 'View all'}
-                                                </Button>
-                                            </Box>
-                                        </Grid>
-                                    </Grid>
+                                {/* Filter Section — (SỬA PHẦN 3) lọc nhanh + ô chọn kỳ rộng */}
+                                <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f8faf9', borderRadius: 3 }}>
+                                    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mb={2}>
+                                        <Typography variant="subtitle2" fontWeight={700} sx={{ mr: 1 }}>
+                                            📅 {i18n.language === 'vi' ? 'Lọc nhanh:' : 'Quick filter:'}
+                                        </Typography>
+                                        <Button size="small" variant="outlined" onClick={() => handleQuickRevenueRange('ALL')} sx={{ textTransform: 'none', borderRadius: 5, fontWeight: 600 }}>
+                                            {i18n.language === 'vi' ? 'Tất cả' : 'All'}
+                                        </Button>
+                                        <Button size="small" variant="outlined" onClick={() => handleQuickRevenueRange('TODAY')} sx={{ textTransform: 'none', borderRadius: 5, fontWeight: 600 }}>
+                                            {i18n.language === 'vi' ? 'Hôm nay' : 'Today'}
+                                        </Button>
+                                        <Button size="small" variant="outlined" onClick={() => handleQuickRevenueRange('THIS_MONTH')} sx={{ textTransform: 'none', borderRadius: 5, fontWeight: 600 }}>
+                                            {i18n.language === 'vi' ? 'Tháng này' : 'This month'}
+                                        </Button>
+                                        <Button size="small" variant="outlined" onClick={() => handleQuickRevenueRange('LAST_MONTH')} sx={{ textTransform: 'none', borderRadius: 5, fontWeight: 600 }}>
+                                            {i18n.language === 'vi' ? 'Tháng trước' : 'Last month'}
+                                        </Button>
+                                        <Button size="small" variant="outlined" onClick={() => handleQuickRevenueRange('THIS_YEAR')} sx={{ textTransform: 'none', borderRadius: 5, fontWeight: 600 }}>
+                                            {i18n.language === 'vi' ? 'Năm nay' : 'This year'}
+                                        </Button>
+                                    </Box>
+
+                                    <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+                                        <Typography variant="body2" color="textSecondary">
+                                            {i18n.language === 'vi' ? 'Hoặc chọn kỳ cụ thể:' : 'Or pick a period:'}
+                                        </Typography>
+                                        {revenuePeriod === 'DAY' && (
+                                            <TextField
+                                                size="small"
+                                                type="date"
+                                                value={selectedDate}
+                                                onChange={(e) => handleDateFilter(e.target.value)}
+                                                sx={{ width: 230 }}
+                                                label={i18n.language === 'vi' ? 'Chọn ngày' : 'Select date'}
+                                                InputLabelProps={{ shrink: true }}
+                                                inputProps={{ lang: 'vi-VN' }}
+                                            />
+                                        )}
+                                        {revenuePeriod === 'MONTH' && (
+                                            <TextField
+                                                size="small"
+                                                type="month"
+                                                value={selectedMonth}
+                                                onChange={(e) => handleMonthFilter(e.target.value)}
+                                                sx={{ width: 230 }}
+                                                label={i18n.language === 'vi' ? 'Chọn tháng' : 'Select month'}
+                                                InputLabelProps={{ shrink: true }}
+                                                inputProps={{ lang: 'vi-VN' }}
+                                            />
+                                        )}
+                                        {revenuePeriod === 'YEAR' && (
+                                            <TextField
+                                                size="small"
+                                                type="number"
+                                                value={selectedYear}
+                                                onChange={(e) => handleYearFilter(e.target.value)}
+                                                sx={{ width: 230 }}
+                                                label={i18n.language === 'vi' ? 'Chọn năm' : 'Select year'}
+                                                inputProps={{ min: 2000, max: 2100 }}
+                                            />
+                                        )}
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            onClick={handleResetFilter}
+                                            startIcon={<Refresh />}
+                                            sx={{ textTransform: 'none', borderRadius: 2.5, height: 40 }}
+                                        >
+                                            {i18n.language === 'vi' ? 'Xem tất cả' : 'View all'}
+                                        </Button>
+                                        {(selectedDate || selectedMonth || selectedYear) && (
+                                            <Chip
+                                                color="primary"
+                                                size="small"
+                                                label={`${i18n.language === 'vi' ? 'Đang lọc' : 'Filtering'}: ${selectedDate || selectedMonth || selectedYear}`}
+                                                onDelete={handleResetFilter}
+                                            />
+                                        )}
+                                        <Typography variant="caption" color="textSecondary" sx={{ ml: 'auto' }}>
+                                            {i18n.language === 'vi' ? 'Đang xem' : 'Viewing'}: <b>{revenueData.length}</b> {i18n.language === 'vi' ? 'kỳ' : 'periods'}
+                                        </Typography>
+                                    </Box>
                                 </Paper>
 
                                 {/* Revenue Data */}
@@ -1744,6 +2286,49 @@ const Dashboard = () => {
                                             </Grid>
                                         </Grid>
 
+                                        {/* (THÊM) Chỉ số thông minh */}
+                                        <Grid container spacing={2} sx={{ mb: 3 }}>
+                                            <Grid item xs={12} sm={4}>
+                                                <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'Kỳ gần nhất' : 'Latest period'}: {_lastRev?.period || '—'}
+                                                    </Typography>
+                                                    <Typography variant="h6" fontWeight={800} sx={{ color: _growthPct == null ? '#43564c' : (_growthPct >= 0 ? '#1f9d63' : '#d9534f') }}>
+                                                        {_growthPct == null ? '—' : `${_growthPct >= 0 ? '▲' : '▼'} ${Math.abs(_growthPct).toFixed(1)}%`}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'so với kỳ trước' : 'vs previous period'}
+                                                    </Typography>
+                                                </Paper>
+                                            </Grid>
+                                            <Grid item xs={12} sm={4}>
+                                                <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'Doanh thu trung bình / đơn' : 'Avg revenue / booking'}
+                                                    </Typography>
+                                                    <Typography variant="h6" fontWeight={800} color="primary">
+                                                        {formatCurrency(Math.round(_avgPerBooking || 0))}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {_totalBookingsRev} {i18n.language === 'vi' ? 'đơn trong kỳ đang xem' : 'bookings in view'}
+                                                    </Typography>
+                                                </Paper>
+                                            </Grid>
+                                            <Grid item xs={12} sm={4}>
+                                                <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'Kỳ doanh thu cao nhất' : 'Best period'}
+                                                    </Typography>
+                                                    <Typography variant="h6" fontWeight={800} sx={{ color: '#d9a441' }}>
+                                                        {_bestPeriod?.period || '—'}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="textSecondary">
+                                                        {_bestPeriod ? formatCurrency(_bestPeriod.revenue || 0) : ''}
+                                                    </Typography>
+                                                </Paper>
+                                            </Grid>
+                                        </Grid>
+
                                         {/* Detail Table */}
                                         <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                                             {i18n.language === 'vi' ? '📋 Chi tiết doanh thu' : '📋 Revenue Details'}
@@ -1779,7 +2364,16 @@ const Dashboard = () => {
                                                             ? (item.revenue / totalRevenuePeriod) * 100
                                                             : 0;
                                                         return (
-                                                            <TableRow key={index} hover>
+                                                            <TableRow
+                                                                key={index}
+                                                                hover
+                                                                onClick={() => setSelectedRevenuePeriod(item.period)}
+                                                                sx={{
+                                                                    cursor: 'pointer',
+                                                                    bgcolor: selectedRevenuePeriod === item.period ? '#eef6f1' : 'inherit',
+                                                                    '&:hover': { bgcolor: '#f4f9f6' },
+                                                                }}
+                                                            >
                                                                 <TableCell>
                                                                     <Typography variant="body2" fontWeight={500}>
                                                                         {item.period || 'N/A'}
@@ -1880,72 +2474,95 @@ const Dashboard = () => {
                                             </Table>
                                         </TableContainer>
 
-                                        {/* Chart */}
+                                        {/* (THÊM PHẦN 5) Chi tiết đơn của kỳ được chọn */}
+                                        {selectedRevenuePeriod && (
+                                            <Paper id="revenue-period-detail" variant="outlined" sx={{ p: 2, mt: 3, borderRadius: 3, bgcolor: '#fbfdfc' }}>
+                                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={1.5}>
+                                                    <Typography variant="subtitle1" fontWeight={700}>
+                                                        🧾 {i18n.language === 'vi' ? 'Chi tiết kỳ' : 'Period detail'}: {selectedRevenuePeriod}
+                                                        <Chip size="small" label={`${revenueDetailBookings.length} ${i18n.language === 'vi' ? 'đơn' : 'bookings'}`} sx={{ ml: 1 }} />
+                                                        <Chip size="small" color="success" label={formatCurrency(revenueDetailBookings.reduce((sum, b) => sum + Number(b.finalPrice ?? b.totalPrice ?? 0), 0))} sx={{ ml: 1, fontWeight: 700 }} />
+                                                    </Typography>
+                                                    <Button size="small" onClick={() => setSelectedRevenuePeriod('')} sx={{ textTransform: 'none' }}>
+                                                        {i18n.language === 'vi' ? 'Đóng chi tiết' : 'Close'} ✕
+                                                    </Button>
+                                                </Box>
+                                                {revenueDetailBookings.length === 0 ? (
+                                                    <Typography variant="body2" color="textSecondary">
+                                                        {i18n.language === 'vi' ? 'Không có đơn nào thuộc kỳ này.' : 'No bookings in this period.'}
+                                                    </Typography>
+                                                ) : (
+                                                    <TableContainer>
+                                                        <Table size="small">
+                                                            <TableHead>
+                                                                <TableRow>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Đơn' : 'Booking'}</TableCell>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Khách' : 'Guest'}</TableCell>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Phòng' : 'Room'}</TableCell>
+                                                                    <TableCell>Check-in</TableCell>
+                                                                    <TableCell>Check-out</TableCell>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Số khách' : 'Guests'}</TableCell>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Số tiền' : 'Amount'}</TableCell>
+                                                                    <TableCell>{i18n.language === 'vi' ? 'Trạng thái' : 'Status'}</TableCell>
+                                                                    <TableCell />
+                                                                </TableRow>
+                                                            </TableHead>
+                                                            <TableBody>
+                                                                {revenueDetailBookings.map((b) => (
+                                                                    <TableRow key={b.id} hover>
+                                                                        <TableCell>#{b.id}</TableCell>
+                                                                        <TableCell>
+                                                                            <Typography variant="body2" fontWeight={600}>{b.guestFullName || b.user?.fullName || '—'}</Typography>
+                                                                            <Typography variant="caption" color="textSecondary">{b.guestPhone || b.user?.phoneNumber || ''}</Typography>
+                                                                        </TableCell>
+                                                                        <TableCell>{b.room?.roomNumber || '—'} {b.room?.roomType ? `(${b.room.roomType})` : ''}</TableCell>
+                                                                        <TableCell>{String(b.checkInDate || b.checkIn || '').slice(0, 10)}</TableCell>
+                                                                        <TableCell>{String(b.checkOutDate || b.checkOut || '').slice(0, 10)}</TableCell>
+                                                                        <TableCell>{b.numberOfGuests || b.guests || 1}</TableCell>
+                                                                        <TableCell>{formatCurrency(b.finalPrice ?? b.totalPrice ?? 0)}</TableCell>
+                                                                        <TableCell>{b.status}</TableCell>
+                                                                        <TableCell>
+                                                                            <Button size="small" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                                                                                {i18n.language === 'vi' ? 'Xem' : 'View'} →
+                                                                            </Button>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </TableContainer>
+                                                )}
+                                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
+                                                    {i18n.language === 'vi'
+                                                        ? 'Mẹo: bấm vào 1 dòng trong bảng "Chi tiết doanh thu" ở trên để xem các đơn của kỳ đó.'
+                                                        : 'Tip: click a row in the revenue detail table to see its bookings.'}
+                                                </Typography>
+                                            </Paper>
+                                        )}
+
+                                        {/* Chart — (SỬA) dùng biểu đồ cột dùng chung, cột cao đều khung */}
                                         <Box sx={{ mt: 3 }}>
                                             <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                                                 📊 {i18n.language === 'vi' ? 'Biểu đồ doanh thu' : 'Revenue Chart'}
                                             </Typography>
-                                            <Box sx={{ height: 200, width: '100%' }}>
-                                                <Box display="flex" alignItems="flex-end" height="100%" gap={1.5} sx={{ pt: 2 }}>
-                                                    {revenueData.map((item, index) => {
-                                                        const maxRevenue = Math.max(...revenueData.map(d => d.revenue || 0), 1);
-                                                        const heightPercent = ((item.revenue || 0) / maxRevenue) * 100;
-                                                        const barColor = item.revenue > 0 ? '#1976d2' : '#e0e0e0';
-
-                                                        return (
-                                                            <Box
-                                                                key={index}
-                                                                display="flex"
-                                                                flexDirection="column"
-                                                                alignItems="center"
-                                                                flex={1}
-                                                                sx={{ minWidth: 0, maxWidth: '60px' }}
-                                                            >
-                                                                <Tooltip
-                                                                    title={
-                                                                        <Box>
-                                                                            <Typography variant="body2" fontWeight={600}>
-                                                                                {formatCurrency(item.revenue || 0)}
-                                                                            </Typography>
-                                                                            <Typography variant="caption" color="textSecondary">
-                                                                                {item.bookings || 0} đơn đặt • {item.guests || 0} khách • {item.rooms || 0} phòng
-                                                                            </Typography>
-                                                                        </Box>
-                                                                    }
-                                                                    arrow
-                                                                >
-                                                                    <Box
-                                                                        sx={{
-                                                                            width: '100%',
-                                                                            height: `${Math.max(heightPercent, 5)}%`,
-                                                                            minHeight: '16px',
-                                                                            bgcolor: barColor,
-                                                                            borderRadius: '4px 4px 0 0',
-                                                                            transition: 'all 0.3s ease',
-                                                                            cursor: 'pointer',
-                                                                            '&:hover': {
-                                                                                opacity: 0.8,
-                                                                                transform: 'scaleY(1.05)'
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                </Tooltip>
-                                                                <Typography
-                                                                    variant="caption"
-                                                                    color="textSecondary"
-                                                                    sx={{
-                                                                        mt: 0.5,
-                                                                        fontSize: '0.55rem',
-                                                                        textAlign: 'center'
-                                                                    }}
-                                                                >
-                                                                    {item.period}
-                                                                </Typography>
-                                                            </Box>
-                                                        );
-                                                    })}
-                                                </Box>
-                                            </Box>
+                                            <RevenueBars
+                                                data={revenueData.slice(-12).map((item) => ({
+                                                    label: item.period,
+                                                    short: item.revenue > 0 ? `${Math.round(item.revenue / 1000000)}tr` : '',
+                                                    value: item.revenue || 0,
+                                                    display: formatCurrency(item.revenue || 0),
+                                                }))}
+                                                selectedLabel={selectedRevenuePeriod}
+                                                onSelect={(d) => {
+                                                    setSelectedRevenuePeriod(d.label);
+                                                    setTimeout(() => document.getElementById('revenue-period-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+                                                }}
+                                            />
+                                            <Typography variant="caption" color="textSecondary">
+                                                {i18n.language === 'vi'
+                                                    ? 'Hiển thị tối đa 12 kỳ gần nhất — bấm vào 1 cột để xem chi tiết phòng & khách của kỳ đó.'
+                                                    : 'Showing up to the latest 12 periods — click a bar to see its bookings.'}
+                                            </Typography>
                                         </Box>
                                     </Box>
                                 )}

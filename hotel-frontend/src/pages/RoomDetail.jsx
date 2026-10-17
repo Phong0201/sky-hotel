@@ -461,6 +461,95 @@ const RoomDetail = () => {
               bgcolor: '#fff'
             }}
           >
+
+            {/* (THÊM) Ảnh trước / ảnh kế tiếp mờ ở 2 bên cho đỡ trống */}
+            {galleryImages.length > 1 && (
+              <>
+                <Box
+                  aria-hidden
+                  sx={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: { sm: '26%', md: '28%' },
+                    display: { xs: 'none', sm: 'block' },
+                    overflow: 'hidden',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  <Box
+                    component="img"
+                    key={`peek-prev-${mainImageIndex}`}
+                    src={galleryImages[(mainImageIndex - 1 + galleryImages.length) % galleryImages.length] || fallbackImageUrl}
+                    alt=""
+                    onError={(event) => {
+                      if (event.currentTarget.src !== fallbackImageUrl) {
+                        event.currentTarget.src = fallbackImageUrl;
+                      }
+                    }}
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                      filter: 'blur(7px) saturate(1.15)',
+                      transform: 'scale(1.12)',
+                      opacity: 0.55,
+                      '@keyframes roomGalleryPeekIn': {
+                        from: { opacity: 0 },
+                        to: { opacity: 0.55 }
+                      },
+                      animation: 'roomGalleryPeekIn 520ms ease',
+                      '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
+                    }}
+                  />
+                  <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(255,255,255,0) 45%, rgba(255,255,255,0.92))' }} />
+                </Box>
+                <Box
+                  aria-hidden
+                  sx={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: { sm: '26%', md: '28%' },
+                    display: { xs: 'none', sm: 'block' },
+                    overflow: 'hidden',
+                    pointerEvents: 'none'
+                  }}
+                >
+                  <Box
+                    component="img"
+                    key={`peek-next-${mainImageIndex}`}
+                    src={galleryImages[(mainImageIndex + 1) % galleryImages.length] || fallbackImageUrl}
+                    alt=""
+                    onError={(event) => {
+                      if (event.currentTarget.src !== fallbackImageUrl) {
+                        event.currentTarget.src = fallbackImageUrl;
+                      }
+                    }}
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                      filter: 'blur(7px) saturate(1.15)',
+                      transform: 'scale(1.12)',
+                      opacity: 0.55,
+                      '@keyframes roomGalleryPeekIn': {
+                        from: { opacity: 0 },
+                        to: { opacity: 0.55 }
+                      },
+                      animation: 'roomGalleryPeekIn 520ms ease',
+                      '@media (prefers-reduced-motion: reduce)': { animation: 'none' }
+                    }}
+                  />
+                  <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(to left, rgba(255,255,255,0) 45%, rgba(255,255,255,0.92))' }} />
+                </Box>
+              </>
+            )}
+            
             <Box
               onClick={() => setLightboxIndex(mainImageIndex)}
               role="button"

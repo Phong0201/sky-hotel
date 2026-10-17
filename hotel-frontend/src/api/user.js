@@ -12,5 +12,8 @@ export const userAPI = {
     },
     update: (id, data) => api.put(`/users/${id}`, data),
     updateRole: (id, role) => api.patch(`/users/${id}/role?role=${role}`),
+    // (THÊM) Khách hàng thân thiết
+    getLoyaltyOverview: () => api.get('/users/loyalty'),
+    setLoyalty: (id, member) => api.put(`/users/${id}/loyalty?member=${member}`),
     delete: (id) => api.delete(`/users/${id}`),
 };

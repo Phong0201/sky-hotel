@@ -3,6 +3,7 @@ package com.hotel.controller;
 import com.hotel.config.JwtUtil;
 import com.hotel.model.PasswordResetOtp;
 import com.hotel.model.User;
+import java.security.SecureRandom;
 import com.hotel.repository.PasswordResetOtpRepository;
 import com.hotel.repository.UserRepository;
 import com.hotel.service.EmailService;
@@ -50,6 +51,8 @@ public class AuthController {
 
     @Autowired
     private EmailService emailService;
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
     // ============ LOGIN ============
     @PostMapping("/login")
@@ -177,7 +180,7 @@ public class AuthController {
         });
 
         // Sinh ma OTP 6 chu so
-        String otp = String.format("%06d", new Random().nextInt(1_000_000));
+        String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
         PasswordResetOtp entity = new PasswordResetOtp();
         entity.setEmail(email);

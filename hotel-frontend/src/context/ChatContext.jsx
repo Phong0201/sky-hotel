@@ -85,9 +85,8 @@ export const ChatProvider = ({ children }) => {
 
         return () => clearInterval(interval);
     }, [user?.id, activeChatUserId]);
-
     useEffect(() => {
-        if (!user?.id || user.role === 'ADMIN') {
+        if (!user?.id) {
             setUnreadCount(0);
             return;
         }
@@ -95,8 +94,42 @@ export const ChatProvider = ({ children }) => {
         const fetchUnread = async () => {
             try {
                 const token = localStorage.getItem('token');
+                const headers = { Authorization: `Bearer ${token}` };
+
+                // (SỬA) ADMIN: khách nhắn về tài khoản admin (id = 1) chứ không
+                // nhắn vào "room của chính admin", nên phải cộng dồn số tin
+                // chưa đọc của TỪNG khách đang chờ (hasUnread) mới ra tổng.
+                // Trước đây ADMIN bị ép unreadCount = 0 nên badge Chat ở
+                // sidebar không bao giờ hiện số.
+                if (user.role === 'ADMIN') {
+                    const usersRes = await axios.get(`${API_ORIGIN}/api/chat/users`, { headers });
+                    const waitingUsers = (Array.isArray(usersRes.data) ? usersRes.data : [])
+                        .filter((chatUser) => chatUser.hasUnread);
+
+                    const counts = await Promise.all(
+                        waitingUsers.map(async (chatUser) => {
+                            try {
+                                const res = await axios.get(
+                                    `${API_ORIGIN}/api/chat/unread/${chatUser.id}`,
+                                    { headers }
+                                );
+                                return (res.data || []).filter(
+                                    (message) =>
+                                        String(message.senderId) === String(chatUser.id) &&
+                                        message.isRead !== true
+                                ).length;
+                            } catch (e) {
+                                return 0;
+                            }
+                        })
+                    );
+
+                    setUnreadCount(counts.reduce((sum, n) => sum + n, 0));
+                    return;
+                }
+
                 const res = await axios.get(`${API_ORIGIN}/api/chat/unread/${user.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
+                    headers
                 });
 
                 const unread = (res.data || []).filter(
@@ -112,7 +145,7 @@ export const ChatProvider = ({ children }) => {
         };
 
         fetchUnread();
-        const interval = setInterval(fetchUnread, 3000);
+        const interval = setInterval(fetchUnread, user.role === 'ADMIN' ? 5000 : 3000);
         return () => clearInterval(interval);
     }, [user?.id, user?.role]);
 

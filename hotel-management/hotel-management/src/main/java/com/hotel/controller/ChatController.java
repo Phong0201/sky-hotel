@@ -8,6 +8,8 @@ import com.hotel.repository.UserRepository;
 import com.hotel.service.ServiceInterfaces.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -32,7 +34,11 @@ public class ChatController {
     private UserRepository userRepository;
 
     @PostMapping("/send")
-    public ResponseEntity<ChatMessage> sendMessage(@RequestBody ChatMessage message) {
+    public ResponseEntity<ChatMessage> sendMessage(@RequestBody ChatMessage message, Authentication auth) {
+        User me = me(auth);
+        message.setSenderId(me.getId());
+        message.setSenderName(me.getFullName() != null ? me.getFullName() : me.getUsername());
+
         message.setCreatedAt(LocalDateTime.now());
         message.setIsRead(false);
         message.setIsDeleted(false);
@@ -55,6 +61,7 @@ public class ChatController {
     // Tra ve TAT CA user (ke ca chua tung nhan tin), kem tin nhan gan nhat,
     // co dau hasUnread, va SAP XEP: tin nhan moi nhat len dau, chua nhan xuong cuoi.
     @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public List<ChatUserDTO> getChatUsers() {
         List<User> allUsers = userRepository.findAll();
         Long adminId;
@@ -102,10 +109,12 @@ public class ChatController {
     @GetMapping("/history/{userId1}/{userId2}")
     public ResponseEntity<?> getChatHistory(
             @PathVariable Long userId1,
-            @PathVariable Long userId2) {
+            @PathVariable Long userId2,
+            Authentication auth) {
         try {
-            if (!userRepository.existsById(userId1) || !userRepository.existsById(userId2)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            User me = me(auth);
+            if (!isStaff(me) && !me.getId().equals(userId1) && !me.getId().equals(userId2)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Không có quyền xem cuộc trò chuyện này"));
             }
 
             List<ChatMessage> messages = chatMessageRepository.findChatBetweenUsers(userId1, userId2);
@@ -122,13 +131,13 @@ public class ChatController {
     }
 
     @PutMapping("/recall/{messageId}")
-    public ResponseEntity<?> recallMessage(@PathVariable Long messageId) {
+    public ResponseEntity<?> recallMessage(@PathVariable Long messageId, Authentication auth) {
         try {
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
 
-            if (message.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Cannot recall message after 5 minutes"));
+            if (!message.getSenderId().equals(me(auth).getId())) {
+                return ResponseEntity.status(403).body(Map.of("error", "Chỉ được thao tác tin nhắn của mình"));
             }
 
             message.setIsRecalled(true);
@@ -142,7 +151,29 @@ public class ChatController {
     }
 
     @DeleteMapping("/{messageId}")
-    public ResponseEntity<?> deleteMessage(@PathVariable Long messageId) {
+    public ResponseEntity<?> deleteMessage(@PathVariable Long messageId, Authentication auth) {
+        try {
+            ChatMessage message = chatMessageRepository.findById(messageId)
+                    .orElseThrow(() -> new RuntimeException("Message not found"));
+
+            if (!message.getSenderId().equals(me(auth).getId())) {
+                return ResponseEntity.status(403).body(Map.of("error", "Chỉ được thao tác tin nhắn của mình"));
+            }
+
+            message.setIsDeleted(true);
+            chatMessageRepository.save(message);
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "Message deleted"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // (THÊM) Xoá tin nhắn bằng PUT: một số cấu hình Security/firewall chặn
+    // method DELETE (trả 403) trong khi PUT vẫn chạy bình thường như
+    // recall/read, nên frontend admin dùng endpoint này để xoá tin.
+    @PutMapping("/delete/{messageId}")
+    public ResponseEntity<?> deleteMessageByPut(@PathVariable Long messageId) {
         try {
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
@@ -160,8 +191,9 @@ public class ChatController {
     public ResponseEntity<?> addReaction(
             @PathVariable Long messageId,
             @RequestParam String reaction,
-            @RequestParam Long userId) {
+            Authentication auth) {
         try {
+            Long userId = me(auth).getId();
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
 
@@ -205,6 +237,14 @@ public class ChatController {
         // nham role ADMIN), ham do se co the chon nham tai khoan khac,
         // lam sai lech toan bo tinh nang dem tin chua doc / lich su chat.
         return 1L;
+    }
+
+    private User me(Authentication auth) {
+        return userService.getUserByUsername(auth.getName());
+    }
+
+    private boolean isStaff(User u) {
+        return "ADMIN".equals(u.getRole()) || "RECEPTIONIST".equals(u.getRole());
     }
 
     private String generateRoomId(Long userId1, Long userId2) {

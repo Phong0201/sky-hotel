@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     Alert, Avatar, Box, Button, Chip, CircularProgress, Dialog,
     DialogActions, DialogContent, DialogTitle, Divider, IconButton,
-    Paper, Slider, Stack, TextField, Typography
+    LinearProgress, Paper, Slider, Stack, TextField, Typography
 } from '@mui/material';
 import {
     CalendarMonthRounded, DeleteOutlineRounded, PhotoCameraRounded,
@@ -10,6 +10,8 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { userAPI } from '../api/user';
+import { bookingAPI } from '../api/booking'; // (THÊM) thống kê chi tiêu cho hạng thân thiết
+import { formatHotelCurrency } from '../utils/currency';
 import toast from 'react-hot-toast';
 import AvatarEditor from 'react-avatar-editor';
 
@@ -52,6 +54,31 @@ const Profile = () => {
             });
         }
     }, [user]);
+
+    // (THÊM) Khách hàng thân thiết: tổng chi tiêu + số chuyến đã trả phòng để tính hạng/tiến độ
+    const [loyaltyStats, setLoyaltyStats] = useState({ spent: 0, completed: 0 });
+    useEffect(() => {
+        if (!user?.id) return;
+        bookingAPI.getMyBookings()
+            .then((res) => {
+                const done = (res.data || []).filter((b) => b.status === 'CHECKED_OUT');
+                const spent = done.reduce((sum, b) => sum + Number(b.finalPrice ?? b.totalPrice ?? 0), 0);
+                setLoyaltyStats({ spent, completed: done.length });
+            })
+            .catch(() => {});
+    }, [user]);
+
+    const loyaltyTier = !user?.loyaltyMember
+        ? null
+        : loyaltyStats.spent >= 15000000
+            ? { label: '🥇 Hạng Vàng', rate: 10, color: '#a86e00' }
+            : loyaltyStats.spent >= 5000000
+                ? { label: '🥈 Hạng Bạc', rate: 5, color: '#5b7186' }
+                : { label: '⭐ Khách thân thiết', rate: 3, color: '#1f9d63' };
+    const loyaltyProgress = Math.min(100, Math.round(Math.max(
+        loyaltyStats.spent / 2000000,
+        loyaltyStats.completed / 3
+    ) * 100));
 
     const handleChange = (event) => {
         setFormData((current) => ({
@@ -396,6 +423,49 @@ const Profile = () => {
                                 </Typography>
                             </Box>
                         </Box>
+                    </Paper>
+
+                    {/* (THÊM) Thẻ Khách hàng thân thiết */}
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            mt: 2.5,
+                            p: 2.5,
+                            borderRadius: 3.5,
+                            border: '1px solid #f0dfae',
+                            background: 'linear-gradient(135deg, #fffaf0 0%, #fdf3d7 100%)'
+                        }}
+                    >
+                        <Typography sx={{ fontWeight: 800, color: '#8a5f00', fontSize: 16, mb: 0.5 }}>
+                            ⭐ Khách hàng thân thiết
+                        </Typography>
+                        {loyaltyTier ? (
+                            <>
+                                <Chip
+                                    label={loyaltyTier.label}
+                                    size="small"
+                                    sx={{ bgcolor: '#fff', color: loyaltyTier.color, fontWeight: 800, mb: 1 }}
+                                />
+                                <Typography sx={{ fontSize: 13.5, color: '#6d5a1e', lineHeight: 1.7 }}>
+                                    Tổng chi tiêu: <b>{formatHotelCurrency(loyaltyStats.spent)}</b> · {loyaltyStats.completed} chuyến đã hoàn thành.<br />
+                                    Đặt phòng được <b>tự giảm thêm {loyaltyTier.rate}%</b> và dùng được các mã ưu đãi có nhãn ⭐ dành riêng cho thành viên.
+                                </Typography>
+                            </>
+                        ) : (
+                            <>
+                                <Typography sx={{ fontSize: 13.5, color: '#6d5a1e', lineHeight: 1.7, mb: 1.25 }}>
+                                    Bạn tự trở thành Khách hàng thân thiết khi tổng chi tiêu đạt <b>2.000.000đ</b> hoặc hoàn thành <b>3 chuyến</b>. Hiện tại: {formatHotelCurrency(loyaltyStats.spent)} · {loyaltyStats.completed}/3 chuyến.
+                                </Typography>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={loyaltyProgress}
+                                    sx={{ height: 8, borderRadius: 99, bgcolor: '#f3e5bb', '& .MuiLinearProgress-bar': { bgcolor: '#e0a100', borderRadius: 99 } }}
+                                />
+                                <Typography sx={{ fontSize: 12, color: '#8a7a3a', mt: 0.75 }}>
+                                    Đã đạt {loyaltyProgress}% — đủ điều kiện là hệ thống tự nâng hạng, không cần đăng ký.
+                                </Typography>
+                            </>
+                        )}
                     </Paper>
 
                     <Paper

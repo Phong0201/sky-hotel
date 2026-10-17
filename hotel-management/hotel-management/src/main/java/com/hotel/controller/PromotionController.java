@@ -2,8 +2,11 @@ package com.hotel.controller;
 
 import com.hotel.model.Promotion;
 import com.hotel.model.Notification;
+import com.hotel.model.User;
 import com.hotel.service.ServiceInterfaces.PromotionService;
 import com.hotel.service.ServiceInterfaces.NotificationService;
+import com.hotel.service.ServiceInterfaces.UserService;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +27,9 @@ public class PromotionController {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private UserService userService;
 
     @GetMapping
     public ResponseEntity<List<Promotion>> getAllPromotions() {
@@ -139,12 +145,30 @@ public class PromotionController {
     @PostMapping("/apply")
     public ResponseEntity<?> applyPromotion(@RequestParam String code, @RequestParam Double orderAmount) {
         try {
-            Promotion promotion = promotionService.applyPromotion(code, orderAmount);
+            // (THÊM) Lấy khách đang đăng nhập để chặn mã chỉ dành cho Khách hàng thân thiết
+            User currentUser = null;
+            try {
+                String username = SecurityContextHolder.getContext().getAuthentication().getName();
+                if (username != null && !"anonymousUser".equals(username)) {
+                    currentUser = userService.getUserByUsername(username);
+                }
+            } catch (Exception ignored) {
+            }
+
+            Promotion promotion = promotionService.applyPromotion(code, orderAmount, currentUser);
+            // (SỬA) Tính tiền giảm có chặn trần maxDiscount như lúc tạo đơn thật
+            double discount;
+            if ("PERCENTAGE".equals(promotion.getDiscountType())) {
+                discount = orderAmount * (promotion.getDiscountValue() / 100);
+                if (promotion.getMaxDiscount() != null && discount > promotion.getMaxDiscount()) {
+                    discount = promotion.getMaxDiscount();
+                }
+            } else {
+                discount = promotion.getDiscountValue();
+            }
             Map<String, Object> response = new HashMap<>();
             response.put("promotion", promotion);
-            response.put("discount", promotion.getDiscountType().equals("PERCENTAGE")
-                    ? orderAmount * (promotion.getDiscountValue() / 100)
-                    : promotion.getDiscountValue());
+            response.put("discount", discount);
             response.put("message", "Promotion applied successfully");
             return ResponseEntity.ok(response);
         } catch (Exception e) {

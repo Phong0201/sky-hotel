@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { formatHotelCurrency } from '../utils/currency';
 import { useTranslation } from 'react-i18next';
 import {
-    Box, Typography, Paper, Grid, Card, CardContent,
+    Box, Typography, Paper, Grid, Card, CardContent, CardMedia,
     Button, TextField, MenuItem, FormControl, InputLabel,
     Select, Chip, Alert, Stepper, Step, StepLabel,
     CircularProgress, Divider, Avatar, List, ListItem,
@@ -52,6 +52,8 @@ const CreateBooking = () => {
     const [appliedPromotion, setAppliedPromotion] = useState(null);
     const [availablePromotions, setAvailablePromotions] = useState([]);
     const [showPromotions, setShowPromotions] = useState(false);
+    // (THÊM) Khách thân thiết: % giảm thêm theo hạng (chỉ để hiển thị — server tính lại khi tạo đơn)
+    const [memberRate, setMemberRate] = useState(0);
 
     // Payment states
     const [payOption, setPayOption] = useState('VNPAY');
@@ -172,6 +174,32 @@ const CreateBooking = () => {
             setLoading(false);
         }
     };
+    // (THÊM) Mã khách chọn ở mục Ưu đãi ngoài trang chủ -> điền sẵn vào ô mã
+    useEffect(() => {
+        const pending = localStorage.getItem('pendingPromoCode');
+        if (pending) {
+            localStorage.removeItem('pendingPromoCode');
+            setPromotionCode(pending);
+            toast.success(`Đã điền sẵn mã ${pending} — chọn phòng & ngày rồi bấm Áp dụng nhé`);
+        }
+    }, []);
+
+    // (THÊM) Tính % giảm thành viên theo tổng chi tiêu (khớp backend: 3 / 5 / 10%)
+    useEffect(() => {
+        if (!user?.loyaltyMember || !user?.id) {
+            setMemberRate(0);
+            return;
+        }
+        bookingAPI.getMyBookings()
+            .then((res) => {
+                const spent = (res.data || [])
+                    .filter((b) => b.status === 'CHECKED_OUT')
+                    .reduce((sum, b) => sum + Number(b.finalPrice ?? b.totalPrice ?? 0), 0);
+                setMemberRate(spent >= 15000000 ? 10 : spent >= 5000000 ? 5 : 3);
+            })
+            .catch(() => setMemberRate(3));
+    }, [user]);
+
     // Fetch available promotions
     const fetchAvailablePromotions = async () => {
         try {
@@ -235,6 +263,12 @@ const CreateBooking = () => {
         return total;
     };
 
+    // (THÊM) Tiền giảm thêm của Khách thân thiết — tính trên tiền SAU mã khuyến mãi
+    const memberDiscountAmount = () => {
+        if (!memberRate) return 0;
+        return Math.round(calculateTotal() * memberRate / 100);
+    };
+
     // Apply promotion
     const handleApplyPromotion = async () => {
         if (!promotionCode.trim()) {
@@ -265,7 +299,7 @@ const CreateBooking = () => {
             }
         } catch (error) {
             console.error('Apply promotion error:', error);
-            toast.error(error.response?.data?.error || i18n.language === 'vi' ? 'Mã khuyến mãi không hợp lệ' : 'Invalid promotion code');
+            toast.error(error.response?.data?.error || (i18n.language === 'vi' ? 'Mã khuyến mãi không hợp lệ' : 'Invalid promotion code'));
             setAppliedPromotion(null);
             setPromotionDiscount(0);
         } finally {
@@ -291,7 +325,7 @@ const CreateBooking = () => {
 
             // CHỈ GỬI NHỮNG FIELD BACKEND CHẤP NHẬN
             const bookingData = {
-                userId: user?.id || 1,
+                userId: user?.id, // (SỬA) không để || 1: thiếu userId thì đơn sẽ mồ côi, không hiện ở Đặt phòng của tôi
                 roomId: parseInt(formData.roomId),
                 checkInDate: formData.checkInDate,
                 checkOutDate: formData.checkOutDate,
@@ -299,8 +333,9 @@ const CreateBooking = () => {
                 fullName: formData.fullName,
                 phoneNumber: formData.phoneNumber,
                 email: formData.email,
-                specialRequests: formData.specialRequests || ''
-                // KHÔNG gửi promotionCode, discountAmount, finalTotal
+                specialRequests: formData.specialRequests || '',
+                // (SỬA) Gửi kèm mã đã áp để server trừ vào giá cuối + cộng lượt dùng của mã
+                promotionCode: appliedPromotion?.code || null
             };
 
             console.log('📤 Sending booking data:', bookingData);
@@ -317,7 +352,7 @@ const CreateBooking = () => {
                     if (paymentUrl) {
                         toast.success(i18n.language === 'vi' ? '✅ Đặt phòng thành công! Đang chuyển đến thanh toán...' : '✅ Booking created! Redirecting to payment...');
                         if (mock) {
-                            navigate(`/payment/mock?paymentId=${payment?.id}&bookingId=${createdBooking.id}&amount=${calculateTotal()}`);
+                            navigate(`/payment/mock?paymentId=${payment?.id}&bookingId=${createdBooking.id}&amount=${createdBooking.finalPrice ?? calculateTotal()}`);
                         } else {
                             window.location.href = paymentUrl;
                         }
@@ -358,17 +393,33 @@ const CreateBooking = () => {
         }
     };
 
+    // (THÊM) Ảnh chính của phòng. LƯU Ý: backend phục vụ ảnh tĩnh ở /uploads
+    // (không có tiền tố /api như API_BASE_URL ở file này) nên phải bỏ /api
+    // đi, nếu không ảnh sẽ 404 và hiện icon gãy.
+    const roomMainImage = (room) => {
+        const path = room.imageUrl || (room.images && room.images.length > 0 ? room.images[0].imageUrl : null);
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        const origin = API_BASE_URL.replace(/\/api\/?$/, '');
+        return `${origin}${path.startsWith('/') ? '' : '/'}${path}`;
+    };
+
     const getStepContent = (step) => {
         switch (step) {
             case 0:
                 return (
                     <Box>
-                        <Typography variant="h6" gutterBottom>
+                        <Typography variant="h5" sx={{ color: '#243a30', fontWeight: 750 }}>
                             {i18n.language === 'vi' ? '🏨 Chọn phòng' : '🏨 Select Room'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: '#748078' }}>
+                            {i18n.language === 'vi'
+                                ? `Có ${rooms.length} phòng để lựa chọn — bấm vào một phòng để chọn.`
+                                : `${rooms.length} rooms available — click a room to select it.`}
                         </Typography>
 
                         {selectedRoom && (
-                            <Alert severity="info" sx={{ mb: 2 }}>
+                            <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2.5, bgcolor: '#eff7f3', color: '#244f3f', '& .MuiAlert-icon': { color: '#28745c' } }}>
                                 {i18n.language === 'vi'
                                     ? `✅ Đã chọn phòng ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`
                                     : `✅ Selected room ${selectedRoom.roomNumber} - ${selectedRoom.roomType}`}
@@ -382,63 +433,115 @@ const CreateBooking = () => {
                                 {i18n.language === 'vi' ? 'Không có phòng trống' : 'No rooms available'}
                             </Alert>
                         ) : (
-                            <Grid container spacing={2}>
-                                {rooms.map((room) => (
-                                    <Grid item xs={12} sm={6} md={4} key={room.id}>
-                                        <Card
-                                            sx={{
-                                                cursor: 'pointer',
-                                                borderRadius: 2,
-                                                border: selectedRoom?.id === room.id ? '3px solid #007bff' : '1px solid #e0e0e0',
-                                                transition: 'all 0.3s',
-                                                '&:hover': {
-                                                    boxShadow: 6,
-                                                    transform: 'translateY(-4px)'
-                                                }
-                                            }}
-                                            onClick={() => handleRoomSelect(room)}
-                                        >
-                                            <CardContent>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center">
-                                                    <Typography variant="h6">
-                                                        {i18n.language === 'vi' ? 'Phòng' : 'Room'} {room.roomNumber}
-                                                    </Typography>
-                                                    {selectedRoom?.id === room.id && (
-                                                        <CheckCircle color="primary" />
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3, alignItems: 'stretch' }}>
+                                {rooms.map((room) => {
+                                    const img = roomMainImage(room);
+                                    const isSelected = selectedRoom?.id === room.id;
+                                    const vi = i18n.language === 'vi';
+                                    return (
+                                            <Card
+                                                key={room.id}
+                                                onClick={() => handleRoomSelect(room)}
+                                                sx={{
+                                                    cursor: 'pointer',
+                                                    borderRadius: 3.5,
+                                                    overflow: 'hidden',
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    bgcolor: '#fff',
+                                                    border: isSelected ? '2px solid #1f9d63' : '1px solid #e5ece7',
+                                                    boxShadow: isSelected
+                                                        ? '0 0 0 4px rgba(31,157,99,.16), 0 18px 36px rgba(30,63,49,.18)'
+                                                        : '0 8px 24px rgba(30,63,49,.07)',
+                                                    transition: 'transform .25s ease, box-shadow .25s ease',
+                                                    '&:hover': {
+                                                        transform: 'translateY(-5px)',
+                                                        boxShadow: isSelected
+                                                            ? '0 0 0 4px rgba(31,157,99,.16), 0 22px 40px rgba(30,63,49,.2)'
+                                                            : '0 18px 36px rgba(30,63,49,.14)',
+                                                    },
+                                                }}
+                                            >
+                                                <Box
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/rooms/${room.id}`); }}
+                                                    title={vi ? 'Bấm để xem chi tiết phòng' : 'Click to view room details'}
+                                                    sx={{ position: 'relative', height: 190, overflow: 'hidden', bgcolor: '#e7f0eb', cursor: 'pointer', '& .view-detail-hint': { opacity: 0, transform: 'translateY(4px)', transition: 'all .25s ease' }, '&:hover .view-detail-hint': { opacity: 1, transform: 'translateY(0)' } }}
+                                                >
+                                                    {img ? (
+                                                        <CardMedia
+                                                            component="img"
+                                                            image={img}
+                                                            alt={vi ? `Phòng ${room.roomNumber}` : `Room ${room.roomNumber}`}
+                                                            sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .4s ease', '&:hover': { transform: 'scale(1.06)' } }}
+                                                        />
+                                                    ) : (
+                                                        <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.75, background: 'radial-gradient(circle at 50% 0%, #fff 0%, #edf4ef 58%, #dce9e1 100%)' }}>
+                                                            <Room sx={{ fontSize: 48, color: '#668879' }} />
+                                                            <Typography variant="caption" sx={{ color: '#718078', fontWeight: 600 }}>
+                                                                {vi ? 'Ảnh phòng chưa có' : 'No photo yet'}
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
+                                                    <Chip
+                                                        size="small"
+                                                        label={`#${room.roomNumber}`}
+                                                        sx={{ position: 'absolute', top: 12, left: 12, bgcolor: 'rgba(24,42,34,.72)', color: '#fff', backdropFilter: 'blur(8px)', fontWeight: 750 }}
+                                                    />
+                                                    <Box className="view-detail-hint" sx={{ position: 'absolute', bottom: 12, right: 12, px: 1.2, py: 0.45, borderRadius: 99, bgcolor: 'rgba(24,42,34,.78)', color: '#fff', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(8px)', pointerEvents: 'none' }}>
+                                                        🔍 {vi ? 'Xem chi tiết' : 'View details'}
+                                                    </Box>
+                                                    {isSelected && (
+                                                        <Chip
+                                                            size="small"
+                                                            icon={<Check sx={{ color: '#fff !important', fontSize: 16 }} />}
+                                                            label={vi ? 'Đã chọn' : 'Selected'}
+                                                            sx={{ position: 'absolute', top: 12, right: 12, bgcolor: '#1f9d63', color: '#fff', fontWeight: 800, boxShadow: '0 4px 12px rgba(31,157,99,.45)' }}
+                                                        />
                                                     )}
                                                 </Box>
-                                                <Chip
-                                                    label={room.roomType}
-                                                    size="small"
-                                                    color="primary"
-                                                    sx={{ mt: 1 }}
-                                                />
-                                                <Box sx={{ mt: 2 }}>
-                                                    <Chip
-                                                        icon={<People fontSize="small" />}
-                                                        label={`${room.capacity} ${i18n.language === 'vi' ? 'khách' : 'guests'}`}
-                                                        size="small"
-                                                        variant="outlined"
-                                                    />
-                                                    <Chip
-                                                        icon={<Bed fontSize="small" />}
-                                                        label={`${i18n.language === 'vi' ? 'Tầng' : 'Floor'} ${room.floor}`}
-                                                        size="small"
-                                                        variant="outlined"
-                                                        sx={{ ml: 1 }}
-                                                    />
-                                                </Box>
-                                                <Typography variant="h6" color="primary" sx={{ mt: 2 }}>
-                                                    {formatCurrency(room.pricePerNight)}
-                                                    <Typography component="span" variant="caption" color="textSecondary">
-                                                        / {i18n.language === 'vi' ? 'đêm' : 'night'}
-                                                    </Typography>
-                                                </Typography>
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
-                                ))}
-                            </Grid>
+
+                                                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2.25, '&:last-child': { pb: 2.25 } }}>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                                                        <Typography variant="h6" fontWeight={750} sx={{ color: '#263b32' }}>
+                                                            {vi ? 'Phòng' : 'Room'} {room.roomNumber}
+                                                        </Typography>
+                                                        <Chip label={room.roomType} size="small" sx={{ bgcolor: '#e7f5eb', color: '#28754a', fontWeight: 750 }} />
+                                                    </Box>
+
+                                                    <Box sx={{ display: 'flex', gap: 2.25, flexWrap: 'wrap', color: '#68776f', mb: 1.25 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.65 }}>
+                                                            <People sx={{ fontSize: 17, color: '#829188' }} />
+                                                            <Typography variant="body2">{room.capacity} {vi ? 'khách' : 'guests'}</Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.65 }}>
+                                                            <Bed sx={{ fontSize: 17, color: '#829188' }} />
+                                                            <Typography variant="body2">{vi ? 'Tầng' : 'Floor'} {room.floor}</Typography>
+                                                        </Box>
+                                                    </Box>
+
+                                                    {room.description && (
+                                                        <Typography variant="body2" sx={{ color: '#748078', mb: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                            {room.description}
+                                                        </Typography>
+                                                    )}
+
+                                                    <Box sx={{ mt: 'auto' }}>
+                                                        <Typography sx={{ color: '#1d624b', fontWeight: 800, fontSize: '1.2rem' }}>
+                                                            {formatCurrency(room.pricePerNight)}
+                                                            <Typography component="span" variant="caption" sx={{ color: '#748078', fontWeight: 600 }}>
+                                                                {' '}/ {vi ? 'đêm' : 'night'}
+                                                            </Typography>
+                                                        </Typography>
+                                                        <Box sx={{ mt: 1.5, py: 1, borderRadius: 2, textAlign: 'center', fontWeight: 750, fontSize: 14, ...(isSelected ? { bgcolor: '#1f9d63', color: '#fff' } : { bgcolor: '#eef6f1', color: '#1d624b', border: '1px solid #cfe5d8' }) }}>
+                                                            {isSelected ? (vi ? '✓ Đã chọn phòng này' : '✓ This room is selected') : (vi ? 'Chọn phòng này' : 'Select this room')}
+                                                        </Box>
+                                                    </Box>
+                                                </CardContent>
+                                            </Card>
+                                    );
+                                })}
+                            </Box>
                         )}
                     </Box>
                 );
@@ -675,7 +778,7 @@ const CreateBooking = () => {
                                             {availablePromotions.map((promo) => (
                                                 <Chip
                                                     key={promo.id}
-                                                    label={promo.code}
+                                                    label={`${promo.code}${promo.targetAudience === 'LOYALTY_ONLY' ? ' ⭐' : ''}`}
                                                     onClick={() => setPromotionCode(promo.code)}
                                                     icon={<LocalOffer />}
                                                     color="primary"
@@ -895,11 +998,17 @@ const CreateBooking = () => {
                                         </Typography>
                                     )}
                                     <Typography variant="h5" fontWeight={700} color="primary">
-                                        {formatCurrency(calculateTotal())}
+                                        {formatCurrency(Math.max(0, calculateTotal() - memberDiscountAmount()))}
                                     </Typography>
                                     {appliedPromotion && (
                                         <Typography variant="caption" color="success">
                                             {i18n.language === 'vi' ? 'Giảm: ' : 'Discount: '} {formatCurrency(promotionDiscount)}
+                                        </Typography>
+                                    )}
+                                    {/* (THÊM) Giảm thêm tự động cho Khách hàng thân thiết */}
+                                    {memberRate > 0 && calculateTotal() > 0 && (
+                                        <Typography variant="caption" sx={{ display: 'block', color: '#a86e00', fontWeight: 700 }}>
+                                            ⭐ {i18n.language === 'vi' ? `Khách thân thiết (-${memberRate}%): ` : `Loyalty (-${memberRate}%): `}-{formatCurrency(memberDiscountAmount())}
                                         </Typography>
                                     )}
                                 </Box>
@@ -951,18 +1060,18 @@ const CreateBooking = () => {
         <Box>
             <Button
                 startIcon={<ArrowBack />}
-                onClick={() => navigate(-1)}
+                onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/dashboard'))}
                 sx={{ mb: 2 }}
             >
                 {i18n.language === 'vi' ? 'Quay lại' : 'Back'}
             </Button>
 
-            <Paper sx={{ p: 4, borderRadius: 3 }}>
+            <Paper sx={{ p: 4, borderRadius: 3, border: '1px solid #e5ece7', boxShadow: '0 10px 30px rgba(30,63,49,.06)' }}>
                 <Typography variant="h4" fontWeight={600} gutterBottom>
                     {i18n.language === 'vi' ? '📝 Đặt phòng mới' : '📝 New Booking'}
                 </Typography>
 
-                <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+                <Stepper activeStep={activeStep} sx={{ mb: 4, '& .MuiStepIcon-root': { color: '#cfe0d6' }, '& .MuiStepIcon-root.Mui-active': { color: '#28745c' }, '& .MuiStepIcon-root.Mui-completed': { color: '#1f9d63' }, '& .MuiStepLabel-label.Mui-active': { fontWeight: 700, color: '#244f3f' } }}>
                     {steps.map((label, index) => (
                         <Step key={index}>
                             <StepLabel>{label}</StepLabel>

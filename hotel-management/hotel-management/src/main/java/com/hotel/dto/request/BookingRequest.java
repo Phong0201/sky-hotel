@@ -7,7 +7,6 @@ import java.time.LocalDate;
 
 @Data
 public class BookingRequest {
-    @NotNull(message = "User ID is required")
     private Long userId;
 
     @NotNull(message = "Room ID is required")

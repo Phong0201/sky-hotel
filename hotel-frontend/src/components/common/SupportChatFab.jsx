@@ -12,7 +12,8 @@ import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = 'http://localhost:9981';
+import { API_ORIGIN } from '../../api/config';
+const API_BASE_URL = API_ORIGIN; // (SỬA) hết hardcode localhost
 
 const SupportChatFab = () => {
     const navigate = useNavigate();

@@ -1,7 +1,7 @@
 import api from './axiosConfig';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+import { API_BASE_URL } from './config'; // (SỬA) dùng chung cấu hình, hết hardcode localhost
 
 export const reviewAPI = {
     // PUBLIC - Không cần token (cho Home page)

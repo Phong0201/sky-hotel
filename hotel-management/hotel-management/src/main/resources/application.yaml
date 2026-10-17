@@ -7,8 +7,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/hotel_db
-    username: postgres
-    password: 123
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -43,8 +43,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: your-email@gmail.com
-    password: xxxx-xxxx-xxxx-xxxx
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:xxxx-xxxx-xxxx-xxxx}
     properties:
       mail:
         smtp:
@@ -57,7 +57,7 @@ upload:
   path: uploads
 
 jwt:
-  secret: your-super-secret-key-change-in-production-1234567890
+  secret: ${JWT_SECRET:your-super-secret-key-change-in-production-1234567890}
   expiration: 86400000
 
 # ============ CẤU HÌNH THANH TOÁN VNPAY (SANDBOX) ============

@@ -7,6 +7,7 @@ export const getNotificationCategory = (notification) => {
     if (type === 'payment' || (type === 'booking' && PAYMENT_TEXT.test(content))) {
         return 'payments';
     }
+    if (type === 'review' || /đánh giá|\breview\b/i.test(content)) return 'reviews';
     if (type === 'promotion') return 'promotions';
     if (type === 'booking') return 'bookings';
     if (type === 'chat' || type === 'support') return 'support';
@@ -69,9 +70,8 @@ const localizeMessage = (message) => {
             CANCELLED: 'Cancelled',
         };
 
-        return `Your booking status has been updated to: ${
-            statusLabels[match[1].toUpperCase()] || match[1]
-        }.`;
+        return `Your booking status has been updated to: ${statusLabels[match[1].toUpperCase()] || match[1]
+            }.`;
     }
 
     match = message.match(

@@ -286,6 +286,28 @@ const Bookings = () => {
     const getStatusCount = (status) => {
         return bookings.filter(b => b.status === status).length;
     };
+    // ===== (PHẦN 10) Xuất CSV danh sách đang lọc + số liệu tóm tắt =====
+    const handleExportBookingsCsv = () => {
+        const esc = (c) => `"${String(c ?? '').replace(/"/g, '""')}"`;
+        const lines = [['Mã đơn', 'Khách hàng', 'Số điện thoại', 'Phòng', 'Loại phòng', 'Check-in', 'Check-out', 'Số khách', 'Tổng tiền (VND)', 'Trạng thái']];
+        filtered.forEach((b) => lines.push([
+            b.id, b.guestFullName || b.user?.fullName || b.user?.username || '',
+            b.guestPhone || b.user?.phoneNumber || '', b.room?.roomNumber || '', b.room?.roomType || '',
+            String(b.checkInDate || b.checkIn || '').slice(0, 10), String(b.checkOutDate || b.checkOut || '').slice(0, 10),
+            b.numberOfGuests || b.guests || 1, Math.round(Number(b.finalPrice ?? b.totalPrice ?? 0)), b.status,
+        ]));
+        const blob = new Blob(['\uFEFF' + lines.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = 'danh-sach-dat-phong.csv'; link.click();
+        URL.revokeObjectURL(url);
+        toast.success(i18n.language === 'vi' ? 'Đã xuất CSV' : 'CSV exported');
+    };
+    const _bkNow = new Date();
+    const _bkToday = `${_bkNow.getFullYear()}-${String(_bkNow.getMonth() + 1).padStart(2, '0')}-${String(_bkNow.getDate()).padStart(2, '0')}`;
+    const _revTotal = bookings.filter((b) => b.status !== 'CANCELLED').reduce((sum, b) => sum + Number(b.finalPrice ?? b.totalPrice ?? 0), 0);
+    const _arrToday = bookings.filter((b) => String(b.checkInDate || b.checkIn || '').slice(0, 10) === _bkToday && ['PENDING', 'CONFIRMED'].includes(b.status)).length;
+    const _depToday = bookings.filter((b) => String(b.checkOutDate || b.checkOut || '').slice(0, 10) === _bkToday && b.status === 'CHECKED_IN').length;
 
     if (loading) {
         return (
@@ -353,15 +375,47 @@ const Bookings = () => {
                         {i18n.language === 'vi' ? 'Làm mới' : 'Refresh'}
                     </Button>
                     <Button
+                        variant="outlined"
+                        startIcon={<Download />}
+                        onClick={handleExportBookingsCsv}
+                        size="small"
+                    >
+                        {i18n.language === 'vi' ? 'Xuất CSV' : 'Export CSV'}
+                    </Button>
+                    <Button
                         variant="contained"
                         startIcon={<Add />}
                         onClick={() => navigate('/bookings/create')}
-                        sx={{ bgcolor: '#007bff' }}
+                        sx={{ bgcolor: '#174c40', '&:hover': { bgcolor: '#123f35' }, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
                     >
                         {i18n.language === 'vi' ? 'Đặt phòng mới' : 'New Booking'}
                     </Button>
                 </Box>
             </Box>
+
+            {/* (PHẦN 10) Tóm tắt nhanh */}
+            <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                {[
+                    { label: i18n.language === 'vi' ? '💰 Tổng giá trị đơn (chưa huỷ)' : '💰 Active booking value', value: formatCurrency(_revTotal), color: '#1f9d63' },
+                    { label: i18n.language === 'vi' ? '⏳ Chờ xác nhận' : '⏳ Pending', value: getStatusCount('PENDING'), color: '#e07f2e', onClick: () => handleStatusFilter(null, 'PENDING') },
+                    { label: i18n.language === 'vi' ? '🛎️ Nhận phòng hôm nay' : '🛎️ Arrivals today', value: _arrToday, color: '#2f7fd1' },
+                    { label: i18n.language === 'vi' ? '🧳 Trả phòng hôm nay' : '🧳 Departures today', value: _depToday, color: '#7a5fd0' },
+                ].map((item) => (
+                    <Grid item xs={6} md={3} key={item.label}>
+                        <Paper
+                            onClick={item.onClick}
+                            sx={{
+                                p: 2, borderRadius: 3.5, border: '1px solid #e4ece7', borderTop: `4px solid ${item.color}`,
+                                cursor: item.onClick ? 'pointer' : 'default', transition: 'all .15s ease',
+                                '&:hover': item.onClick ? { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(14,36,27,.10)' } : {},
+                            }}
+                        >
+                            <Typography variant="caption" color="textSecondary">{item.label}</Typography>
+                            <Typography variant="h6" fontWeight={800} sx={{ color: item.color }}>{item.value}</Typography>
+                        </Paper>
+                    </Grid>
+                ))}
+            </Grid>
 
             {/* Status Tabs */}
             <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
@@ -469,7 +523,7 @@ const Bookings = () => {
             {/* Table */}
             <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
                 <Table stickyHeader>
-                    <TableHead sx={{ bgcolor: '#f8f9fa' }}>
+                    <TableHead sx={{ bgcolor: '#eef6f1' }}>
                         <TableRow>
                             <TableCell padding="checkbox">
                                 <Checkbox
@@ -504,7 +558,7 @@ const Bookings = () => {
                     </TableHead>
                     <TableBody>
                         {currentData.map((b) => (
-                            <TableRow key={b.id} hover>
+                            <TableRow key={b.id} hover sx={b.status === 'PENDING' ? { bgcolor: '#fffaf0' } : undefined}>
                                 <TableCell padding="checkbox">
                                     <Checkbox
                                         checked={selectedIds.includes(b.id)}
@@ -535,7 +589,12 @@ const Bookings = () => {
                                         {b.room?.roomType || ''}
                                     </Typography>
                                 </TableCell>
-                                <TableCell>{formatDate(b.checkInDate || b.checkIn)}</TableCell>
+                                <TableCell>
+                                    {formatDate(b.checkInDate || b.checkIn)}
+                                    <Typography variant="caption" color="textSecondary" display="block">
+                                        {Math.max(Math.round((new Date(b.checkOutDate || b.checkOut) - new Date(b.checkInDate || b.checkIn)) / 86400000) || 0, 0)} {i18n.language === 'vi' ? 'đêm' : 'nights'} • {b.numberOfGuests || b.guests || 1} {i18n.language === 'vi' ? 'khách' : 'guests'}
+                                    </Typography>
+                                </TableCell>
                                 <TableCell>{formatDate(b.checkOutDate || b.checkOut)}</TableCell>
                                 <TableCell align="right" fontWeight={600}>
                                     {formatCurrency(b.totalPrice)}
@@ -596,6 +655,28 @@ const Bookings = () => {
                                                     </IconButton>
                                                 </Tooltip>
                                             </>
+                                        )}
+                                        {b.status === 'CONFIRMED' && (
+                                            <Tooltip title="Check-in">
+                                                <IconButton
+                                                    size="small"
+                                                    color="info"
+                                                    onClick={() => updateStatus(b.id, 'CHECKED_IN')}
+                                                >
+                                                    <Check fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
+                                        {b.status === 'CHECKED_IN' && (
+                                            <Tooltip title="Check-out">
+                                                <IconButton
+                                                    size="small"
+                                                    color="warning"
+                                                    onClick={() => updateStatus(b.id, 'CHECKED_OUT')}
+                                                >
+                                                    <Check fontSize="small" />
+                                                </IconButton>
+                                            </Tooltip>
                                         )}
                                         {(b.status === 'PENDING' || b.status === 'CANCELLED') && (
                                             <Tooltip title={i18n.language === 'vi' ? 'Xóa' : 'Delete'}>

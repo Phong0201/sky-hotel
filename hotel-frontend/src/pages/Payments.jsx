@@ -9,7 +9,7 @@ import {
     Alert, Divider
 } from '@mui/material';
 import {
-    Search, Refresh, CheckCircle, Delete, Cancel, AttachMoney,
+    Search, Refresh, CheckCircle, Delete, Cancel, AttachMoney, Download,
     Today, CalendarMonth, HourglassEmpty,
     ReceiptLong, MoneyOff
 } from '@mui/icons-material';
@@ -17,7 +17,7 @@ import { paymentAPI, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_METHO
 import toast from 'react-hot-toast';
 
 const formatCurrency = (amount) =>
-    formatHotelCurrency(amount, i18n.language);
+    formatHotelCurrency(amount);
 
 const formatDateTime = (s) => {
     if (!s) return 'N/A';
@@ -126,6 +126,38 @@ const Payments = () => {
         }
     };
 
+    // ===== (PHẦN 11) Xuất CSV + lọc nhanh theo ngày + tổng tiền đang lọc =====
+    const handleExportPaymentsCsv = () => {
+        const esc = (c) => `"${String(c ?? '').replace(/"/g, '""')}"`;
+        const lines = [['Mã GD', 'Mã giao dịch ngoài', 'Booking', 'Khách hàng', 'Số điện thoại', 'Số tiền (VND)', 'Phương thức', 'Trạng thái', 'Ngày tạo', 'Hoàn tất']];
+        payments.forEach((pay) => lines.push([
+            pay.id, pay.transactionId || '', pay.booking?.id || '',
+            pay.booking?.user?.fullName || pay.booking?.guestFullName || '',
+            pay.booking?.user?.phoneNumber || pay.booking?.guestPhone || '',
+            Math.round(Number(pay.amount || 0)), pay.paymentMethod || '',
+            pay.paymentStatus || '', formatDateTime(pay.paymentDate), pay.completedAt ? formatDateTime(pay.completedAt) : '',
+        ]));
+        const blob = new Blob(['\uFEFF' + lines.map((r) => r.map(esc).join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url; link.download = 'giao-dich-thanh-toan.csv'; link.click();
+        URL.revokeObjectURL(url);
+        toast.success('Đã xuất CSV giao dịch');
+    };
+
+    const _dstr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const handleQuickDateRange = (type) => {
+        const now = new Date();
+        if (type === 'ALL') { setFromDate(''); setToDate(''); }
+        else if (type === 'TODAY') { setFromDate(_dstr(now)); setToDate(_dstr(now)); }
+        else if (type === '7DAYS') { const s = new Date(now); s.setDate(s.getDate() - 6); setFromDate(_dstr(s)); setToDate(_dstr(now)); }
+        else if (type === 'MONTH') { const s = new Date(now.getFullYear(), now.getMonth(), 1); setFromDate(_dstr(s)); setToDate(_dstr(now)); }
+        setPage(0);
+    };
+    const filteredCompletedTotal = payments
+        .filter((pay) => pay.paymentStatus === 'COMPLETED')
+        .reduce((sum, pay) => sum + Number(pay.amount || 0), 0);
+
     const paged = useMemo(() =>
         payments.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
         [payments, page, rowsPerPage]);
@@ -147,10 +179,13 @@ const Payments = () => {
 
     return (
         <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
-                <Typography variant="h4" fontWeight={600}>
-                    💳 Quản lý thanh toán
-                </Typography>
+            <Box display="flex" gap={1}>
+                <Button
+                    variant="outlined" startIcon={<Download />}
+                    onClick={handleExportPaymentsCsv}
+                >
+                    Xuất CSV
+                </Button>
                 <Button
                     variant="outlined" startIcon={refreshing ? <CircularProgress size={16} /> : <Refresh />}
                     onClick={() => fetchAll(true)} disabled={refreshing}
@@ -197,51 +232,67 @@ const Payments = () => {
                 </Grid>
             </Grid>
 
-            {/* Bộ lọc */}
-            <Paper sx={{ p: 2, borderRadius: 3, mb: 3 }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                        <TextField
-                            fullWidth size="small" placeholder="Tìm mã GD, mã booking, tên khách..."
-                            value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start"><Search /></InputAdornment>
-                                )
-                            }}
-                        />
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <TextField select fullWidth size="small" label="Trạng thái"
-                            value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}>
-                            <MenuItem value="">Tất cả</MenuItem>
-                            <MenuItem value="PENDING">⏳ Đang chờ</MenuItem>
-                            <MenuItem value="COMPLETED">✅ Hoàn tất</MenuItem>
-                            <MenuItem value="FAILED">❌ Thất bại</MenuItem>
-                            <MenuItem value="CANCELLED">🚫 Đã hủy</MenuItem>
-                            <MenuItem value="REFUNDED">↩️ Hoàn tiền</MenuItem>
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <TextField select fullWidth size="small" label="Phương thức"
-                            value={filterMethod} onChange={(e) => { setFilterMethod(e.target.value); setPage(0); }}>
-                            <MenuItem value="">Tất cả</MenuItem>
-                            <MenuItem value="VNPAY">🏦 VNPay</MenuItem>
-                            <MenuItem value="BANK_TRANSFER">🏧 Chuyển khoản</MenuItem>
-                            <MenuItem value="CASH">💵 Tiền mặt</MenuItem>
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <TextField type="date" fullWidth size="small" label="Từ ngày"
-                            value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }}
-                            InputLabelProps={{ shrink: true }} />
-                    </Grid>
-                    <Grid item xs={6} md={2}>
-                        <TextField type="date" fullWidth size="small" label="Đến ngày"
-                            value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }}
-                            InputLabelProps={{ shrink: true }} />
-                    </Grid>
-                </Grid>
+            {/* Bộ lọc — (SỬA PHẦN 11) ô rộng tối thiểu 180px, hết đè chữ/đè ngày */}
+            <Paper sx={{ p: 2, borderRadius: 4, mb: 3, border: '1px solid #e4ece7' }}>
+                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+                    <TextField
+                        size="small" placeholder="Tìm mã GD, mã booking, tên khách..."
+                        value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                        sx={{ flex: '2 1 280px', minWidth: 240 }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start"><Search /></InputAdornment>
+                            )
+                        }}
+                    />
+                    <TextField select size="small" label="Trạng thái"
+                        value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+                        sx={{ flex: '1 1 180px', minWidth: 180 }}>
+                        <MenuItem value="">Tất cả</MenuItem>
+                        <MenuItem value="PENDING">⏳ Đang chờ</MenuItem>
+                        <MenuItem value="COMPLETED">✅ Hoàn tất</MenuItem>
+                        <MenuItem value="FAILED">❌ Thất bại</MenuItem>
+                        <MenuItem value="CANCELLED">🚫 Đã hủy</MenuItem>
+                        <MenuItem value="REFUNDED">↩️ Hoàn tiền</MenuItem>
+                    </TextField>
+                    <TextField select size="small" label="Phương thức"
+                        value={filterMethod} onChange={(e) => { setFilterMethod(e.target.value); setPage(0); }}
+                        sx={{ flex: '1 1 180px', minWidth: 180 }}>
+                        <MenuItem value="">Tất cả</MenuItem>
+                        <MenuItem value="VNPAY">🏦 VNPay</MenuItem>
+                        <MenuItem value="BANK_TRANSFER">🏧 Chuyển khoản</MenuItem>
+                        <MenuItem value="CASH">💵 Tiền mặt</MenuItem>
+                    </TextField>
+                    <TextField type="date" size="small" label="Từ ngày"
+                        value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }}
+                        InputLabelProps={{ shrink: true }} inputProps={{ lang: 'vi-VN' }}
+                        sx={{ flex: '1 1 180px', minWidth: 180 }} />
+                    <TextField type="date" size="small" label="Đến ngày"
+                        value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }}
+                        InputLabelProps={{ shrink: true }} inputProps={{ lang: 'vi-VN' }}
+                        sx={{ flex: '1 1 180px', minWidth: 180 }} />
+                </Box>
+                <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mt={1.5}>
+                    <Typography variant="caption" fontWeight={700} color="textSecondary">Lọc nhanh:</Typography>
+                    {[
+                        { key: 'ALL', label: 'Tất cả' },
+                        { key: 'TODAY', label: 'Hôm nay' },
+                        { key: '7DAYS', label: '7 ngày qua' },
+                        { key: 'MONTH', label: 'Tháng này' },
+                    ].map((r) => (
+                        <Button key={r.key} size="small" variant="outlined" onClick={() => handleQuickDateRange(r.key)}
+                            sx={{ textTransform: 'none', borderRadius: 99, fontWeight: 600 }}>
+                            {r.label}
+                        </Button>
+                    ))}
+                    <Button size="small" color="error" onClick={() => { setSearch(''); setFilterStatus(''); setFilterMethod(''); setFromDate(''); setToDate(''); setPage(0); }}
+                        sx={{ textTransform: 'none', fontWeight: 600 }}>
+                        Xoá lọc
+                    </Button>
+                    <Typography variant="body2" color="textSecondary" sx={{ ml: 'auto' }}>
+                        Đang xem <b>{payments.length}</b> giao dịch • Hoàn tất: <b>{formatCurrency(filteredCompletedTotal)}</b>
+                    </Typography>
+                </Box>
             </Paper>
 
             {/* Bảng giao dịch */}

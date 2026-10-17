@@ -26,6 +26,13 @@ import toast from 'react-hot-toast';
 const BookingDetail = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
+
+    // (PHẦN 8) Quay lại ĐÚNG trang vừa đứng (doanh thu / nhận-trả / tổng quan...),
+    // không nhảy cố định về 1 trang nữa. Mở thẳng link không có trang trước thì về danh sách.
+    const goBack = () => {
+        if (window.history.state && window.history.state.idx > 0) navigate(-1);
+        else navigate(canManage ? '/bookings' : '/my-bookings');
+    };
     const { id } = useParams();
     const { user, isAdmin, isReceptionist } = useAuth();
     const [booking, setBooking] = useState(null);
@@ -215,7 +222,7 @@ const BookingDetail = () => {
                 </Typography>
                 <Button
                     variant="contained"
-                    onClick={() => navigate('/bookings')}
+                    onClick={goBack}
                     sx={{ mt: 2 }}
                 >
                     {i18n.language === 'vi' ? 'Quay lại' : 'Back'}
@@ -243,7 +250,7 @@ const BookingDetail = () => {
                 <Box display="flex" alignItems="center" gap={2}>
                     <Button
                         startIcon={<ArrowBack />}
-                        onClick={() => navigate('/bookings')}
+                        onClick={goBack}
                     >
                         {i18n.language === 'vi' ? 'Quay lại' : 'Back'}
                     </Button>

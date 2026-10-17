@@ -18,6 +18,7 @@ import {
     Divider,
     Container,
     Tooltip,
+    Chip,
 } from '@mui/material';
 import {
     Dashboard,
@@ -36,8 +37,14 @@ import {
     LocalOffer,
     Chat as ChatIcon,
     Payments as PaymentsIcon,
+    AttachMoney,
+    EventAvailable,
+    WorkspacePremium,
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../context/ChatContext';
+import { reviewAPI } from '../../api/review';
+import { bookingAPI } from '../../api/booking';
 import NotificationBell from './NotificationBell';
 import ContactBubble from './ContactBubble';
 import CustomerHeader from './CustomerHeader';
@@ -49,6 +56,41 @@ const Layout = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuth();
+    const { unreadCount: chatUnread } = useChat();
+
+    // (PHẦN 9) Badge menu Đánh giá: số đánh giá chưa được admin phản hồi
+    const [reviewUnreplied, setReviewUnreplied] = useState(0);
+    useEffect(() => {
+        if (!(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST')) return undefined;
+        const loadReviewBadge = async () => {
+            try {
+                const res = await reviewAPI.getAll();
+                const data = Array.isArray(res.data) ? res.data : (res.data?.content || res.data?.data || []);
+                setReviewUnreplied(data.filter((r) => !r.adminReply).length);
+            } catch (e) { /* im lặng: badge là phụ */ }
+        };
+        loadReviewBadge();
+        const timer = setInterval(loadReviewBadge, 60000);
+        return () => clearInterval(timer);
+    });
+
+    // (PHẦN 13) Badge menu Nhận/trả phòng: số đơn khách đặt MỚI trong hôm nay
+    const [opsNewToday, setOpsNewToday] = useState(0);
+    useEffect(() => {
+        if (!(user?.role === 'ADMIN' || user?.role === 'RECEPTIONIST')) return undefined;
+        const loadOpsBadge = async () => {
+            try {
+                const res = await bookingAPI.getAll();
+                const data = Array.isArray(res.data) ? res.data : (res.data?.content || res.data?.data || []);
+                const d = new Date();
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                setOpsNewToday(data.filter((b) => String(b.createdAt || '').slice(0, 10) === key && b.status !== 'CANCELLED').length);
+            } catch (e) { /* im lặng: badge là phụ */ }
+        };
+        loadOpsBadge();
+        const timer = setInterval(loadOpsBadge, 60000);
+        return () => clearInterval(timer);
+    });
 
     // Chỉ ADMIN và RECEPTIONIST dùng sidebar quản trị.
     const isStaff =
@@ -93,8 +135,9 @@ const Layout = () => {
     ];
 
     const adminMenuItems = [
-        { text: `🏠 ${t('nav.home')}`, icon: <HomeIcon />, path: '/' },
         { text: `📊 ${t('nav.dashboard')}`, icon: <Dashboard />, path: '/dashboard' },
+        { text: '💰 Doanh thu', icon: <AttachMoney />, path: '/revenue' },
+        { text: '🛎️ Nhận / trả phòng', icon: <EventAvailable />, path: '/operations' },
         { text: `💬 ${t('nav.chat')}`, icon: <ChatIcon />, path: '/chat' },
         { text: `🔔 ${t('nav.notifications')}`, icon: <NotificationsIcon />, path: '/notifications' },
         { text: `⭐ ${t('nav.reviews')}`, icon: <RateReview />, path: '/admin/reviews' },
@@ -106,6 +149,7 @@ const Layout = () => {
 
     const superAdminMenuItems = [
         { text: `🎉 ${t('nav.promotions')}`, icon: <LocalOffer />, path: '/admin/promotions' },
+        { text: '⭐ Khách hàng thân thiết', icon: <WorkspacePremium />, path: '/admin/loyalty' },
         { text: `⚙️ ${t('nav.settings')}`, icon: <SettingsIcon />, path: '/settings' },
     ];
 
@@ -145,7 +189,12 @@ const Layout = () => {
         <Box sx={{ display: 'flex' }}>
             <AppBar
                 position="fixed"
-                sx={{ zIndex: 1201, bgcolor: 'primary.main' }}
+                elevation={0}
+                sx={{
+                    zIndex: 1201, bgcolor: '#ffffff', color: '#14342a',
+                    borderBottom: '1px solid #e3ebe6',
+                    boxShadow: '0 6px 18px rgba(14,36,27,.05)',
+                }}
             >
                 <Toolbar>
                     <IconButton
@@ -167,6 +216,16 @@ const Layout = () => {
                     >
                         🏨 SkyHotel
                     </Typography>
+                    {isStaff && (
+                        <Chip
+                            label={user?.role === 'ADMIN' ? 'QUẢN TRỊ VIÊN' : 'LỄ TÂN'}
+                            size="small"
+                            sx={{
+                                ml: 1, fontWeight: 800, fontSize: 10.5, letterSpacing: .6,
+                                bgcolor: user?.role === 'ADMIN' ? '#d9a441' : '#2f7fd1', color: '#fff',
+                            }}
+                        />
+                    )}
 
                     <Tooltip title={t('app.language')}>
                         <IconButton
@@ -307,6 +366,9 @@ const Layout = () => {
                         overflowX: 'hidden',
                         width: drawerWidth,
                         boxSizing: 'border-box',
+                        background: 'linear-gradient(180deg, #0c2118 0%, #10291d 55%, #0a1a13 100%)',
+                        color: '#eaf3ef',
+                        borderRight: 'none',
                         transform: open
                             ? 'none'
                             : `translateX(-${drawerWidth}px)`,
@@ -339,6 +401,10 @@ const Layout = () => {
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
+                        },
+                        '& .MuiListItemIcon-root': {
+                            color: 'rgba(234,243,239,.75)',
+                            minWidth: 40
                         }
                     }}
                 >
@@ -352,11 +418,41 @@ const Layout = () => {
                                     borderRadius: 2,
                                     mx: 1,
                                     mb: 0.5,
-                                    '&:hover': { bgcolor: 'action.hover' },
+                                    color: (location.pathname === item.path || location.pathname.startsWith(item.path + '/')) ? '#ffffff' : 'rgba(235,245,240,.78)',
+                                    bgcolor: (location.pathname === item.path || location.pathname.startsWith(item.path + '/')) ? '#1f9d63' : 'transparent',
+                                    boxShadow: (location.pathname === item.path || location.pathname.startsWith(item.path + '/')) ? '0 6px 14px rgba(31,157,99,.35)' : 'none',
+                                    '&:hover': { bgcolor: (location.pathname === item.path || location.pathname.startsWith(item.path + '/')) ? '#1f9d63' : 'rgba(255,255,255,.07)', color: '#fff' },
                                 }}
                             >
                                 <ListItemIcon>{item.icon}</ListItemIcon>
                                 <ListItemText primary={item.text} />
+                                {item.path === '/admin/reviews' && reviewUnreplied > 0 && (
+                                    <Box sx={{
+                                        minWidth: 22, height: 22, px: 0.7, borderRadius: 99,
+                                        bgcolor: '#e53935', color: '#fff', display: 'grid', placeItems: 'center',
+                                        fontSize: 12, fontWeight: 800, boxShadow: '0 2px 8px rgba(229,57,53,.5)',
+                                    }}>
+                                        {reviewUnreplied > 99 ? '99+' : reviewUnreplied}
+                                    </Box>
+                                )}
+                                {item.path === '/operations' && opsNewToday > 0 && (
+                                    <Box sx={{
+                                        minWidth: 22, height: 22, px: 0.7, borderRadius: 99,
+                                        bgcolor: '#e53935', color: '#fff', display: 'grid', placeItems: 'center',
+                                        fontSize: 12, fontWeight: 800, boxShadow: '0 2px 8px rgba(229,57,53,.5)',
+                                    }}>
+                                        {opsNewToday > 99 ? '99+' : opsNewToday}
+                                    </Box>
+                                )}
+                                {item.path === '/chat' && chatUnread > 0 && (
+                                    <Box sx={{
+                                        minWidth: 22, height: 22, px: 0.7, borderRadius: 99,
+                                        bgcolor: '#e53935', color: '#fff', display: 'grid', placeItems: 'center',
+                                        fontSize: 12, fontWeight: 800, boxShadow: '0 2px 8px rgba(229,57,53,.5)',
+                                    }}>
+                                        {chatUnread > 99 ? '99+' : chatUnread}
+                                    </Box>
+                                )}
                             </ListItem>
                         ))}
                     </List>

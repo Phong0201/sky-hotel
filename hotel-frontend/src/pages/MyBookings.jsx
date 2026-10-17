@@ -60,7 +60,7 @@ const MyBookings = () => {
 
         setLoading(true);
         try {
-            const response = await bookingAPI.getMyBookings(user.id);
+            const response = await bookingAPI.getMyBookings();
             const bookingList = response.data || [];
             setBookings(bookingList);
 

@@ -68,10 +68,16 @@ public class SecurityConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",
-                "http://localhost:5173",
-                "http://127.0.0.1:5173"
+        // (SỬA) Dùng allowedOriginPatterns để mở web bằng IP LAN
+        // (vd http://10.x.x.x:5173, 192.168.x.x:5173) cũng gọi được API,
+        // không bị CORS chặn như khi chỉ whitelist localhost.
+        // IP LAN hay thay đổi nên để mẫu wildcard theo dải cho bền.
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://10.*:*",
+                "http://192.168.*:*",
+                "http://172.*:*"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
@@ -105,8 +111,10 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/api/upload/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/api/promotions/active").permitAll()
-                        .requestMatchers("/api/promotions").permitAll()
-                        .requestMatchers("/api/promotions/**").permitAll()
+                        // (SỬA) Chỉ mã ĐANG CHẠY là công khai — danh sách đầy đủ (gồm mã
+                        // đang tắt/hết hạn) chỉ staff xem, tránh lộ mã cho người lạ đoán
+                        .requestMatchers(HttpMethod.GET, "/api/promotions", "/api/promotions/*").hasAnyRole("ADMIN", "RECEPTIONIST")
+                        .requestMatchers("/api/promotions/**").authenticated()
 
                         // 👉 VNPAY CALLBACK - cổng thanh toán gọi về (không kèm JWT)
                         .requestMatchers("/api/payments/vnpay/return").permitAll()
@@ -117,12 +125,18 @@ public class SecurityConfig implements WebMvcConfigurer {
                         .requestMatchers("/ws/chat/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
 
-                        // 👉 CHAT API - Cho phép tất cả (không cần token)
-                        .requestMatchers("/api/chat/**").permitAll()
+                        // (SỬA) Chat phải đăng nhập mới dùng được (trước đây mở toang không cần token)
+                        .requestMatchers("/api/chat/**").authenticated()
 
                         // ============ CẦN TOKEN ============
                         .requestMatchers("/api/users/me/avatar").authenticated()
                         .requestMatchers("/api/users/me").authenticated()
+                        // (THÊM) Khoá quyền trên ĐƠN ĐẶT PHÒNG: xem tất cả đơn / đổi trạng
+                        // thái / xoá vĩnh viễn chỉ staff — trước đây rule authenticated
+                        // phía dưới nuốt hết nên khách thường cũng gọi được các API này.
+                        .requestMatchers(HttpMethod.GET, "/api/bookings").hasAnyRole("ADMIN", "RECEPTIONIST")
+                        .requestMatchers(HttpMethod.PATCH, "/api/bookings/**").hasAnyRole("ADMIN", "RECEPTIONIST")
+                        .requestMatchers(HttpMethod.DELETE, "/api/bookings/*/permanent").hasAnyRole("ADMIN", "RECEPTIONIST")
                         .requestMatchers("/api/bookings/**").authenticated()
                         .requestMatchers("/api/notifications/**").authenticated()
                         .requestMatchers("/api/promotions/apply").authenticated()

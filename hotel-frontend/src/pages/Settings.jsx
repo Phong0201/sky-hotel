@@ -16,8 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
-const API_URL = 'http://localhost:9981';
+import { API_BASE_URL, API_ORIGIN } from '../api/config'; // (SỬA) hết hardcode localhost
 
 const DEFAULT_HOME_AMENITIES = [
     { key: 'wifi', name: 'WiFi', imageUrl: '', description: '', hours: '', conditions: '' },
@@ -35,7 +34,7 @@ const resolveAmenityImageUrl = (value) => {
         return value;
     }
 
-    return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
+    return `${API_ORIGIN}${value.startsWith('/') ? value : `/${value}`}`;
 };
 
 const Settings = () => {

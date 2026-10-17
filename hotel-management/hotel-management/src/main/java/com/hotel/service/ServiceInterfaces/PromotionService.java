@@ -1,6 +1,7 @@
 package com.hotel.service.ServiceInterfaces;
 
 import com.hotel.model.Promotion;
+import com.hotel.model.User;
 
 import java.util.List;
 
@@ -13,5 +14,5 @@ public interface PromotionService {
     void deletePromotion(Long id);
     Promotion updateStatus(Long id, String status);
     List<Promotion> getActivePromotions();
-    Promotion applyPromotion(String code, Double orderAmount);
+    Promotion applyPromotion(String code, Double orderAmount, User user);
 }

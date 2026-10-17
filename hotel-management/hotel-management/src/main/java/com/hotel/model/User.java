@@ -41,6 +41,13 @@ public class User {
 
     private String avatar;
 
+    // (THÊM) Khách hàng thân thiết — tự bật khi đủ chi tiêu/số đơn, admin cũng bật/tắt tay được
+    @Column(name = "loyalty_member")
+    private Boolean loyaltyMember = false;
+
+    @Column(name = "loyalty_joined_at")
+    private LocalDateTime loyaltyJoinedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

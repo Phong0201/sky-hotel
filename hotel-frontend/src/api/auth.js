@@ -10,8 +10,7 @@ export const authAPI = {
     },
 
     getCurrentUser: () => {
-        const username = localStorage.getItem('username');
-        return api.get(`/users/me?username=${username}`);
+        return api.get('/users/me');
     },
 
     // MOI: quen mat khau

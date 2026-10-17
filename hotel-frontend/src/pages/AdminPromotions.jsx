@@ -27,6 +27,8 @@ const AdminPromotions = () => {
     const { user, isAdmin } = useAuth();
     const [loading, setLoading] = useState(true);
     const [promotions, setPromotions] = useState([]);
+    const [promoSearch, setPromoSearch] = useState('');
+    const [promoFilter, setPromoFilter] = useState('ALL');
     const [openDialog, setOpenDialog] = useState(false);
     const [editingPromotion, setEditingPromotion] = useState(null);
     const [formData, setFormData] = useState({
@@ -40,7 +42,8 @@ const AdminPromotions = () => {
         startDate: '',
         endDate: '',
         usageLimit: '',
-        status: 'ACTIVE'
+        status: 'ACTIVE',
+        targetAudience: 'ALL' // (THÊM) ALL = mọi khách · LOYALTY_ONLY = chỉ Khách hàng thân thiết
     });
 
     useEffect(() => {
@@ -97,7 +100,8 @@ const AdminPromotions = () => {
                 startDate: promotion.startDate ? promotion.startDate.slice(0, 16) : '',
                 endDate: promotion.endDate ? promotion.endDate.slice(0, 16) : '',
                 usageLimit: promotion.usageLimit || '',
-                status: promotion.status || 'ACTIVE'
+                status: promotion.status || 'ACTIVE',
+                targetAudience: promotion.targetAudience || 'ALL'
             });
         } else {
             setEditingPromotion(null);
@@ -112,7 +116,8 @@ const AdminPromotions = () => {
                 startDate: '',
                 endDate: '',
                 usageLimit: '',
-                status: 'ACTIVE'
+                status: 'ACTIVE',
+                targetAudience: 'ALL'
             });
         }
         setOpenDialog(true);
@@ -149,10 +154,13 @@ const AdminPromotions = () => {
                 discountValue: Number(formData.discountValue) || 0,
                 minOrderValue: formData.minOrderValue ? Number(formData.minOrderValue) : null,
                 maxDiscount: formData.maxDiscount ? Number(formData.maxDiscount) : null,
-                startDate: new Date(formData.startDate).toISOString(),
-                endDate: new Date(formData.endDate).toISOString(),
+                // (SỬA) Gửi nguyên giờ khách sạn chọn (không qua toISOString)
+                // để ngày lưu xuống DB khớp đúng ngày admin nhìn thấy
+                startDate: formData.startDate.length === 16 ? `${formData.startDate}:00` : formData.startDate,
+                endDate: formData.endDate.length === 16 ? `${formData.endDate}:00` : formData.endDate,
                 usageLimit: formData.usageLimit ? Number(formData.usageLimit) : null,
-                status: formData.status || 'ACTIVE'
+                status: formData.status || 'ACTIVE',
+                targetAudience: formData.targetAudience || 'ALL'
             };
 
             console.log('📤 Sending promotion data:', data);
@@ -243,6 +251,30 @@ const AdminPromotions = () => {
         return type === 'PERCENTAGE' ? 'Phần trăm' : 'Cố định';
     };
 
+    // ===== (PHẦN 11) Trạng thái thực tế + tìm kiếm/lọc + thống kê =====
+    const promoEffectiveStatus = (promo) => {
+        if (promo.endDate && new Date(promo.endDate) < new Date()) return 'EXPIRED';
+        return promo.status || 'INACTIVE';
+    };
+    const displayPromotions = promotions
+        .map((promo) => ({ ...promo, _eff: promoEffectiveStatus(promo) }))
+        .filter((promo) => {
+            if (promoFilter !== 'ALL' && promo._eff !== promoFilter) return false;
+            const kw = promoSearch.trim().toLowerCase();
+            if (!kw) return true;
+            return [promo.code, promo.name, promo.description]
+                .some((v) => String(v || '').toLowerCase().includes(kw));
+        })
+        .sort((a, b) => {
+            if ((a._eff === 'ACTIVE') !== (b._eff === 'ACTIVE')) return a._eff === 'ACTIVE' ? -1 : 1;
+            return new Date(b.startDate || 0) - new Date(a.startDate || 0);
+        });
+    const promoStats = {
+        active: promotions.filter((x) => promoEffectiveStatus(x) === 'ACTIVE').length,
+        expired: promotions.filter((x) => promoEffectiveStatus(x) === 'EXPIRED').length,
+        used: promotions.reduce((sum, x) => sum + (x.usedCount || 0), 0),
+    };
+
     if (!isAdmin) {
         return (
             <Box textAlign="center" py={8}>
@@ -283,16 +315,69 @@ const AdminPromotions = () => {
                     variant="contained"
                     startIcon={<Add />}
                     onClick={() => handleOpenDialog()}
-                    sx={{ bgcolor: '#007bff' }}
+                    sx={{ bgcolor: '#174c40', '&:hover': { bgcolor: '#123f35' }, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
                 >
                     Tạo khuyến mãi mới
                 </Button>
             </Box>
 
+            {/* (PHẦN 11) Thống kê + tìm kiếm + lọc */}
+            <Grid container spacing={2} sx={{ mb: 2.5 }}>
+                {[
+                    { label: '🎉 Tổng chương trình', value: promotions.length, color: '#1976d2' },
+                    { label: '✅ Đang hoạt động', value: promoStats.active, color: '#1f9d63', filter: 'ACTIVE' },
+                    { label: '⏰ Đã hết hạn', value: promoStats.expired, color: '#d9534f', filter: 'EXPIRED' },
+                    { label: '🎟️ Tổng lượt đã dùng', value: promoStats.used, color: '#e07f2e' },
+                ].map((item) => (
+                    <Grid item xs={6} md={3} key={item.label}>
+                        <Paper
+                            onClick={item.filter ? () => setPromoFilter(item.filter) : undefined}
+                            sx={{
+                                p: 2, borderRadius: 3.5, border: '1px solid #e4ece7', borderTop: `4px solid ${item.color}`,
+                                cursor: item.filter ? 'pointer' : 'default', transition: 'all .15s ease',
+                                '&:hover': item.filter ? { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(14,36,27,.10)' } : {},
+                            }}
+                        >
+                            <Typography variant="caption" color="textSecondary">{item.label}</Typography>
+                            <Typography variant="h6" fontWeight={800} sx={{ color: item.color }}>{item.value}</Typography>
+                        </Paper>
+                    </Grid>
+                ))}
+            </Grid>
+            <Paper sx={{ p: 2, mb: 3, borderRadius: 4, border: '1px solid #e4ece7' }}>
+                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+                    <TextField
+                        size="small" placeholder="Tìm theo mã, tên chương trình..."
+                        value={promoSearch} onChange={(e) => setPromoSearch(e.target.value)}
+                        sx={{ flex: '1 1 260px', bgcolor: '#fff' }}
+                    />
+                    {[
+                        { key: 'ALL', label: 'Tất cả' },
+                        { key: 'ACTIVE', label: 'Đang hoạt động' },
+                        { key: 'INACTIVE', label: 'Vô hiệu' },
+                        { key: 'EXPIRED', label: 'Hết hạn' },
+                    ].map((f) => (
+                        <Chip key={f.key} clickable label={f.label}
+                            color={promoFilter === f.key ? 'primary' : 'default'}
+                            variant={promoFilter === f.key ? 'filled' : 'outlined'}
+                            onClick={() => setPromoFilter(f.key)} sx={{ fontWeight: 700 }} />
+                    ))}
+                    <Typography variant="caption" color="textSecondary" sx={{ ml: 'auto' }}>
+                        Đang xem: <b>{displayPromotions.length}</b> chương trình
+                    </Typography>
+                </Box>
+            </Paper>
+
             <Grid container spacing={3}>
-                {promotions.map((promo) => (
+                {displayPromotions.map((promo) => (
                     <Grid item xs={12} md={6} lg={4} key={promo.id}>
-                        <Card sx={{ borderRadius: 3, position: 'relative' }}>
+                        <Card sx={{
+                            borderRadius: 4, height: '100%', position: 'relative', border: '1px solid #e4ece7',
+                            borderTop: `4px solid ${promo._eff === 'ACTIVE' ? '#1f9d63' : promo._eff === 'EXPIRED' ? '#d9534f' : '#bdbdbd'}`,
+                            opacity: promo._eff === 'ACTIVE' ? 1 : 0.75,
+                            transition: 'all .2s ease',
+                            '&:hover': { boxShadow: '0 12px 28px rgba(14,36,27,.10)', transform: 'translateY(-3px)' },
+                        }}>
                             <CardContent>
                                 <Box display="flex" justifyContent="space-between" alignItems="start">
                                     <Box>
@@ -305,8 +390,16 @@ const AdminPromotions = () => {
                                             color="primary"
                                             sx={{ mt: 0.5 }}
                                         />
+                                        {/* (THÊM) Mã chỉ dành cho Khách hàng thân thiết */}
+                                        {promo.targetAudience === 'LOYALTY_ONLY' && (
+                                            <Chip
+                                                label="⭐ Chỉ khách thân thiết"
+                                                size="small"
+                                                sx={{ mt: 0.5, ml: 0.5, bgcolor: '#fdf3d7', color: '#a86e00', fontWeight: 700 }}
+                                            />
+                                        )}
                                     </Box>
-                                    {getStatusChip(promo.status)}
+                                    {getStatusChip(promo._eff)}
                                 </Box>
 
                                 <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
@@ -341,6 +434,13 @@ const AdminPromotions = () => {
                                         <Typography variant="body2">
                                             {promo.usedCount || 0} / {promo.usageLimit || '∞'}
                                         </Typography>
+                                        {promo.usageLimit > 0 && (
+                                            <LinearProgress
+                                                variant="determinate"
+                                                value={Math.min(((promo.usedCount || 0) / promo.usageLimit) * 100, 100)}
+                                                sx={{ mt: 0.5, height: 6, borderRadius: 99, bgcolor: '#eef3f0', '& .MuiLinearProgress-bar': { bgcolor: '#e07f2e', borderRadius: 99 } }}
+                                            />
+                                        )}
                                     </Grid>
                                     <Grid item xs={6}>
                                         <Typography variant="caption" color="textSecondary">
@@ -549,6 +649,19 @@ const AdminPromotions = () => {
                             >
                                 <MenuItem value="ACTIVE">Đang hoạt động</MenuItem>
                                 <MenuItem value="INACTIVE">Vô hiệu</MenuItem>
+                            </Select>
+                        </FormControl>
+
+                        {/* (THÊM) Đối tượng áp dụng mã */}
+                        <FormControl fullWidth>
+                            <InputLabel>Đối tượng áp dụng</InputLabel>
+                            <Select
+                                value={formData.targetAudience || 'ALL'}
+                                onChange={(e) => setFormData({ ...formData, targetAudience: e.target.value })}
+                                label="Đối tượng áp dụng"
+                            >
+                                <MenuItem value="ALL">Tất cả khách</MenuItem>
+                                <MenuItem value="LOYALTY_ONLY">⭐ Chỉ Khách hàng thân thiết</MenuItem>
                             </Select>
                         </FormControl>
                     </Box>

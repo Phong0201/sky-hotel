@@ -10,16 +10,13 @@ export const bookingAPI = {
         return api.get(`/bookings/${id}`);
     },
     getMyBookings: () => {
-        const userStr = localStorage.getItem('user');
-        const user = userStr ? JSON.parse(userStr) : null;
-        console.log('📤 Calling GET /bookings/my-bookings?userId=' + (user?.id || 'unknown'));
-        return api.get(`/bookings/my-bookings?userId=${user?.id || 1}`);
+        return api.get('/bookings/my-bookings');
     },
     create: (data) => {
         console.log('📤 Calling POST /bookings');
         return api.post('/bookings', data);
     },
-        // Kiểm tra phòng trống theo khoảng ngày
+    // Kiểm tra phòng trống theo khoảng ngày
     checkAvailability: (roomId, checkIn, checkOut) => {
         return api.get(`/bookings/check-availability?roomId=${roomId}&checkIn=${checkIn}&checkOut=${checkOut}`);
     },

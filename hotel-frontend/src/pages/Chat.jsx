@@ -400,7 +400,9 @@ const Chat = () => {
 
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`${API_BASE_URL}/api/chat/${messageId}`, {
+            // (SỬA) Dùng PUT /chat/delete thay DELETE /chat/{id}: bản DELETE
+            // bị backend trả 403 ở máy local, PUT đã chạy ngon với thu hồi.
+            await axios.put(`${API_BASE_URL}/api/chat/delete/${messageId}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             loadChatHistory();
@@ -439,7 +441,7 @@ const Chat = () => {
     const handleAddReaction = async (messageId, reaction) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`${API_BASE_URL}/api/chat/reaction/${messageId}?reaction=${reaction}&userId=${user?.id}`, {}, {
+            await axios.post(`${API_BASE_URL}/api/chat/reaction/${messageId}?reaction=${reaction}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             loadChatHistory();

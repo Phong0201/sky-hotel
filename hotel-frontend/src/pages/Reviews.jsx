@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+import { API_BASE_URL } from '../api/config'; // (SỬA) hết hardcode localhost — chạy được cả qua IP LAN
 
 const Reviews = () => {
     const { user, isAdmin, isReceptionist } = useAuth();

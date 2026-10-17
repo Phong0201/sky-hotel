@@ -1,2 +1,27 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: Arial, sans-serif; background: #f5f7fa; }
+/* ===== ADMIN SHELL — polish chung cho khu vực nhân viên ===== */
+.admin-shell .MuiPaper-root {
+    border-radius: 16px;
+}
+.admin-shell .MuiTableHead-root .MuiTableCell-root {
+    font-weight: 700;
+    color: #43564c;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    background: #f4f8f5;
+    border-bottom: 1px solid #e4ece7;
+}
+.admin-shell .MuiTableBody-root .MuiTableRow-root:hover {
+    background: #f7faf8;
+}
+.admin-shell .MuiTableCell-root {
+    border-bottom-color: #edf2ee;
+}
+.admin-shell::-webkit-scrollbar, .admin-shell *::-webkit-scrollbar {
+    width: 8px; height: 8px;
+}
+.admin-shell::-webkit-scrollbar-thumb, .admin-shell *::-webkit-scrollbar-thumb {
+    background: #c9d6ce; border-radius: 8px;
+}

@@ -15,6 +15,7 @@ import {
     People, Layers, HotelRounded, SearchRounded
 } from '@mui/icons-material';
 import { roomAPI } from '../api/room';
+import { bookingAPI } from '../api/booking';
 import { useAuth } from '../context/AuthContext';
 import CustomerHeader from '../components/common/CustomerHeader';
 import toast from 'react-hot-toast';
@@ -22,7 +23,8 @@ import toast from 'react-hot-toast';
 // ✅ Dùng instance đã có sẵn interceptor gắn token
 import api from '../api/axiosConfig';
 
-const API_BASE_URL = 'http://localhost:9981';
+import { API_ORIGIN } from '../api/config';
+const API_BASE_URL = API_ORIGIN; // (SỬA) hết hardcode localhost
 
 const Rooms = () => {
     const { t, i18n } = useTranslation();
@@ -34,6 +36,8 @@ const Rooms = () => {
     const [uploading, setUploading] = useState(false);
     const [openDialog, setOpenDialog] = useState(false);
     const [editingRoom, setEditingRoom] = useState(null);
+    const [adminRoomSearch, setAdminRoomSearch] = useState('');
+    const [adminStatusFilter, setAdminStatusFilter] = useState('ALL');
     const [imagePreview, setImagePreview] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
     // ✅ MỚI: state cho gallery nhiều ảnh
@@ -107,7 +111,7 @@ const Rooms = () => {
     });
 
     const availableRoomCount = rooms.filter(
-        (room) => room.status === 'AVAILABLE'
+        (room) => room.status !== 'MAINTENANCE'
     ).length;
 
     // Format currency
@@ -134,6 +138,58 @@ const Rooms = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // ===== (PHẦN 10) Lọc phòng cho bảng quản lý + đổi trạng thái tại chỗ =====
+    const adminFilteredRooms = rooms.filter((room) => {
+        if (adminStatusFilter !== 'ALL' && room.status !== adminStatusFilter) return false;
+        const kw = adminRoomSearch.trim().toLowerCase();
+        if (kw && !`${room.roomNumber} ${room.roomType} ${room.floor}`.toLowerCase().includes(kw)) return false;
+        return true;
+    });
+
+    const handleRoomStatusChange = async (room, newStatus) => {
+        if (newStatus === room.status) return;
+        try {
+            await roomAPI.updateStatus(room.id, newStatus);
+            toast.success(`Phòng ${room.roomNumber}: ${getStatusLabel(newStatus)}`);
+            fetchRooms();
+        } catch (error) {
+            toast.error(i18n.language === 'vi' ? 'Đổi trạng thái thất bại' : 'Status update failed');
+        }
+    };
+
+    // ===== (PHẦN 13) Lịch trống theo phòng: xem phòng nào trống ngày nào =====
+    const [adminView, setAdminView] = useState('LIST'); // LIST | SCHEDULE
+    const [allBookings, setAllBookings] = useState([]);
+
+    useEffect(() => {
+        if (!canManage) return;
+        bookingAPI.getAll()
+            .then((res) => setAllBookings(res.data || []))
+            .catch(() => { /* lịch trống là phụ, lỗi thì thôi */ });
+    }, [canManage]);
+
+    const _dayKey = (v) => (v ? String(v).slice(0, 10) : '');
+    const _todayKey = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const _fmtDay = (key) => (key ? `${key.slice(8, 10)}/${key.slice(5, 7)}` : '');
+    const _shiftKey = (key, delta) => {
+        const d = new Date(`${key}T00:00:00`);
+        d.setDate(d.getDate() + delta);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    // Các đơn sắp tới (chưa kết thúc, không tính đơn huỷ) của 1 phòng + hôm nay có khách không
+    const roomSchedule = (room) => {
+        const today = _todayKey();
+        const list = allBookings
+            .filter((b) => (b.room?.id ?? b.roomId) === room.id && b.status !== 'CANCELLED' && _dayKey(b.checkOutDate) >= today)
+            .sort((a, b) => _dayKey(a.checkInDate).localeCompare(_dayKey(b.checkInDate)));
+        const covering = list.find((b) => _dayKey(b.checkInDate) <= today && today < _dayKey(b.checkOutDate));
+        const next = list.find((b) => _dayKey(b.checkInDate) > today);
+        return { list, covering, next };
     };
 
     const handleBookNow = (room) => {
@@ -730,9 +786,9 @@ const Rooms = () => {
                                 </Box>
                             </Paper>
 
-                            <Grid container spacing={{ xs: 2, md: 2.5 }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)', xl: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 2.5 }, alignItems: 'stretch' }}>
                                 {guestFilteredRooms.length === 0 && (
-                                    <Grid item xs={12}>
+                                    <Box sx={{ gridColumn: '1 / -1' }}>
                                         <Paper
                                             elevation={0}
                                             sx={{
@@ -751,22 +807,22 @@ const Rooms = () => {
                                                 Thử đổi từ khóa hoặc loại phòng bạn đang chọn.
                                             </Typography>
                                         </Paper>
-                                    </Grid>
+                                    </Box>
                                 )}
 
                                 {guestFilteredRooms.map((room) => {
                                     const img = roomMainImage(room);
-                                    const available = room.status === 'AVAILABLE';
-                                    const statusTone = {
-                                        AVAILABLE: { background: '#e7f5eb', color: '#28754a' },
-                                        BOOKED: { background: '#fff3df', color: '#946716' },
-                                        OCCUPIED: { background: '#e6f1fa', color: '#2c678e' },
-                                        MAINTENANCE: { background: '#fae9e7', color: '#a44f48' },
-                                    }[room.status] || { background: '#f0f2f0', color: '#59635d' };
+                                    // (SỬA) Phía khách chỉ có 2 trạng thái: Bảo trì và Còn trống.
+                                    // Phòng đang có khách/đã đặt trước vẫn đặt được cho ngày khác
+                                    // (trùng ngày đã có backend + cảnh báo trùng ngày chặn).
+                                    const available = room.status !== 'MAINTENANCE';
+                                    const statusTone = room.status === 'MAINTENANCE'
+                                        ? { background: '#fae9e7', color: '#a44f48' }
+                                        : { background: '#e7f5eb', color: '#28754a' };
 
                                     return (
-                                        <Grid item xs={12} sm={6} md={4} lg={3} key={room.id}>
                                             <Card
+                                                key={room.id}
                                                 onClick={() => navigate(`/rooms/${room.id}`)}
                                                 sx={{
                                                     borderRadius: 3.5,
@@ -821,7 +877,7 @@ const Rooms = () => {
 
                                                     <Chip
                                                         size="small"
-                                                        label={`${available ? '✓ ' : ''}${getStatusLabel(room.status)}`}
+                                                        label={available ? '✓ Còn trống' : '🔧 Bảo trì'}
                                                         sx={{
                                                             position: 'absolute',
                                                             top: 12,
@@ -953,20 +1009,58 @@ const Rooms = () => {
                                                                     },
                                                                 }}
                                                             >
-                                                                {available ? 'Đặt ngay' : getStatusLabel(room.status)}
+                                                                {available ? 'Đặt ngay' : 'Đang bảo trì'}
                                                             </Button>
                                                         </Box>
                                                     </Box>
                                                 </CardContent>
                                             </Card>
-                                        </Grid>
                                     );
                                 })}
-                            </Grid>
+                            </Box>
                         </Box>
                     )}
                     {canManage && (
-                        <TableContainer component={Paper} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+                        <>
+                        {/* (PHẦN 10) Thanh thống kê + lọc cho bảng quản lý phòng */}
+                        <Paper sx={{ p: 2, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7' }}>
+                            <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+                                <TextField
+                                    size="small"
+                                    placeholder={i18n.language === 'vi' ? 'Tìm số phòng, loại, tầng...' : 'Search room, type, floor...'}
+                                    value={adminRoomSearch}
+                                    onChange={(e) => setAdminRoomSearch(e.target.value)}
+                                    sx={{ flex: '1 1 240px', bgcolor: '#fff' }}
+                                    InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> }}
+                                />
+                                {[
+                                    { key: 'ALL', label: i18n.language === 'vi' ? 'Tất cả' : 'All' },
+                                    { key: 'AVAILABLE', label: i18n.language === 'vi' ? 'Còn trống' : 'Available' },
+                                    { key: 'BOOKED', label: i18n.language === 'vi' ? 'Đã đặt trước' : 'Booked' },
+                                    { key: 'OCCUPIED', label: i18n.language === 'vi' ? 'Đang ở' : 'Occupied' },
+                                    { key: 'MAINTENANCE', label: i18n.language === 'vi' ? 'Bảo trì' : 'Maintenance' },
+                                ].map((f) => (
+                                    <Chip
+                                        key={f.key} clickable
+                                        label={`${f.label} (${f.key === 'ALL' ? rooms.length : rooms.filter((r) => r.status === f.key).length})`}
+                                        color={adminStatusFilter === f.key ? 'primary' : 'default'}
+                                        variant={adminStatusFilter === f.key ? 'filled' : 'outlined'}
+                                        onClick={() => setAdminStatusFilter(f.key)}
+                                        sx={{ fontWeight: 700 }}
+                                    />
+                                ))}
+                                <Typography variant="caption" color="textSecondary" sx={{ ml: 'auto' }}>
+                                    {i18n.language === 'vi' ? 'Đang xem' : 'Viewing'}: <b>{adminFilteredRooms.length}</b> {i18n.language === 'vi' ? 'phòng' : 'rooms'}
+                                </Typography>
+                            </Box>
+                        </Paper>
+                        {/* (PHẦN 13) Chuyển chế độ xem: Danh sách | Lịch trống theo phòng */}
+                        <Box display="flex" gap={1} sx={{ mb: 2.5 }}>
+                            <Chip clickable label="📋 Danh sách phòng" color={adminView === 'LIST' ? 'primary' : 'default'} variant={adminView === 'LIST' ? 'filled' : 'outlined'} onClick={() => setAdminView('LIST')} sx={{ fontWeight: 700 }} />
+                            <Chip clickable label="🗓️ Lịch trống theo phòng" color={adminView === 'SCHEDULE' ? 'primary' : 'default'} variant={adminView === 'SCHEDULE' ? 'filled' : 'outlined'} onClick={() => setAdminView('SCHEDULE')} sx={{ fontWeight: 700 }} />
+                        </Box>
+                        {adminView === 'LIST' ? (
+                        <TableContainer component={Paper} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid #e4ece7' }}>
                             <Table>
                                 <TableHead sx={{ bgcolor: '#f8f9fa' }}>
                                     <TableRow>
@@ -984,7 +1078,14 @@ const Rooms = () => {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {rooms.map((room) => (
+                                    {adminFilteredRooms.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                                                <Typography color="textSecondary">{i18n.language === 'vi' ? 'Không có phòng nào khớp bộ lọc' : 'No rooms match the filter'}</Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {adminFilteredRooms.map((room) => (
                                         <TableRow key={room.id} hover>
                                             <TableCell>
                                                 <Avatar
@@ -1007,7 +1108,18 @@ const Rooms = () => {
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                {getStatusChip(room.status)}
+                                                {/* (PHẦN 10) Đổi trạng thái phòng ngay tại bảng */}
+                                                <FormControl size="small" sx={{ minWidth: 150 }}>
+                                                    <Select
+                                                        value={room.status || 'AVAILABLE'}
+                                                        onChange={(e) => handleRoomStatusChange(room, e.target.value)}
+                                                        sx={{ borderRadius: 2, fontWeight: 600, bgcolor: '#fff' }}
+                                                    >
+                                                        {['AVAILABLE', 'BOOKED', 'OCCUPIED', 'MAINTENANCE'].map((st) => (
+                                                            <MenuItem key={st} value={st}>{getStatusLabel(st)}</MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                </FormControl>
                                             </TableCell>
                                             <TableCell align="center">
                                                 <Tooltip title={room.status === 'AVAILABLE' ? (i18n.language === 'vi' ? 'Đặt phòng' : 'Book now') : (i18n.language === 'vi' ? 'Hết phòng' : 'Not available')}>
@@ -1058,6 +1170,50 @@ const Rooms = () => {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                        ) : (
+                        <Grid container spacing={2.5}>
+                            {adminFilteredRooms.map((room) => {
+                                const sch = roomSchedule(room);
+                                const today = _todayKey();
+                                return (
+                                    <Grid item xs={12} md={6} xl={4} key={room.id}>
+                                        <Paper sx={{ p: 2.25, borderRadius: 4, border: '1px solid #e4ece7', height: '100%' }}>
+                                            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                                                <Typography fontWeight={800}>Phòng {room.roomNumber}</Typography>
+                                                <Chip size="small" label={room.roomType} sx={{ fontWeight: 700, bgcolor: '#eef6f1', color: '#1d624b' }} />
+                                            </Box>
+                                            <Typography variant="body2" sx={{ mb: 1.25, fontWeight: 600, color: sch.covering ? '#b23c17' : '#1d7a4c' }}>
+                                                {sch.covering
+                                                    ? `🔴 Hôm nay đang có khách (trả ${_fmtDay(_dayKey(sch.covering.checkOutDate))})`
+                                                    : sch.next
+                                                        ? `🟢 Đang trống — trống tới ${_fmtDay(_shiftKey(_dayKey(sch.next.checkInDate), -1))}, khách tiếp theo ${_fmtDay(_dayKey(sch.next.checkInDate))}`
+                                                        : '🟢 Đang trống — chưa có lịch đặt sắp tới'}
+                                            </Typography>
+                                            {sch.list.length === 0 ? (
+                                                <Typography variant="caption" color="textSecondary">Chưa có đơn nào sắp tới.</Typography>
+                                            ) : (
+                                                <Box display="flex" flexDirection="column" gap={0.75}>
+                                                    {sch.list.slice(0, 5).map((b) => (
+                                                        <Box key={b.id} display="flex" justifyContent="space-between" alignItems="center" sx={{ bgcolor: '#f7faf8', border: '1px solid #e4ece7', borderRadius: 2, px: 1.25, py: 0.75 }}>
+                                                            <Typography variant="body2" fontWeight={600}>
+                                                                {_fmtDay(_dayKey(b.checkInDate))} → {_fmtDay(_dayKey(b.checkOutDate))}
+                                                                <Typography component="span" variant="caption" color="textSecondary"> • {b.guestFullName || b.user?.fullName || 'Khách'}</Typography>
+                                                            </Typography>
+                                                            <Chip size="small" label={b.status} sx={{ height: 20, fontSize: 10, fontWeight: 700 }} />
+                                                        </Box>
+                                                    ))}
+                                                    {sch.list.length > 5 && (
+                                                        <Typography variant="caption" color="textSecondary">… và {sch.list.length - 5} đơn nữa</Typography>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </Paper>
+                                    </Grid>
+                                );
+                            })}
+                        </Grid>
+                        )}
+                        </>
                     )}
                 </Box>
             </Box>

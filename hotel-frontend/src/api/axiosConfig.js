@@ -18,7 +18,18 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
     (response) => response,
-    (error) => Promise.reject(error)
+    (error) => {
+        // (THÊM) Token hết hạn / không hợp lệ -> xoá phiên, về trang đăng nhập
+        if (error.response?.status === 401 && localStorage.getItem('token')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('username');
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
 );
 
 export default api;

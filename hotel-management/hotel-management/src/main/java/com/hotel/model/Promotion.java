@@ -53,6 +53,10 @@ public class Promotion {
     @Column(name = "status", length = 20)
     private String status = "ACTIVE"; // ACTIVE, INACTIVE, EXPIRED
 
+    // (THÊM) Đối tượng áp dụng: ALL = mọi khách, LOYALTY_ONLY = chỉ Khách hàng thân thiết
+    @Column(name = "target_audience", length = 20)
+    private String targetAudience = "ALL";
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

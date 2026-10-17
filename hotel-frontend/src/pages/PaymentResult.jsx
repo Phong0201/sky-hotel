@@ -4,12 +4,14 @@ import { formatHotelCurrency } from '../utils/currency';
 import { Box, Typography, Paper, Button, Divider, CircularProgress, Chip } from '@mui/material';
 import { CheckCircle, Cancel, ReceiptLong, Home, ArrowBack } from '@mui/icons-material';
 import { paymentAPI } from '../api/payment';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Trang kết quả thanh toán - VNPAY redirect về đây (hoặc trang mô phỏng chuyển sang).
  * ?success=true|false&bookingId=..&paymentId=..&message=..
  */
 const PaymentResult = () => {
+    const { i18n } = useTranslation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const success = searchParams.get('success') === 'true';

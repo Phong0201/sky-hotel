@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Lock, CreditCard, Warning } from '@mui/icons-material';
 import { paymentAPI } from '../api/payment';
+import { useTranslation } from 'react-i18next'; 
 import toast from 'react-hot-toast';
 
 /**
@@ -15,6 +16,7 @@ import toast from 'react-hot-toast';
  * Khi đã cấu hình cổng thật, khách sẽ được đưa thẳng tới sandbox.vnpayment.vn.
  */
 const PaymentMock = () => {
+    const { i18n } = useTranslation(); 
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const paymentId = searchParams.get('paymentId');

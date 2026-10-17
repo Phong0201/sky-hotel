@@ -5,6 +5,7 @@ import com.hotel.service.ServiceInterfaces.RoomService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -48,6 +49,7 @@ public class RoomController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<?> createRoom(@Valid @RequestBody Room room) {
         try {
             System.out.println("📤 Creating room: " + room);
@@ -60,6 +62,7 @@ public class RoomController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<?> updateRoom(@PathVariable Long id, @Valid @RequestBody Room room) {
         try {
             System.out.println("📤 Updating room ID " + id + " with data: " + room);
@@ -73,6 +76,7 @@ public class RoomController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<Room> updateRoomStatus(
             @PathVariable Long id,
             @RequestParam String status) {
@@ -80,6 +84,7 @@ public class RoomController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteRoom(@PathVariable Long id) {
         try {
             roomService.deleteRoom(id);

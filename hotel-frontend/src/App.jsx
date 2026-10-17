@@ -11,6 +11,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
+import OperationsToday from './pages/OperationsToday';
 import Rooms from './pages/Rooms';
 import RoomDetail from './pages/RoomDetail';
 import MyBookings from './pages/MyBookings';
@@ -23,6 +24,7 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import AdminPromotions from './pages/AdminPromotions';
+import LoyaltyMembers from './pages/LoyaltyMembers'; // (THÊM) Khách hàng thân thiết
 import BookingDetail from './pages/BookingDetail';
 import Chat from './pages/Chat';
 import Payments from './pages/Payments';
@@ -106,6 +108,22 @@ function App() {
                 }
               >
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route
+                  path="/revenue"
+                  element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}>
+                      <Dashboard />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/operations"
+                  element={
+                    <PrivateRoute allowedRoles={['ADMIN', 'RECEPTIONIST']}>
+                      <OperationsToday />
+                    </PrivateRoute>
+                  }
+                />
 
                 <Route
                   path="/admin/rooms"
@@ -181,6 +199,16 @@ function App() {
                   element={
                     <PrivateRoute allowedRoles={['ADMIN']}>
                       <AdminPromotions />
+                    </PrivateRoute>
+                  }
+                />
+
+                {/* (THÊM) Khách hàng thân thiết */}
+                <Route
+                  path="/admin/loyalty"
+                  element={
+                    <PrivateRoute allowedRoles={['ADMIN']}>
+                      <LoyaltyMembers />
                     </PrivateRoute>
                   }
                 />

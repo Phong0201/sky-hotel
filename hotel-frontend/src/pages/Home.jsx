@@ -34,7 +34,8 @@ import ContactBubble from '../components/common/ContactBubble';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981';
+import { API_ORIGIN } from '../api/config';
+const API_BASE_URL = API_ORIGIN; // (SỬA) hết hardcode localhost — chạy được cả qua IP LAN
 const resolveAssetUrl = (value) => {
   if (!value || typeof value !== 'string') return '';
 
@@ -167,6 +168,24 @@ const Home = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [showAllReviews, setShowAllReviews] = useState(false);
+
+  // (THÊM) Ưu đãi THẬT do admin tạo — hiện ở mục Ưu đãi, bấm vào mang mã sang trang đặt phòng
+  const [homePromotions, setHomePromotions] = useState([]);
+  useEffect(() => {
+    axios.get(`${API_BASE_URL}/api/promotions/active`)
+      .then((res) => setHomePromotions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setHomePromotions([]));
+  }, []);
+
+  const handleOfferClick = (offer) => {
+    if (offer.loyaltyOnly && !user?.loyaltyMember) {
+      toast.error('⭐ Ưu đãi này chỉ dành cho Khách hàng thân thiết');
+      return;
+    }
+    localStorage.setItem('pendingPromoCode', offer.code);
+    toast.success(`Đã chọn mã ${offer.code} — mã sẽ tự điền ở trang đặt phòng`);
+    navigate('/bookings/create');
+  };
 
   // 👉 STATE CHO BACKGROUND SLIDESHOW
   const [backgrounds, setBackgrounds] = useState(DEFAULT_BACKGROUNDS);
@@ -350,7 +369,7 @@ const Home = () => {
   const fetchReviews = async () => {
     try {
       console.log('🔍 Fetching reviews...');
-      const res = await axios.get('http://localhost:9981/api/reviews');
+      const res = await axios.get(`${API_BASE_URL}/api/reviews`);
       console.log('📥 Response data:', res.data);
 
       let data = [];
@@ -467,7 +486,7 @@ const Home = () => {
       let roomsToFilter = rooms;
 
       if (checkIn && checkOut) {
-        const response = await axios.get(`${API_BASE_URL}/rooms/available`, {
+        const response = await axios.get(`${API_BASE_URL}/api/rooms/available`, { // (SỬA) thiếu /api nên tìm phòng theo ngày toàn 404
           params: { checkIn, checkOut }
         });
 
@@ -494,8 +513,9 @@ const Home = () => {
   };
 
   const handleBookNow = (room) => {
-    if (room.status !== 'AVAILABLE') {
-      toast.error('Phòng này hiện không còn trống');
+    // (SỬA) Chỉ chặn phòng BẢO TRÌ; phòng đang ở/đã đặt trước vẫn đặt được ngày khác
+    if (room.status === 'MAINTENANCE') {
+      toast.error('Phòng đang bảo trì, vui lòng chọn phòng khác');
       return;
     }
 
@@ -627,11 +647,17 @@ const Home = () => {
     setShowAllReviews(!showAllReviews);
   };
 
-  const specialOffers = [
-    { title: t('offers.discount20') || 'Giảm 20%', desc: t('offers.discount20Desc') || 'Đặt phòng trước 7 ngày', color: '#e74c3c' },
-    { title: t('offers.weekend') || 'Ưu đãi tuần', desc: t('offers.weekendDesc') || 'Giá tốt nhất cho kỳ nghỉ cuối tuần', color: '#2ecc71' },
-    { title: t('offers.freeBreakfast') || 'Miễn phí bữa sáng', desc: t('offers.freeBreakfastDesc') || 'Cho tất cả các phòng đặt trước', color: '#f39c12' },
-  ];
+  // (SỬA) Ưu đãi lấy từ khuyến mãi THẬT admin đang bật — admin sửa/tắt là Home đổi theo
+  const offerColors = ['#e74c3c', '#2ecc71', '#f39c12', '#28745c'];
+  const specialOffers = homePromotions.map((promo, idx) => ({
+    title: promo.discountType === 'PERCENTAGE'
+      ? `Giảm ${promo.discountValue}%`
+      : `Giảm ${Number(promo.discountValue || 0).toLocaleString('vi-VN')}đ`,
+    desc: promo.name || promo.description || '',
+    color: offerColors[idx % offerColors.length],
+    code: promo.code,
+    loyaltyOnly: promo.targetAudience === 'LOYALTY_ONLY'
+  }));
 
   if (loading) {
     return (
@@ -1147,16 +1173,17 @@ const Home = () => {
               🎉 Ưu đãi
             </Typography>
 
+            {specialOffers.length === 0 && (
+              <Typography variant="body2" color="text.secondary" textAlign="center">
+                Hiện chưa có ưu đãi nào đang diễn ra.
+              </Typography>
+            )}
+
             <Box sx={{ display: 'grid', gap: 1.25 }}>
               {specialOffers.map((offer, index) => (
                 <Box
                   key={offer.title || index}
-                  onClick={() => {
-                    toast.success('Xem phòng và đặt ngay để nhận ưu đãi!');
-                    document.getElementById('home-rooms')?.scrollIntoView({
-                      behavior: 'smooth'
-                    });
-                  }}
+                  onClick={() => handleOfferClick(offer)}
                   sx={{
                     p: 1.25,
                     borderRadius: 2.5,
@@ -1197,6 +1224,24 @@ const Home = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     {offer.desc}
                   </Typography>
+
+                  {/* (THÊM) Mã + đối tượng của ưu đãi */}
+                  <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75, flexWrap: 'wrap' }}>
+                    {offer.code && (
+                      <Chip
+                        label={`Mã: ${offer.code}`}
+                        size="small"
+                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#fff', border: `1px dashed ${offer.color}`, color: offer.color }}
+                      />
+                    )}
+                    {offer.loyaltyOnly && (
+                      <Chip
+                        label="⭐ Chỉ khách thân thiết"
+                        size="small"
+                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#fff7e6', color: '#a86e00' }}
+                      />
+                    )}
+                  </Box>
                 </Box>
               ))}
             </Box>
@@ -1207,10 +1252,10 @@ const Home = () => {
       {/* Danh sách phòng - GIỮ NGUYÊN */}
       <Container id="home-rooms" maxWidth="lg" sx={{ py: 4, scrollMarginTop: 80 }}>
         <Typography variant="h5" fontWeight={700} gutterBottom>🏠 {t('home.roomList') || 'Danh sách phòng'}</Typography>
-        <Grid container spacing={3}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3, alignItems: 'stretch' }}>
           {filteredRooms.map((room) => (
-            <Grid item xs={12} sm={6} md={4} key={room.id}>
               <Card
+                key={room.id}
                 onClick={() => navigate(`/rooms/${room.id}`)}
                 sx={{
                   borderRadius: 4,
@@ -1228,7 +1273,7 @@ const Home = () => {
                   }
                 }}>
                 <Box sx={{
-                  height: 250,
+                  height: 210,
                   position: 'relative',
                   background: room.imageUrl
                     ? `url("${resolveAssetUrl(room.imageUrl)}")`
@@ -1243,11 +1288,11 @@ const Home = () => {
                   {!room.imageUrl && '🏨'}
 
                   <Chip
-                    label={room.status === 'AVAILABLE'
-                      ? (t('home.available') || '🟢 Còn trống')
-                      : (t('home.unavailable') || '🔴 Hết phòng')}
+                    label={room.status === 'MAINTENANCE'
+                      ? (t('home.maintenance') || '🔧 Đang bảo trì')
+                      : (t('home.available') || '🟢 Còn trống')}
                     size="small"
-                    color={room.status === 'AVAILABLE' ? 'success' : 'error'}
+                    color={room.status === 'MAINTENANCE' ? 'warning' : 'success'}
                     sx={{
                       position: 'absolute',
                       top: 10,
@@ -1338,31 +1383,30 @@ const Home = () => {
                   <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 2 }}>
                     <Button
                       variant="contained"
-                      disabled={room.status !== 'AVAILABLE'}
+                      disabled={room.status === 'MAINTENANCE'}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleBookNow(room);
                       }}
                       fullWidth
                       sx={{
-                        bgcolor: room.status === 'AVAILABLE' ? '#174c40' : '#6c757d',
+                        bgcolor: room.status === 'MAINTENANCE' ? '#6c757d' : '#174c40',
                         borderRadius: 2,
                         py: 1,
                         '&:hover': {
-                          bgcolor: room.status === 'AVAILABLE' ? '#103c32' : '#6c757d'
+                          bgcolor: room.status === 'MAINTENANCE' ? '#6c757d' : '#103c32'
                         }
                       }}
                     >
-                      {room.status === 'AVAILABLE'
-                        ? (t('home.bookNow') || 'Đặt ngay')
-                        : (t('home.unavailable') || 'Hết phòng')}
+                      {room.status === 'MAINTENANCE'
+                        ? (t('home.maintenance') || 'Đang bảo trì')
+                        : (t('home.bookNow') || 'Đặt ngay')}
                     </Button>
                   </Box>
                 </CardContent>
               </Card>
-            </Grid>
           ))}
-        </Grid>
+        </Box>
         {filteredRooms.length === 0 && (
           <Box textAlign="center" py={8}>
             <Typography variant="h6" color="textSecondary">{t('home.noRoomsFound') || 'Không tìm thấy phòng phù hợp'}</Typography>

@@ -11,6 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.hotel.model.User;
+import com.hotel.service.ServiceInterfaces.UserService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,7 +34,20 @@ public class BookingController {
     @Autowired
     private BookingRepository bookingRepository;
 
+    @Autowired
+    private UserService userService;
+
+    // Lấy user ĐANG ĐĂNG NHẬP từ JWT — không bao giờ tin userId client gửi lên
+    private User me(Authentication auth) {
+        return userService.getUserByUsername(auth.getName());
+    }
+
+    private boolean isStaff(User u) {
+        return "ADMIN".equals(u.getRole()) || "RECEPTIONIST".equals(u.getRole());
+    }
+
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<?> getAllBookings() {
         try {
             System.out.println("📤 Getting all bookings...");
@@ -46,9 +63,13 @@ public class BookingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getBookingById(@PathVariable Long id) {
+    public ResponseEntity<?> getBookingById(@PathVariable Long id, Authentication auth) {
         try {
             Booking booking = bookingService.getBookingById(id);
+            User me = me(auth);
+            if (!isStaff(me) && !booking.getUser().getId().equals(me.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Không có quyền xem đặt phòng này");
+            }
             return ResponseEntity.ok(booking);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -57,9 +78,9 @@ public class BookingController {
     }
 
     @GetMapping("/my-bookings")
-    public ResponseEntity<?> getMyBookings(@RequestParam Long userId) {
+    public ResponseEntity<?> getMyBookings(Authentication auth) {
         try {
-            List<Booking> bookings = bookingService.getBookingsByUser(userId);
+            List<Booking> bookings = bookingService.getBookingsByUser(me(auth).getId());
             return ResponseEntity.ok(bookings);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -89,9 +110,10 @@ public class BookingController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createBooking(@Valid @RequestBody BookingRequest request) {
+    public ResponseEntity<?> createBooking(@Valid @RequestBody BookingRequest request, Authentication auth) {
         try {
             System.out.println("📤 Creating booking...");
+            request.setUserId(me(auth).getId());
             Booking booking = bookingService.createBooking(request);
             System.out.println("✅ Booking created with ID: " + booking.getId());
 
@@ -133,6 +155,7 @@ public class BookingController {
     }
 
     @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<?> updateStatus(@PathVariable Long id, @RequestParam String status) {
         try {
             Booking booking = bookingService.updateBookingStatus(id, status);
@@ -153,15 +176,22 @@ public class BookingController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> cancelBooking(@PathVariable Long id) {
+    public ResponseEntity<?> cancelBooking(@PathVariable Long id, Authentication auth) {
         try {
+            Booking booking = bookingService.getBookingById(id);
+            User me = me(auth);
+            if (!isStaff(me) && !booking.getUser().getId().equals(me.getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Không có quyền hủy đặt phòng này");
+            }
             bookingService.cancelBooking(id);
             return ResponseEntity.ok("Booking cancelled");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
     @DeleteMapping("/{id}/permanent")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteBookingPermanent(@PathVariable Long id) {
         try {
             System.out.println("📤 Permanently deleting booking ID: " + id);

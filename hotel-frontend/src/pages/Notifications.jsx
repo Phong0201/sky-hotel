@@ -25,12 +25,17 @@ import {
     getNotificationCategory,
     localizeNotification
 } from '../i18n/notificationText';
-const NOTIFICATION_TABS = ['all', 'promotions', 'unread'];
+const GUEST_NOTIFICATION_TABS = ['all', 'promotions', 'unread'];
+const STAFF_NOTIFICATION_TABS = ['all', 'bookings', 'reviews', 'payments', 'unread'];
 
 const Notifications = () => {
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
-    const { user, isAdmin } = useAuth();
+    const { user, isAdmin, isReceptionist } = useAuth();
+    // (PHẦN 9) Nhân viên chỉ xem việc cần xử lý: đơn mới, đánh giá, thanh toán.
+    // Khách vẫn thấy ưu đãi như cũ.
+    const isStaff = isAdmin || isReceptionist;
+    const NOTIFICATION_TABS = isStaff ? STAFF_NOTIFICATION_TABS : GUEST_NOTIFICATION_TABS;
     const [loading, setLoading] = useState(true);
     const [tabValue, setTabValue] = useState(0);
     const [notifications, setNotifications] = useState([]);
@@ -96,6 +101,7 @@ const Notifications = () => {
     const getIconByType = (type) => {
         switch (type) {
             case 'booking': return <BookOnline />;
+            case 'review': return <Star />;
             case 'promotion': return <LocalOffer />;
             case 'system': return <Info />;
             case 'chat': return <Chat />;
@@ -106,6 +112,7 @@ const Notifications = () => {
     const getColorByType = (type) => {
         switch (type) {
             case 'booking': return '#1976d2';
+            case 'review': return '#f9a825';
             case 'promotion': return '#ff9800';
             case 'system': return '#4caf50';
             case 'chat': return '#9c27b0';
@@ -231,7 +238,12 @@ const Notifications = () => {
     const getFilteredNotifications = () => {
         const category = NOTIFICATION_TABS[tabValue] || 'all';
 
-        if (category === 'all') return notifications;
+        if (category === 'all') {
+            // Nhân viên: ẩn Ưu đãi + Chat khỏi danh sách chung
+            return isStaff
+                ? notifications.filter((n) => !['promotions', 'support'].includes(getNotificationCategory(n)))
+                : notifications;
+        }
         if (category === 'unread') {
             return notifications.filter((notification) => !notification.read);
         }
@@ -242,7 +254,11 @@ const Notifications = () => {
     };
 
     const getTabCount = (category) => {
-        if (category === 'all') return notifications.length;
+        if (category === 'all') {
+            return isStaff
+                ? notifications.filter((n) => !['promotions', 'support'].includes(getNotificationCategory(n))).length
+                : notifications.length;
+        }
         if (category === 'unread') return unreadCount;
 
         return notifications.filter(
@@ -310,15 +326,6 @@ const Notifications = () => {
                             {i18n.language === 'vi' ? 'Xóa tất cả' : 'Clear all'}
                         </Button>
                     )}
-                    <Button
-                        variant="contained"
-                        startIcon={<Chat />}
-                        onClick={() => navigate('/chat')}
-                        sx={{ bgcolor: '#007bff' }}
-                        size="small"
-                    >
-                        {t('notifications.supportButton')}
-                    </Button>
                 </Box>
             </Box>
 
