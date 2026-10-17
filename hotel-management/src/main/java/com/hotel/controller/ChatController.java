@@ -1,6 +1,6 @@
 package com.hotel.controller;
 
-import com.hotel.dto.UserDTO;
+import com.hotel.dto.ChatUserDTO;
 import com.hotel.model.ChatMessage;
 import com.hotel.model.User;
 import com.hotel.repository.ChatMessageRepository;
@@ -8,6 +8,8 @@ import com.hotel.repository.UserRepository;
 import com.hotel.service.ServiceInterfaces.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -32,7 +34,11 @@ public class ChatController {
     private UserRepository userRepository;
 
     @PostMapping("/send")
-    public ResponseEntity<ChatMessage> sendMessage(@RequestBody ChatMessage message) {
+    public ResponseEntity<ChatMessage> sendMessage(@RequestBody ChatMessage message, Authentication auth) {
+        User me = me(auth);
+        message.setSenderId(me.getId());
+        message.setSenderName(me.getFullName() != null ? me.getFullName() : me.getUsername());
+
         message.setCreatedAt(LocalDateTime.now());
         message.setIsRead(false);
         message.setIsDeleted(false);
@@ -47,18 +53,40 @@ public class ChatController {
         message.setRoomId(roomId);
 
         ChatMessage saved = chatMessageRepository.save(message);
-        System.out.println("✅ Message saved: " + saved.getId());
+        System.out.println("Message saved: " + saved.getId());
 
         return ResponseEntity.ok(saved);
     }
 
+    // Tra ve TAT CA user (ke ca chua tung nhan tin), kem tin nhan gan nhat,
+    // co dau hasUnread, va SAP XEP: tin nhan moi nhat len dau, chua nhan xuong cuoi.
     @GetMapping("/users")
-    public List<UserDTO> getChatUsers() {
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
+    public List<ChatUserDTO> getChatUsers() {
         List<User> allUsers = userRepository.findAll();
-        return allUsers.stream()
+        Long adminId;
+        try {
+            adminId = getAdminId();
+        } catch (Exception e) {
+            adminId = null;
+        }
+        final Long finalAdminId = adminId;
+
+        List<ChatUserDTO> result = allUsers.stream()
                 .filter(u -> !"ADMIN".equals(u.getRole()))
-                .map(this::convertToDTO)
+                .map(u -> convertToChatUserDTO(u, finalAdminId))
                 .collect(Collectors.toList());
+
+        result.sort((a, b) -> {
+            boolean aHas = a.getLastMessage() != null;
+            boolean bHas = b.getLastMessage() != null;
+            if (aHas && !bHas) return -1;
+            if (!aHas && bHas) return 1;
+            if (!aHas) return 0;
+            return b.getLastMessage().getCreatedAt().compareTo(a.getLastMessage().getCreatedAt());
+        });
+
+        return result;
     }
 
     @GetMapping("/admin")
@@ -78,43 +106,38 @@ public class ChatController {
         return ResponseEntity.ok(response);
     }
 
-    // 👉 SỬA: LẤY LỊCH SỬ CHAT - XỬ LÝ NULL
     @GetMapping("/history/{userId1}/{userId2}")
     public ResponseEntity<?> getChatHistory(
             @PathVariable Long userId1,
-            @PathVariable Long userId2) {
+            @PathVariable Long userId2,
+            Authentication auth) {
         try {
-            System.out.println("📤 Get history: " + userId1 + " - " + userId2);
-
-            // Kiểm tra user tồn tại
-            if (!userRepository.existsById(userId1) || !userRepository.existsById(userId2)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "User not found"));
+            User me = me(auth);
+            if (!isStaff(me) && !me.getId().equals(userId1) && !me.getId().equals(userId2)) {
+                return ResponseEntity.status(403).body(Map.of("error", "Không có quyền xem cuộc trò chuyện này"));
             }
 
             List<ChatMessage> messages = chatMessageRepository.findChatBetweenUsers(userId1, userId2);
 
-            // 👉 LỌC TIN NHẮN - XỬ LÝ NULL
             messages = messages.stream()
                     .filter(m -> m.getIsDeleted() == null || !m.getIsDeleted())
                     .collect(Collectors.toList());
 
-            System.out.println("📥 Loaded messages: " + messages.size());
             return ResponseEntity.ok(messages);
         } catch (Exception e) {
-            System.err.println("❌ Error loading history: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @PutMapping("/recall/{messageId}")
-    public ResponseEntity<?> recallMessage(@PathVariable Long messageId) {
+    public ResponseEntity<?> recallMessage(@PathVariable Long messageId, Authentication auth) {
         try {
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
 
-            if (message.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(5))) {
-                return ResponseEntity.badRequest().body(Map.of("error", "Cannot recall message after 5 minutes"));
+            if (!message.getSenderId().equals(me(auth).getId())) {
+                return ResponseEntity.status(403).body(Map.of("error", "Chỉ được thao tác tin nhắn của mình"));
             }
 
             message.setIsRecalled(true);
@@ -128,7 +151,29 @@ public class ChatController {
     }
 
     @DeleteMapping("/{messageId}")
-    public ResponseEntity<?> deleteMessage(@PathVariable Long messageId) {
+    public ResponseEntity<?> deleteMessage(@PathVariable Long messageId, Authentication auth) {
+        try {
+            ChatMessage message = chatMessageRepository.findById(messageId)
+                    .orElseThrow(() -> new RuntimeException("Message not found"));
+
+            if (!message.getSenderId().equals(me(auth).getId())) {
+                return ResponseEntity.status(403).body(Map.of("error", "Chỉ được thao tác tin nhắn của mình"));
+            }
+
+            message.setIsDeleted(true);
+            chatMessageRepository.save(message);
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "Message deleted"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // (THÊM) Xoá tin nhắn bằng PUT: một số cấu hình Security/firewall chặn
+    // method DELETE (trả 403) trong khi PUT vẫn chạy bình thường như
+    // recall/read, nên frontend admin dùng endpoint này để xoá tin.
+    @PutMapping("/delete/{messageId}")
+    public ResponseEntity<?> deleteMessageByPut(@PathVariable Long messageId) {
         try {
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
@@ -146,8 +191,9 @@ public class ChatController {
     public ResponseEntity<?> addReaction(
             @PathVariable Long messageId,
             @RequestParam String reaction,
-            @RequestParam Long userId) {
+            Authentication auth) {
         try {
+            Long userId = me(auth).getId();
             ChatMessage message = chatMessageRepository.findById(messageId)
                     .orElseThrow(() -> new RuntimeException("Message not found"));
 
@@ -184,11 +230,21 @@ public class ChatController {
     }
 
     private Long getAdminId() {
-        List<User> admins = userService.getUsersByRole("ADMIN");
-        if (admins.isEmpty()) {
-            throw new RuntimeException("No admin found");
-        }
-        return admins.get(0).getId();
+        // Co dinh id=1 (tai khoan "admin" that su) de dong bo voi ADMIN_ID
+        // hardcode ben frontend (ChatContext.jsx). KHONG dung
+        // userService.getUsersByRole("ADMIN") nua vi neu he thong co nhieu
+        // hon 1 tai khoan mang role ADMIN (vi du: nhan vien le tan bi gan
+        // nham role ADMIN), ham do se co the chon nham tai khoan khac,
+        // lam sai lech toan bo tinh nang dem tin chua doc / lich su chat.
+        return 1L;
+    }
+
+    private User me(Authentication auth) {
+        return userService.getUserByUsername(auth.getName());
+    }
+
+    private boolean isStaff(User u) {
+        return "ADMIN".equals(u.getRole()) || "RECEPTIONIST".equals(u.getRole());
     }
 
     private String generateRoomId(Long userId1, Long userId2) {
@@ -197,8 +253,8 @@ public class ChatController {
         return "chat_" + minId + "_" + maxId;
     }
 
-    private UserDTO convertToDTO(User user) {
-        UserDTO dto = new UserDTO();
+    private ChatUserDTO convertToChatUserDTO(User user, Long adminId) {
+        ChatUserDTO dto = new ChatUserDTO();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
         dto.setFullName(user.getFullName());
@@ -206,6 +262,27 @@ public class ChatController {
         dto.setPhoneNumber(user.getPhoneNumber());
         dto.setRole(user.getRole());
         dto.setAvatar(user.getAvatar());
+
+        if (adminId != null) {
+            List<ChatMessage> history = chatMessageRepository.findChatBetweenUsers(user.getId(), adminId);
+            history = history.stream()
+                    .filter(m -> m.getIsDeleted() == null || !m.getIsDeleted())
+                    .collect(Collectors.toList());
+
+            if (!history.isEmpty()) {
+                ChatMessage last = history.get(history.size() - 1);
+                String preview = (last.getIsRecalled() != null && last.getIsRecalled())
+                        ? "Tin nhắn đã thu hồi"
+                        : last.getMessage();
+                dto.setLastMessage(new ChatUserDTO.LastMessageInfo(preview, last.getCreatedAt(), last.getSenderId()));
+
+                // Chua doc = tin nhan gan nhat la CUA KHACH (khong phai admin gui) VA chua duoc danh dau isRead
+                boolean fromCustomer = !last.getSenderId().equals(adminId);
+                boolean notRead = last.getIsRead() == null || !last.getIsRead();
+                dto.setHasUnread(fromCustomer && notRead);
+            }
+        }
+
         return dto;
     }
 }

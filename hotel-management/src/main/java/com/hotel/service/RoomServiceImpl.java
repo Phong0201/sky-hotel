@@ -36,6 +36,7 @@ public class RoomServiceImpl implements RoomService {
         if (room.getStatus() == null) {
             room.setStatus("AVAILABLE");
         }
+        // room.getImages() (nếu FE gửi kèm) sẽ tự được cascade lưu cùng room mới
         return roomRepository.save(room);
     }
 
@@ -79,6 +80,15 @@ public class RoomServiceImpl implements RoomService {
             }
             if (room.getAmenities() != null) {
                 existingRoom.setAmenities(room.getAmenities());
+            }
+
+            // ✅ MỚI: Cập nhật danh sách nhiều ảnh (gallery)
+            // Dùng clear() + addAll() thay vì gán list mới để Hibernate
+            // theo dõi đúng thay đổi trên collection đã được quản lý (orphanRemoval
+            // sẽ tự xóa ảnh cũ không còn trong danh sách mới, thêm ảnh mới vào)
+            if (room.getImages() != null) {
+                existingRoom.getImages().clear();
+                existingRoom.getImages().addAll(room.getImages());
             }
 
             return roomRepository.save(existingRoom);

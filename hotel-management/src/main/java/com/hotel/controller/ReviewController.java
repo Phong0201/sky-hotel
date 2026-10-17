@@ -9,9 +9,12 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,6 +29,34 @@ public class ReviewController {
     @Autowired
     private UserService userService;
 
+    // PUBLIC: đánh giá theo phòng (cho trang chi tiết phòng)
+    @GetMapping("/room/{roomId}")
+    public ResponseEntity<?> getReviewsByRoom(@PathVariable Long roomId) {
+        try {
+            List<Review> reviews = reviewService.getReviewsByRoom(roomId);
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Review r : reviews) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("id", r.getId());
+                item.put("rating", r.getRating());
+                item.put("comment", r.getComment());
+                item.put("createdAt", r.getCreatedAt());
+                item.put("adminReply", r.getAdminReply());
+                Map<String, Object> u = new HashMap<>();
+                User user = r.getUser();
+                u.put("fullName", user == null ? null : user.getFullName());
+                u.put("username", user == null ? null : user.getUsername());
+                item.put("user", u);
+                result.add(item);
+            }
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+    
     @GetMapping
     public ResponseEntity<?> getAllReviews() {
         try {
@@ -61,6 +92,7 @@ public class ReviewController {
     }
 
     @PatchMapping("/{id}/reply")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECEPTIONIST')")
     public ResponseEntity<?> replyReview(
             @PathVariable Long id,
             @RequestParam String reply,

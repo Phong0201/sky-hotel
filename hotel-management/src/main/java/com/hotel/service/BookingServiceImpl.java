@@ -36,6 +36,10 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private PromotionRepository promotionRepository;
 
+    // (THÊM) Khách hàng thân thiết: giảm thêm theo hạng + tự phong thành viên
+    @Autowired
+    private LoyaltyService loyaltyService;
+
     @Override
     public List<Booking> getAllBookings() {
         return bookingRepository.findAll();
@@ -59,10 +63,27 @@ public class BookingServiceImpl implements BookingService {
 
         Room room = roomRepository.findById(request.getRoomId())
                 .orElseThrow(() -> new RuntimeException("Room not found"));
+        if (request.getNumberOfGuests() != null && room.getCapacity() != null
+                && request.getNumberOfGuests() > room.getCapacity()) {
+            throw new RuntimeException("Phòng " + room.getRoomNumber() + " chỉ chứa tối đa "
+                    + room.getCapacity() + " khách");
+        }
 
         // Check room availability
-        if (!room.getStatus().equals("AVAILABLE")) {
-            throw new RuntimeException("Room is not available");
+        // Chỉ chặn phòng đang BẢO TRÌ — ngoài ra phòng bận theo NGÀY (xem check trùng ngày dưới đây)
+        if ("MAINTENANCE".equals(room.getStatus())) {
+            throw new RuntimeException("Phòng đang bảo trì, không thể đặt");
+        }
+
+        // 🔍 KIỂM TRA TRÙNG NGÀY: 2 booking cùng phòng không được đụng nhau
+        // (khách đặt 15-16/10 thì khách khác vẫn đặt được 17-19/10)
+        List<Booking> conflicts = bookingRepository.findConflictingBookings(
+                room.getId(), request.getCheckInDate(), request.getCheckOutDate());
+        if (!conflicts.isEmpty()) {
+            Booking c = conflicts.get(0);
+            throw new RuntimeException("Phòng " + room.getRoomNumber()
+                    + " đã có khách đặt từ " + c.getCheckInDate() + " đến " + c.getCheckOutDate()
+                    + ". Vui lòng chọn ngày khác!");
         }
 
         // Calculate nights
@@ -81,10 +102,16 @@ public class BookingServiceImpl implements BookingService {
             try {
                 Promotion promotion = promotionRepository.findByCode(request.getPromotionCode())
                         .orElse(null);
-
-                if (promotion != null && promotion.getStatus().equals("ACTIVE")) {
-                    LocalDateTime now = LocalDateTime.now();
-                    if (now.isAfter(promotion.getStartDate()) && now.isBefore(promotion.getEndDate())) {
+                // (THÊM) Mã LOYALTY_ONLY chỉ tính tiền khi khách là Khách hàng thân thiết
+                boolean loyaltyOk = promotion == null
+                        || !"LOYALTY_ONLY".equals(promotion.getTargetAudience())
+                        || Boolean.TRUE.equals(user.getLoyaltyMember());
+                if (promotion != null && promotion.getStatus().equals("ACTIVE") && loyaltyOk
+                        && (promotion.getMinOrderValue() == null
+                        || totalPrice.doubleValue() >= promotion.getMinOrderValue())) {
+                    // (SỬA) Hiệu lực mã tính theo NGÀY (gồm cả ngày bắt đầu & kết thúc)
+                    LocalDate today = LocalDate.now();
+                    if (!today.isBefore(promotion.getStartDate().toLocalDate()) && !today.isAfter(promotion.getEndDate().toLocalDate())) {
                         if (promotion.getUsageLimit() == null || promotion.getUsedCount() < promotion.getUsageLimit()) {
                             double discountValue = 0;
                             if (promotion.getDiscountType().equals("PERCENTAGE")) {
@@ -95,7 +122,7 @@ public class BookingServiceImpl implements BookingService {
                             } else if (promotion.getDiscountType().equals("FIXED")) {
                                 discountValue = promotion.getDiscountValue();
                             }
-                            discountAmount = BigDecimal.valueOf(discountValue);
+                            discountAmount = BigDecimal.valueOf(discountValue).min(totalPrice);
                             finalPrice = totalPrice.subtract(discountAmount);
 
                             promotion.setUsedCount(promotion.getUsedCount() + 1);
@@ -108,6 +135,21 @@ public class BookingServiceImpl implements BookingService {
                 e.printStackTrace();
             }
         }
+
+            // (THÊM) Khách thân thiết: tự giảm thêm theo hạng (Thân thiết 3% - Bạc 5% - Vàng 10%),
+            // tính trên số tiền SAU khi đã trừ mã khuyến mãi ở trên
+            try {
+                int memberRate = loyaltyService.discountRatePercent(user);
+                if (memberRate > 0) {
+                    BigDecimal memberDiscount = totalPrice.subtract(discountAmount)
+                            .multiply(BigDecimal.valueOf(memberRate))
+                            .divide(BigDecimal.valueOf(100));
+                    discountAmount = discountAmount.add(memberDiscount);
+                    finalPrice = totalPrice.subtract(discountAmount);
+                }
+            } catch (Exception e) {
+                System.err.println("❌ Failed to apply loyalty discount: " + e.getMessage());
+            }
 
         // Create booking
         Booking booking = new Booking();
@@ -128,8 +170,8 @@ public class BookingServiceImpl implements BookingService {
         booking.setGuestEmail(request.getEmail());
 
         // Update room status
-        room.setStatus("BOOKED");
-        roomRepository.save(room);
+        // ⛔ KHÔNG set room thành BOOKED nữa — phòng bận theo NGÀY (đã check trùng ngày ở trên),
+        // nên khách khác vẫn đặt được những ngày trống của phòng này
 
         System.out.println("✅ Booking created: ID=" + booking.getId() +
                 ", Total=" + totalPrice +
@@ -141,32 +183,44 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public Booking updateBookingStatus(Long id, String status) {
-        Booking booking = getBookingById(id);
-        booking.setStatus(status.toUpperCase());
+        Booking booking = getBookingById(id);              // <-- LẤY BOOKING TRƯỚC
+        String newStatus = status.toUpperCase();
+        java.util.Set<String> allowed = java.util.Set.of(
+                "PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED");
+        if (!allowed.contains(newStatus)) {
+            throw new RuntimeException("Trạng thái không hợp lệ: " + status);
+        }
+        if ("CANCELLED".equals(booking.getStatus())) {
+            throw new RuntimeException("Đặt phòng đã hủy, không thể đổi trạng thái nữa");
+        }
+        booking.setStatus(newStatus);
         booking.setUpdatedAt(LocalDateTime.now());
 
         // Update room status if needed
-        if (status.equalsIgnoreCase("CANCELLED")) {
+        if (newStatus.equals("CANCELLED") || newStatus.equals("CHECKED_OUT")) {
             Room room = booking.getRoom();
             room.setStatus("AVAILABLE");
             roomRepository.save(room);
         }
-        if (status.equalsIgnoreCase("CHECKED_OUT")) {
-            Room room = booking.getRoom();
-            room.setStatus("AVAILABLE");
-            roomRepository.save(room);
-        }
-        if (status.equalsIgnoreCase("CHECKED_IN")) {
+        if (newStatus.equals("CHECKED_IN")) {
             Room room = booking.getRoom();
             room.setStatus("OCCUPIED");
             roomRepository.save(room);
         }
 
-        return bookingRepository.save(booking);
-    }
+            // (THÊM) Trả phòng xong: đủ chi tiêu/số đơn thì tự phong Khách hàng thân thiết
+            if (status.equalsIgnoreCase("CHECKED_OUT")) {
+                try {
+                    loyaltyService.refreshMembership(booking.getUser());
+                } catch (Exception ignored) {
+                }
+            }
 
-    @Override
-    public void cancelBooking(Long id) {
+            return bookingRepository.save(booking);
+        }
+
+        @Override
+        public void cancelBooking(Long id) {
         Booking booking = getBookingById(id);
         booking.setStatus("CANCELLED");
         booking.setUpdatedAt(LocalDateTime.now());
