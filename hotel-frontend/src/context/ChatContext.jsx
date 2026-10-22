@@ -36,13 +36,24 @@ export const ChatProvider = ({ children }) => {
     //     `${API_BASE_URL}/chat/read/${idToUse}`
     //     `${API_BASE_URL}/chat/send`
     //     `${API_BASE_URL}/chat/history/${user.id}/${targetUserId}`
-    const ADMIN_ID = 1;
+    // (SỬA) Không ghim cứng admin id = 1 nữa: nếu tài khoản admin thật
+    // không phải id 1, phòng chat sẽ lệch -> badge tin chưa đọc luôn 0.
+    const [adminId, setAdminId] = useState(1);
+    useEffect(() => {
+        if (!user?.id || user.role === 'ADMIN') return;
+        const token = localStorage.getItem('token');
+        axios.get(`${API_ORIGIN}/api/chat/admin`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then((res) => { if (res.data?.id) setAdminId(res.data.id); })
+            .catch(() => { });
+    }, [user?.id, user?.role]);
 
     useEffect(() => {
         if (user && user.role !== 'ADMIN' && !activeChatUserId) {
-            setActiveChatUserId(ADMIN_ID);
+            setActiveChatUserId(adminId);
         }
-    }, [user]);
+    }, [user, adminId]);
 
     // MOI: heartbeat bao "toi dang online" moi 30s, dung cho tinh nang trang thai online/offline
     useEffect(() => {
@@ -174,7 +185,7 @@ export const ChatProvider = ({ children }) => {
 
         let targetUserId = activeChatUserId;
         if (user.role !== 'ADMIN') {
-            targetUserId = ADMIN_ID;
+            targetUserId = adminId;
         }
 
         if (!targetUserId) {
@@ -234,7 +245,7 @@ export const ChatProvider = ({ children }) => {
         activeChatUserId,
         isAdmin: user?.role === 'ADMIN',
         isUser: user?.role !== 'ADMIN',
-        adminId: ADMIN_ID,
+        adminId,
         loadChatHistory,
         unreadCount,
         markAsRead,

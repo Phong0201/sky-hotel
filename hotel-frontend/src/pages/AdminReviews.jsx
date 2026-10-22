@@ -39,14 +39,8 @@ const AdminReviews = () => {
         setLoading(true);
         setError(null);
         try {
-            console.log('📤 AdminReviews - Fetching...');
-            
             // Dùng API public
             const res = await axios.get(`${API_BASE_URL}/reviews`);
-            
-            console.log('📥 AdminReviews - Response:', res);
-            console.log('📥 AdminReviews - Data:', res.data);
-            
             // XỬ LÝ DỮ LIỆU - ĐẢM BẢO LÀ ARRAY
             let data = [];
             if (Array.isArray(res.data)) {
@@ -57,8 +51,6 @@ const AdminReviews = () => {
                     data = Object.values(res.data).filter(item => item && typeof item === 'object' && item.id);
                 }
             }
-            
-            console.log('✅ AdminReviews - Processed:', data);
             setReviews(data);
         } catch (error) {
             console.error('❌ AdminReviews - Error:', error);
@@ -129,7 +121,7 @@ const AdminReviews = () => {
 
     return (
         <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2.5}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 2.5 }}>
                 <Typography variant="h4" fontWeight={700}>
                     ⭐ Quản lý đánh giá
                     <Chip label={`${reviews.length} đánh giá`} color="primary" sx={{ ml: 2, fontWeight: 700 }} />
@@ -154,7 +146,7 @@ const AdminReviews = () => {
                 </Paper>
                 <Paper sx={{ flex: '1 1 430px', minWidth: 300, p: 2.5, borderRadius: 4, border: '1px solid #e4ece7' }}>
                     {starCounts.map(({ star, count }) => (
-                        <Box key={star} display="flex" alignItems="center" gap={1.5} sx={{ mb: 0.6 }}>
+                        <Box key={star} sx={{ display: "flex", alignItems: "center", gap: 1.5,  mb: 0.6 }}>
                             <Typography variant="body2" sx={{ width: 36, flexShrink: 0 }}>{star} ★</Typography>
                             <LinearProgress
                                 variant="determinate"
@@ -169,13 +161,8 @@ const AdminReviews = () => {
 
             {/* (PHẦN 9) Tìm kiếm + lọc */}
             <Paper sx={{ p: 2, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7' }}>
-                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
-                    <TextField
-                        size="small" placeholder="Tìm khách, nội dung đánh giá, phòng..."
-                        value={searchText} onChange={(e) => setSearchText(e.target.value)}
-                        sx={{ flex: '1 1 260px', bgcolor: '#fff' }}
-                        InputProps={{ startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#84958b' }} /> }}
-                    />
+                <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+                    <TextField size="small" placeholder="Tìm khách, nội dung đánh giá, phòng..." value={searchText} onChange={(e) => setSearchText(e.target.value)} sx={{ flex: '1 1 260px', bgcolor: '#fff' }} slotProps={{ input: { startAdornment: <Search fontSize="small" sx={{ mr: 1, color: '#84958b' }} /> } }} />
                     {[
                         { key: 'ALL', label: 'Tất cả' },
                         { key: 'UNREPLIED', label: `Chưa phản hồi (${unrepliedCount})` },
@@ -215,7 +202,7 @@ const AdminReviews = () => {
             ) : (
                 <Grid container spacing={2.5}>
                     {filteredReviews.map((review) => (
-                        <Grid item xs={12} md={6} key={review.id}>
+                        <Grid size={{ xs: 12, md: 6 }} key={review.id}>
                             <Card sx={{
                                 borderRadius: 4, height: '100%', border: '1px solid #e4ece7',
                                 borderTop: `4px solid ${(review.rating || 0) >= 4 ? '#1f9d63' : (review.rating || 0) === 3 ? '#f9a825' : '#d9534f'}`,
@@ -223,13 +210,13 @@ const AdminReviews = () => {
                                 '&:hover': { boxShadow: '0 12px 28px rgba(14,36,27,.10)', transform: 'translateY(-3px)' },
                             }}>
                                 <CardContent>
-                                    <Box display="flex" justifyContent="space-between" alignItems="start">
-                                        <Box display="flex" alignItems="center" gap={2}>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                                             <Avatar sx={{ bgcolor: 'primary.main' }}>
                                                 {review.user?.fullName?.charAt(0) || review.user?.username?.charAt(0) || 'U'}
                                             </Avatar>
                                             <Box>
-                                                <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                                                     <Typography variant="subtitle1" fontWeight={600}>
                                                         {review.user?.fullName || review.user?.username || 'Khách'}
                                                     </Typography>
@@ -240,13 +227,13 @@ const AdminReviews = () => {
                                                         <Chip label={`Phòng ${review.room.roomNumber}`} size="small" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
                                                     )}
                                                 </Box>
-                                                <Box display="flex" alignItems="center" gap={1}>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                                     <Rating value={review.rating || 0} readOnly size="small" />
                                                     <Chip label={`${review.rating || 0} ★`} size="small" color="primary" />
                                                 </Box>
                                             </Box>
                                         </Box>
-                                        <Box display="flex" gap={1}>
+                                        <Box sx={{ display: "flex", gap: 1 }}>
                                             <Tooltip title="Trả lời">
                                                 <IconButton 
                                                     size="small" 

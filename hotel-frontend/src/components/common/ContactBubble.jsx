@@ -14,6 +14,7 @@ import {
     Avatar,
     Divider,
     Badge,
+    Chip,
     Fab
 } from '@mui/material';
 import {
@@ -192,10 +193,18 @@ const ContactBubble = () => {
                                     <Avatar sx={{ bgcolor: o.bg, color: o.color, width: 40, height: 40, borderRadius: 2.5 }}>
                                         {o.icon}
                                     </Avatar>
-                                    <Box>
+                                    <Box sx={{ flexGrow: 1 }}>
                                         <Typography variant="body2" fontWeight={600}>{o.label}</Typography>
                                         <Typography variant="caption" color="textSecondary">{o.desc}</Typography>
                                     </Box>
+                                    {o.key === 'chat' && unreadCount > 0 && (
+                                        <Chip
+                                            label={unreadCount > 99 ? '99+' : unreadCount}
+                                            color="error"
+                                            size="small"
+                                            sx={{ fontWeight: 800, minWidth: 30, height: 24, borderRadius: 999 }}
+                                        />
+                                    )}
                                 </Box>
                                 {i === 1 && <Divider sx={{ my: 0.5, opacity: 0.5 }} />}
                             </Box>
@@ -224,6 +233,7 @@ const ContactBubble = () => {
                         right: { xs: 16, sm: 30 },
                         zIndex: 12001,
                         '& .MuiBadge-badge': {
+                            zIndex: 13000,
                             minWidth: 23,
                             height: 23,
                             px: 0.6,

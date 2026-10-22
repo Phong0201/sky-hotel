@@ -134,16 +134,13 @@ const BookingDetail = () => {
     };
 
     useEffect(() => {
-        console.log('📤 BookingDetail - ID from URL:', id);
         fetchBookingDetail();
     }, [id]);
 
     const fetchBookingDetail = async () => {
         setLoading(true);
         try {
-            console.log('📤 Fetching booking detail for ID:', id);
             const res = await bookingAPI.getById(id);
-            console.log('📥 Booking detail response:', res.data);
             setBooking(res.data);
             fetchPayments(id);
         } catch (error) {
@@ -216,7 +213,7 @@ const BookingDetail = () => {
 
     if (!booking) {
         return (
-            <Box textAlign="center" py={8}>
+            <Box sx={{ textAlign: "center", py: 8 }}>
                 <Typography variant="h5" color="error">
                     {i18n.language === 'vi' ? 'Không tìm thấy đặt phòng' : 'Booking not found'}
                 </Typography>
@@ -246,8 +243,8 @@ const BookingDetail = () => {
     return (
         <Box>
             {/* Header */}
-            <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2} mb={3}>
-                <Box display="flex" alignItems="center" gap={2}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2, mb: 3 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Button
                         startIcon={<ArrowBack />}
                         onClick={goBack}
@@ -263,7 +260,7 @@ const BookingDetail = () => {
                         size="medium"
                     />
                 </Box>
-                <Box display="flex" gap={1}>
+                <Box sx={{ display: "flex", gap: 1 }}>
                     {canManage && booking.status === 'PENDING' && (
                         <>
                             <Button
@@ -320,7 +317,7 @@ const BookingDetail = () => {
             </Box>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Paper sx={{ p: 3, borderRadius: 3 }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
                             🏨 {i18n.language === 'vi' ? 'Thông tin phòng' : 'Room Information'}
@@ -388,7 +385,7 @@ const BookingDetail = () => {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                     <Paper sx={{ p: 3, borderRadius: 3 }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
                             👤 {i18n.language === 'vi' ? 'Thông tin khách hàng' : 'Customer Information'}
@@ -433,7 +430,7 @@ const BookingDetail = () => {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                     <Paper sx={{ p: 3, borderRadius: 3 }}>
                         <Typography variant="h6" fontWeight={600} gutterBottom>
                             📅 {i18n.language === 'vi' ? 'Thông tin đặt phòng' : 'Booking Information'}
@@ -441,7 +438,7 @@ const BookingDetail = () => {
                         <Divider sx={{ mb: 2 }} />
 
                         <Grid container spacing={2}>
-                            <Grid item xs={12} sm={6} md={3}>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
                                     <Typography variant="caption" color="textSecondary">
                                         {i18n.language === 'vi' ? 'Ngày nhận phòng' : 'Check-in'}
@@ -451,7 +448,7 @@ const BookingDetail = () => {
                                     </Typography>
                                 </Box>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
                                     <Typography variant="caption" color="textSecondary">
                                         {i18n.language === 'vi' ? 'Ngày trả phòng' : 'Check-out'}
@@ -461,7 +458,7 @@ const BookingDetail = () => {
                                     </Typography>
                                 </Box>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
                                     <Typography variant="caption" color="textSecondary">
                                         {i18n.language === 'vi' ? 'Số khách' : 'Guests'}
@@ -471,7 +468,7 @@ const BookingDetail = () => {
                                     </Typography>
                                 </Box>
                             </Grid>
-                            <Grid item xs={12} sm={6} md={3}>
+                            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                 <Box sx={{ p: 2, bgcolor: '#e8f5e9', borderRadius: 2 }}>
                                     <Typography variant="caption" color="textSecondary">
                                         {i18n.language === 'vi' ? 'Tổng tiền' : 'Total'}
@@ -530,9 +527,9 @@ const BookingDetail = () => {
                 </Grid>
 
                 {/* ===== SECTION THANH TOÁN ===== */}
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                     <Paper sx={{ p: 3, borderRadius: 3 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
                             <Typography variant="h6" fontWeight={600} gutterBottom>
                                 💳 {i18n.language === 'vi' ? 'Thông tin thanh toán' : 'Payment Information'}
                             </Typography>
@@ -555,9 +552,9 @@ const BookingDetail = () => {
                         ) : (
                             <Grid container spacing={2} mb={2}>
                                 {payments.map(p => (
-                                    <Grid item xs={12} sm={6} md={4} key={p.id}>
+                                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={p.id}>
                                         <Box sx={{ p: 2, border: '1px solid #e0e0e0', borderRadius: 2 }}>
-                                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
                                                 <Typography variant="subtitle2" fontWeight={600}>
                                                     <ReceiptLong sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                                                     GD #{p.id}
@@ -566,7 +563,7 @@ const BookingDetail = () => {
                                                     label={PAYMENT_STATUS_LABELS[p.paymentStatus] || p.paymentStatus}
                                                     color={PAYMENT_STATUS_COLORS[p.paymentStatus] || 'default'} />
                                             </Box>
-                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.25 }}>
                                                 <Typography variant="caption" color="textSecondary">
                                                     {i18n.language === 'vi' ? 'Số tiền' : 'Amount'}
                                                 </Typography>
@@ -574,7 +571,7 @@ const BookingDetail = () => {
                                                     {formatCurrency(p.amount)}
                                                 </Typography>
                                             </Box>
-                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.25 }}>
                                                 <Typography variant="caption" color="textSecondary">
                                                     {i18n.language === 'vi' ? 'Phương thức' : 'Method'}
                                                 </Typography>
@@ -582,20 +579,20 @@ const BookingDetail = () => {
                                                     label={p.paymentMethod}
                                                     color={PAYMENT_METHOD_COLORS[p.paymentMethod] || 'default'} />
                                             </Box>
-                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.25 }}>
                                                 <Typography variant="caption" color="textSecondary">Mã GD</Typography>
                                                 <Typography variant="caption" noWrap sx={{ maxWidth: 140 }}>
                                                     {p.transactionId || '—'}
                                                 </Typography>
                                             </Box>
-                                            <Box display="flex" justifyContent="space-between" py={0.25}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.25 }}>
                                                 <Typography variant="caption" color="textSecondary">
                                                     {i18n.language === 'vi' ? 'Tạo lúc' : 'Created'}
                                                 </Typography>
                                                 <Typography variant="caption">{formatDateTime(p.paymentDate)}</Typography>
                                             </Box>
                                             {p.completedAt && (
-                                                <Box display="flex" justifyContent="space-between" py={0.25}>
+                                                <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.25 }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Hoàn tất' : 'Completed'}
                                                     </Typography>
@@ -610,7 +607,7 @@ const BookingDetail = () => {
 
                         {/* Nút thao tác */}
                         {['PENDING', 'CONFIRMED'].includes(booking.status) && !payments.some(p => p.paymentStatus === 'COMPLETED') && (
-                            <Box display="flex" gap={1.5} flexWrap="wrap">
+                            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
                                 <Button
                                     variant="contained"
                                     startIcon={<PaymentsIcon />}
@@ -636,7 +633,7 @@ const BookingDetail = () => {
                 </Grid>
 
                 {booking.specialRequests && (
-                    <Grid item xs={12}>
+                    <Grid size={{ xs: 12 }}>
                         <Paper sx={{ p: 3, borderRadius: 3, bgcolor: '#fff8e1' }}>
                             <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                                 📝 {i18n.language === 'vi' ? 'Yêu cầu đặc biệt' : 'Special Requests'}

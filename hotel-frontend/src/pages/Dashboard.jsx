@@ -415,7 +415,6 @@ const Dashboard = () => {
             const bookingsRes = await bookingAPI.getMyBookings();
             const bookings = bookingsRes.data || [];
 
-            console.log('📥 User bookings:', bookings);
 
             // Tính toán stats cho user
             const totalBookings = bookings.length;
@@ -832,7 +831,7 @@ const Dashboard = () => {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
                 <CircularProgress size={60} />
             </Box>
         );
@@ -847,12 +846,12 @@ const Dashboard = () => {
             pb: canManage ? 0 : 6
         }}>
             {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={700}>
                         {isRevenuePage ? (i18n.language === 'vi' ? '💰 Doanh thu' : '💰 Revenue') : (t('dashboard.title') || '📊 Tổng Quan')}
                     </Typography>
-                    <Box display="flex" alignItems="center" gap={1} sx={{ mt: 0.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1,  mt: 0.5 }}>
                         <Typography variant="body2" color="textSecondary">
                             {t('dashboard.welcome') || 'Chào mừng trở lại'}, {user?.fullName || user?.username}
                         </Typography>
@@ -923,16 +922,16 @@ const Dashboard = () => {
                 <Box sx={{ mb: 3 }}>
                     {/* ===== (PHẦN 8) TRUNG TÂM ĐIỀU HÀNH HÔM NAY ===== */}
                     <Paper sx={{ p: 2.5, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1.5} mb={2}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5, mb: 2 }}>
                             <Typography variant="h6" fontWeight={800}>🎛️ {i18n.language === 'vi' ? 'Trung tâm điều hành hôm nay' : "Today's operations center"}</Typography>
-                            <Box display="flex" gap={1} flexWrap="wrap">
+                            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                                 <Chip color="success" label={`${i18n.language === 'vi' ? 'Đang ở' : 'In-house'}: ${stats.checkedInBookings || 0}`} />
                                 <Chip color="info" label={`${i18n.language === 'vi' ? 'Nhận hôm nay' : 'Arrivals'}: ${arrivalsToday.length}`} />
                                 <Chip color="warning" label={`${i18n.language === 'vi' ? 'Trả hôm nay' : 'Departures'}: ${departuresToday.length}`} />
                                 <Chip color="error" label={`${i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}: ${stats.pendingBookings || 0}`} />
                             </Box>
                         </Box>
-                        <Box display="flex" gap={1.2} flexWrap="wrap">
+                        <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap" }}>
                             <QuickActionButton label={i18n.language === 'vi' ? '🛎️ Nhận / trả phòng' : '🛎️ Arrivals board'} onClick={() => navigate('/operations')} />
                             <QuickActionButton label={i18n.language === 'vi' ? '💰 Doanh thu' : '💰 Revenue'} onClick={() => navigate('/revenue')} />
                             <QuickActionButton label={i18n.language === 'vi' ? '📋 Đặt phòng' : '📋 Bookings'} onClick={() => navigate('/bookings')} />
@@ -942,9 +941,9 @@ const Dashboard = () => {
                         </Box>
                     </Paper>
                     <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <Paper sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
                                     <Box>
                                         <Typography variant="h6" fontWeight={700}>
                                             🛎️ {i18n.language === 'vi' ? 'Nhận & trả phòng hôm nay' : 'Today arrivals & departures'}
@@ -955,7 +954,7 @@ const Dashboard = () => {
                                                 : `${arrivalsToday.length} arrivals and ${departuresToday.length} departures today.`}
                                         </Typography>
                                     </Box>
-                                    <Box display="flex" gap={1}>
+                                    <Box sx={{ display: "flex", gap: 1 }}>
                                         <Chip color="info" label={`${i18n.language === 'vi' ? 'Nhận phòng' : 'Check-in'}: ${arrivalsToday.length}`} />
                                         <Chip color="warning" label={`${i18n.language === 'vi' ? 'Trả phòng' : 'Check-out'}: ${departuresToday.length}`} />
                                         <Button variant="contained" onClick={() => navigate('/operations')} sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5, bgcolor: '#174c40', '&:hover': { bgcolor: '#123f35' } }}>
@@ -968,7 +967,7 @@ const Dashboard = () => {
                     </Grid>
                     {/* (THÊM) Việc cần xử lý: đặt phòng đang chờ xác nhận */}
                     <Paper sx={{ p: 2.5, mt: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
                             <Typography variant="h6" fontWeight={700}>
                                 ⏳ {i18n.language === 'vi' ? 'Việc cần xử lý — Đặt phòng chờ xác nhận' : 'Action needed — Pending bookings'}
                                 <Chip label={allBookings.filter((b) => b.status === 'PENDING').length} color="warning" size="small" sx={{ ml: 1.5, fontWeight: 700 }} />
@@ -1000,7 +999,7 @@ const Dashboard = () => {
                                                     </TableCell>
                                                     <TableCell>{formatCurrency(b.finalPrice ?? b.totalPrice ?? 0)}</TableCell>
                                                     <TableCell align="right">
-                                                        <Box display="flex" gap={1} justifyContent="flex-end">
+                                                        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
                                                             <Button size="small" variant="outlined" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', borderRadius: 2 }}>
                                                                 {i18n.language === 'vi' ? 'Xem' : 'View'}
                                                             </Button>
@@ -1022,30 +1021,22 @@ const Dashboard = () => {
 
                     {/* ===== (THÊM PHẦN 4) SƠ ĐỒ PHÒNG THEO NGÀY ===== */}
                     <Paper sx={{ p: 2.5, mt: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 2 }}>
                             <Typography variant="h6" fontWeight={700}>
                                 🏨 {i18n.language === 'vi' ? 'Sơ đồ phòng theo ngày' : 'Rooms by date'}
                             </Typography>
-                            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                            <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                                 <Button size="small" variant="outlined" onClick={() => shiftRoomDate(-1)} sx={{ textTransform: 'none', borderRadius: 5 }}>
                                     ← {i18n.language === 'vi' ? 'Hôm qua' : 'Yesterday'}
                                 </Button>
-                                <TextField
-                                    size="small"
-                                    type="date"
-                                    value={roomDate}
-                                    onChange={(e) => setRoomDate(e.target.value)}
-                                    sx={{ width: 180 }}
-                                    InputLabelProps={{ shrink: true }}
-                                    inputProps={{ lang: 'vi-VN' }}
-                                />
+                                <TextField size="small" type="date" value={roomDate} onChange={(e) => setRoomDate(e.target.value)} sx={{ width: 180 }} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
                                 <Button size="small" variant="outlined" onClick={() => shiftRoomDate(1)} sx={{ textTransform: 'none', borderRadius: 5 }}>
                                     {i18n.language === 'vi' ? 'Ngày mai' : 'Tomorrow'} →
                                 </Button>
                             </Box>
                         </Box>
 
-                        <Box display="flex" gap={1} flexWrap="wrap" mb={2}>
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
                             <Chip size="small" color="success" label={`${i18n.language === 'vi' ? 'Trống' : 'Free'}: ${roomDaySummary.free}`} />
                             <Chip size="small" color="primary" label={`${i18n.language === 'vi' ? 'Đã có khách đặt' : 'Booked'}: ${roomDaySummary.booked}`} />
                             <Chip size="small" color="warning" label={`${i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}: ${roomDaySummary.pending}`} />
@@ -1071,7 +1062,7 @@ const Dashboard = () => {
                                                     ? { label: i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending', color: 'warning', bar: '#e8862e', bg: '#fff3e0' }
                                                     : { label: bk.status === 'CHECKED_IN' ? (i18n.language === 'vi' ? 'Đang ở' : 'In-house') : (i18n.language === 'vi' ? 'Đã đặt' : 'Booked'), color: 'error', bar: '#d32f2f', bg: '#fdecea' };
                                         return (
-                                            <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
+                                            <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }} key={room.id}>
                                                 <Box
                                                     onClick={bk ? () => navigate(`/my-bookings/${bk.id}`) : undefined}
                                                     title={bk ? `${bk.guestFullName || bk.user?.fullName || ''} • ${String(bk.checkInDate || '').slice(0, 10)} → ${String(bk.checkOutDate || '').slice(0, 10)}` : undefined}
@@ -1082,7 +1073,7 @@ const Dashboard = () => {
                                                         transition: 'all .15s ease',
                                                         '&:hover': bk ? { transform: 'translateY(-2px)', boxShadow: '0 8px 18px rgba(14,36,27,.12)' } : {},
                                                     }}>
-                                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
                                                         <Typography variant="h6" fontWeight={800}>{room.roomNumber}</Typography>
                                                         <Chip size="small" label={meta.label} color={meta.color} sx={{ height: 20, fontSize: 10.5, fontWeight: 700 }} />
                                                     </Box>
@@ -1569,7 +1560,7 @@ const Dashboard = () => {
                         <Box>
                             {/* Stat Cards */}
                             <Grid container spacing={3} mb={4}>
-                                <Grid item xs={12} sm={6} md={3}>
+                                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                     <Paper
                                         sx={{
                                             p: 3,
@@ -1585,7 +1576,7 @@ const Dashboard = () => {
                                         }}
                                         onClick={() => handleCardClick('/bookings')}
                                     >
-                                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <Box>
                                                 <Typography variant="body2" color="textSecondary">
                                                     {i18n.language === 'vi' ? 'Tổng doanh thu' : 'Total Revenue'}
@@ -1606,7 +1597,7 @@ const Dashboard = () => {
                                     </Paper>
                                 </Grid>
 
-                                <Grid item xs={12} sm={6} md={3}>
+                                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                     <Paper
                                         sx={{
                                             p: 3,
@@ -1622,7 +1613,7 @@ const Dashboard = () => {
                                         }}
                                         onClick={() => handleCardClick('/bookings')}
                                     >
-                                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <Box>
                                                 <Typography variant="body2" color="textSecondary">
                                                     {t('dashboard.totalBookings') || 'Tổng đặt phòng'}
@@ -1630,7 +1621,7 @@ const Dashboard = () => {
                                                 <Typography variant="h5" fontWeight={700} color="primary">
                                                     {stats.totalBookings}
                                                 </Typography>
-                                                <Box display="flex" gap={1} mt={1}>
+                                                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
                                                     <Chip
                                                         icon={<Pending sx={{ fontSize: 16 }} />}
                                                         label={`${stats.pendingBookings} ${i18n.language === 'vi' ? 'chờ' : 'pending'}`}
@@ -1652,7 +1643,7 @@ const Dashboard = () => {
                                     </Paper>
                                 </Grid>
 
-                                <Grid item xs={12} sm={6} md={3}>
+                                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                     <Paper
                                         sx={{
                                             p: 3,
@@ -1668,7 +1659,7 @@ const Dashboard = () => {
                                         }}
                                         onClick={() => handleCardClick('/rooms')}
                                     >
-                                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <Box>
                                                 <Typography variant="body2" color="textSecondary">
                                                     {t('dashboard.totalRooms') || 'Phòng'}
@@ -1676,7 +1667,7 @@ const Dashboard = () => {
                                                 <Typography variant="h5" fontWeight={700} color="secondary">
                                                     {stats.totalRooms}
                                                 </Typography>
-                                                <Box display="flex" gap={1} mt={1}>
+                                                <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
                                                     <Chip
                                                         label={`${stats.availableRooms} ${i18n.language === 'vi' ? 'trống' : 'available'}`}
                                                         size="small"
@@ -1696,7 +1687,7 @@ const Dashboard = () => {
                                     </Paper>
                                 </Grid>
 
-                                <Grid item xs={12} sm={6} md={3}>
+                                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                                     <Paper
                                         sx={{
                                             p: 3,
@@ -1712,7 +1703,7 @@ const Dashboard = () => {
                                         }}
                                         onClick={() => handleCardClick('/users')}
                                     >
-                                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <Box>
                                                 <Typography variant="body2" color="textSecondary">
                                                     {i18n.language === 'vi' ? 'Người dùng' : 'Users'}
@@ -1739,7 +1730,7 @@ const Dashboard = () => {
                                 {i18n.language === 'vi' ? '📊 Trạng thái đặt phòng (Click để xem chi tiết)' : '📊 Booking Status (Click for details)'}
                             </Typography>
                             <Grid container spacing={2} mb={4}>
-                                <Grid item xs={6} sm={6} md={2.4}>
+                                <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                                     <Paper
                                         sx={{
                                             p: 2,
@@ -1764,7 +1755,7 @@ const Dashboard = () => {
                                         </Typography>
                                     </Paper>
                                 </Grid>
-                                <Grid item xs={6} sm={6} md={2.4}>
+                                <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                                     <Paper
                                         sx={{
                                             p: 2,
@@ -1789,7 +1780,7 @@ const Dashboard = () => {
                                         </Typography>
                                     </Paper>
                                 </Grid>
-                                <Grid item xs={6} sm={6} md={2.4}>
+                                <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                                     <Paper
                                         sx={{
                                             p: 2,
@@ -1814,7 +1805,7 @@ const Dashboard = () => {
                                         </Typography>
                                     </Paper>
                                 </Grid>
-                                <Grid item xs={6} sm={6} md={2.4}>
+                                <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                                     <Paper
                                         sx={{
                                             p: 2,
@@ -1839,7 +1830,7 @@ const Dashboard = () => {
                                         </Typography>
                                     </Paper>
                                 </Grid>
-                                <Grid item xs={6} sm={6} md={2.4}>
+                                <Grid size={{ xs: 6, sm: 6, md: 2.4 }}>
                                     <Paper
                                         sx={{
                                             p: 2,
@@ -1880,7 +1871,7 @@ const Dashboard = () => {
                                         { icon: <People />, label: 'Quản lý người dùng', labelEn: 'Manage Users', desc: 'Tài khoản, vai trò', path: '/users', color: '#d32f2f', bg: '#fdecea' },
                                         { icon: <ChatIcon />, label: 'Chat với khách', labelEn: 'Chat', desc: 'Trả lời tin nhắn', path: '/chat', color: '#00796b', bg: '#e0f2f1' },
                                     ].map((a) => (
-                                        <Grid item xs={12} sm={6} md={4} key={a.path + a.label}>
+                                        <Grid size={{ xs: 12, sm: 6, md: 4 }} key={a.path + a.label}>
                                             <Paper
                                                 onClick={() => navigate(a.path)}
                                                 sx={{
@@ -1914,7 +1905,7 @@ const Dashboard = () => {
 
                             {/* Recent Bookings */}
                             <Paper sx={{ p: 3, borderRadius: 3 }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
                                     <Typography variant="h6" fontWeight={600}>
                                         {i18n.language === 'vi' ? '📋 Đặt phòng gần đây' : '📋 Recent Bookings'}
                                     </Typography>
@@ -1928,7 +1919,7 @@ const Dashboard = () => {
                                 </Box>
 
                                 {recentBookings.length === 0 ? (
-                                    <Box textAlign="center" py={4}>
+                                    <Box sx={{ textAlign: "center", py: 4 }}>
                                         <Typography variant="body2" color="textSecondary">
                                             {i18n.language === 'vi' ? 'Chưa có đặt phòng nào' : 'No bookings yet'}
                                         </Typography>
@@ -1952,8 +1943,9 @@ const Dashboard = () => {
                                                         </Avatar>
                                                     </ListItemAvatar>
                                                     <ListItemText
+                                                        slotProps={{ primary: { component: 'div' }, secondary: { component: 'div' } }}
                                                         primary={
-                                                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                                                                 <Typography variant="body1" fontWeight={500}>
                                                                     {i18n.language === 'vi' ? 'Phòng' : 'Room'} {booking.room?.roomNumber || 'N/A'}
                                                                 </Typography>
@@ -1969,7 +1961,7 @@ const Dashboard = () => {
                                                             </Box>
                                                         }
                                                         secondary={
-                                                            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                                                                 <Typography variant="caption" color="textSecondary">
                                                                     {formatDate(booking.checkIn)} → {formatDate(booking.checkOut)}
                                                                 </Typography>
@@ -2002,25 +1994,25 @@ const Dashboard = () => {
                         <Box>
                             {/* ===== (THÊM PHẦN 5) Thẻ thống kê + trạng thái theo ngày/tháng/năm (dời từ Tổng quan sang) ===== */}
                             <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
-                                <Grid item xs={12} sm={6} lg={3}>
+                                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                                     <StatCard icon={<AttachMoney />} label={i18n.language === 'vi' ? 'Doanh thu hôm nay' : 'Revenue today'}
                                         value={formatCurrency(stats.todayRevenue || 0)}
                                         sub={`${i18n.language === 'vi' ? 'Tổng doanh thu' : 'Total'}: ${formatCurrency(stats.totalRevenue || 0)}`}
                                         accent="#1f9d63" />
                                 </Grid>
-                                <Grid item xs={12} sm={6} lg={3}>
+                                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                                     <StatCard icon={<Pending />} label={i18n.language === 'vi' ? 'Chờ xác nhận' : 'Pending'}
                                         value={stats.pendingBookings || 0}
                                         sub={`${stats.totalBookings || 0} ${i18n.language === 'vi' ? 'đặt phòng toàn hệ thống' : 'bookings total'}`}
                                         accent="#e07f2e" />
                                 </Grid>
-                                <Grid item xs={12} sm={6} lg={3}>
+                                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                                     <StatCard icon={<MeetingRoom />} label={i18n.language === 'vi' ? 'Công suất phòng' : 'Occupancy'}
                                         value={`${occupancyPct}%`}
                                         sub={`${stats.occupiedRooms || 0}/${stats.totalRooms || 0} ${i18n.language === 'vi' ? 'phòng đang có khách' : 'rooms occupied'}`}
                                         accent="#7a5fd0" />
                                 </Grid>
-                                <Grid item xs={12} sm={6} lg={3}>
+                                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                                     <StatCard icon={<Event />} label={i18n.language === 'vi' ? 'Nhận / trả phòng hôm nay' : 'Arrivals / departures'}
                                         value={`${arrivalsToday.length} / ${departuresToday.length}`}
                                         sub={i18n.language === 'vi' ? 'lượt nhận phòng / trả phòng' : 'check-ins / check-outs'}
@@ -2029,7 +2021,7 @@ const Dashboard = () => {
                             </Grid>
 
                             <Paper sx={{ p: 2.5, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7', boxShadow: '0 6px 20px rgba(14,36,27,.05)' }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={2}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 2 }}>
                                     <Typography variant="h6" fontWeight={700}>
                                         📊 {i18n.language === 'vi' ? 'Trạng thái đặt phòng' : 'Booking status'}
                                     </Typography>
@@ -2064,7 +2056,7 @@ const Dashboard = () => {
                                 {/* (PHẦN 8) Ấn vào 1 màu trên biểu đồ -> chi tiết đơn của trạng thái đó */}
                                 {selectedStatus && (
                                     <Box sx={{ mt: 2, p: 2, borderRadius: 3, bgcolor: '#fbfdfc', border: '1px solid #e4ece7' }}>
-                                        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={1}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
                                             <Typography variant="subtitle2" fontWeight={800}>
                                                 {{
                                                     PENDING: '⏳ Chờ xác nhận', CONFIRMED: '✅ Đã xác nhận', CHECKED_IN: '🛏️ Đang ở',
@@ -2083,12 +2075,12 @@ const Dashboard = () => {
                                                 .sort((a, b) => new Date(b.createdAt || b.checkInDate) - new Date(a.createdAt || a.checkInDate))
                                                 .slice(0, 8)
                                                 .map((b) => (
-                                                    <Box key={`st-${b.id}`} display="flex" justifyContent="space-between" alignItems="center" gap={1} sx={{ py: 0.9, borderTop: '1px dashed #e7ede8', flexWrap: 'wrap' }}>
+                                                    <Box key={`st-${b.id}`} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1,  py: 0.9, borderTop: '1px dashed #e7ede8', flexWrap: 'wrap' }}>
                                                         <Typography variant="body2">
                                                             <b>#{b.id}</b> • {b.guestFullName || b.user?.fullName || '—'} • {i18n.language === 'vi' ? 'Phòng' : 'Room'} {b.room?.roomNumber || '—'}
                                                             <Typography component="span" variant="caption" color="textSecondary"> {String(b.checkInDate || '').slice(0, 10)} → {String(b.checkOutDate || '').slice(0, 10)}</Typography>
                                                         </Typography>
-                                                        <Box display="flex" alignItems="center" gap={1}>
+                                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                                             <Typography variant="body2" fontWeight={700}>{formatCurrency(b.finalPrice ?? b.totalPrice ?? 0)}</Typography>
                                                             <Button size="small" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', fontWeight: 700 }}>{i18n.language === 'vi' ? 'Xem' : 'View'} →</Button>
                                                         </Box>
@@ -2106,7 +2098,7 @@ const Dashboard = () => {
                             </Paper>
 
                             <Paper sx={{ p: 3, borderRadius: 3 }}>
-                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={3}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2, mb: 3 }}>
                                     <Box>
                                         <Typography variant="h6" fontWeight={700}>
                                             💰 {i18n.language === 'vi' ? 'Thống kê doanh thu' : 'Revenue Statistics'}
@@ -2117,7 +2109,7 @@ const Dashboard = () => {
                                                 : 'By check-in date, confirmed / checked-out bookings only'}
                                         </Typography>
                                     </Box>
-                                    <Box display="flex" gap={1.5} alignItems="center" flexWrap="wrap">
+                                    <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
                                         <ToggleButtonGroup
                                             size="small"
                                             exclusive
@@ -2150,7 +2142,7 @@ const Dashboard = () => {
 
                                 {/* Filter Section — (SỬA PHẦN 3) lọc nhanh + ô chọn kỳ rộng */}
                                 <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: '#f8faf9', borderRadius: 3 }}>
-                                    <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mb={2}>
+                                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center", mb: 2 }}>
                                         <Typography variant="subtitle2" fontWeight={700} sx={{ mr: 1 }}>
                                             📅 {i18n.language === 'vi' ? 'Lọc nhanh:' : 'Quick filter:'}
                                         </Typography>
@@ -2171,44 +2163,18 @@ const Dashboard = () => {
                                         </Button>
                                     </Box>
 
-                                    <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+                                    <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
                                         <Typography variant="body2" color="textSecondary">
                                             {i18n.language === 'vi' ? 'Hoặc chọn kỳ cụ thể:' : 'Or pick a period:'}
                                         </Typography>
                                         {revenuePeriod === 'DAY' && (
-                                            <TextField
-                                                size="small"
-                                                type="date"
-                                                value={selectedDate}
-                                                onChange={(e) => handleDateFilter(e.target.value)}
-                                                sx={{ width: 230 }}
-                                                label={i18n.language === 'vi' ? 'Chọn ngày' : 'Select date'}
-                                                InputLabelProps={{ shrink: true }}
-                                                inputProps={{ lang: 'vi-VN' }}
-                                            />
+                                            <TextField size="small" type="date" value={selectedDate} onChange={(e) => handleDateFilter(e.target.value)} sx={{ width: 230 }} label={i18n.language === 'vi' ? 'Chọn ngày' : 'Select date'} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
                                         )}
                                         {revenuePeriod === 'MONTH' && (
-                                            <TextField
-                                                size="small"
-                                                type="month"
-                                                value={selectedMonth}
-                                                onChange={(e) => handleMonthFilter(e.target.value)}
-                                                sx={{ width: 230 }}
-                                                label={i18n.language === 'vi' ? 'Chọn tháng' : 'Select month'}
-                                                InputLabelProps={{ shrink: true }}
-                                                inputProps={{ lang: 'vi-VN' }}
-                                            />
+                                            <TextField size="small" type="month" value={selectedMonth} onChange={(e) => handleMonthFilter(e.target.value)} sx={{ width: 230 }} label={i18n.language === 'vi' ? 'Chọn tháng' : 'Select month'} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
                                         )}
                                         {revenuePeriod === 'YEAR' && (
-                                            <TextField
-                                                size="small"
-                                                type="number"
-                                                value={selectedYear}
-                                                onChange={(e) => handleYearFilter(e.target.value)}
-                                                sx={{ width: 230 }}
-                                                label={i18n.language === 'vi' ? 'Chọn năm' : 'Select year'}
-                                                inputProps={{ min: 2000, max: 2100 }}
-                                            />
+                                            <TextField size="small" type="number" value={selectedYear} onChange={(e) => handleYearFilter(e.target.value)} sx={{ width: 230 }} label={i18n.language === 'vi' ? 'Chọn năm' : 'Select year'} slotProps={{ htmlInput: { min: 2000, max: 2100 } }} />
                                         )}
                                         <Button
                                             variant="outlined"
@@ -2235,7 +2201,7 @@ const Dashboard = () => {
 
                                 {/* Revenue Data */}
                                 {revenueData.length === 0 ? (
-                                    <Box textAlign="center" py={4}>
+                                    <Box sx={{ textAlign: "center", py: 4 }}>
                                         <Typography variant="body2" color="textSecondary">
                                             {i18n.language === 'vi' ? 'Không có dữ liệu doanh thu' : 'No revenue data'}
                                         </Typography>
@@ -2244,7 +2210,7 @@ const Dashboard = () => {
                                     <Box>
                                         {/* Summary Cards */}
                                         <Grid container spacing={2} mb={3}>
-                                            <Grid item xs={6} sm={3}>
+                                            <Grid size={{ xs: 6, sm: 3 }}>
                                                 <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Tổng doanh thu' : 'Total Revenue'}
@@ -2254,7 +2220,7 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </Paper>
                                             </Grid>
-                                            <Grid item xs={6} sm={3}>
+                                            <Grid size={{ xs: 6, sm: 3 }}>
                                                 <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Số đơn đặt' : 'Total Bookings'}
@@ -2264,7 +2230,7 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </Paper>
                                             </Grid>
-                                            <Grid item xs={6} sm={3}>
+                                            <Grid size={{ xs: 6, sm: 3 }}>
                                                 <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Số khách' : 'Total Guests'}
@@ -2274,7 +2240,7 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </Paper>
                                             </Grid>
-                                            <Grid item xs={6} sm={3}>
+                                            <Grid size={{ xs: 6, sm: 3 }}>
                                                 <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Số phòng' : 'Total Rooms'}
@@ -2288,7 +2254,7 @@ const Dashboard = () => {
 
                                         {/* (THÊM) Chỉ số thông minh */}
                                         <Grid container spacing={2} sx={{ mb: 3 }}>
-                                            <Grid item xs={12} sm={4}>
+                                            <Grid size={{ xs: 12, sm: 4 }}>
                                                 <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Kỳ gần nhất' : 'Latest period'}: {_lastRev?.period || '—'}
@@ -2301,7 +2267,7 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </Paper>
                                             </Grid>
-                                            <Grid item xs={12} sm={4}>
+                                            <Grid size={{ xs: 12, sm: 4 }}>
                                                 <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Doanh thu trung bình / đơn' : 'Avg revenue / booking'}
@@ -2314,7 +2280,7 @@ const Dashboard = () => {
                                                     </Typography>
                                                 </Paper>
                                             </Grid>
-                                            <Grid item xs={12} sm={4}>
+                                            <Grid size={{ xs: 12, sm: 4 }}>
                                                 <Paper sx={{ p: 2, borderRadius: 3, bgcolor: '#f4f8f5', textAlign: 'center' }}>
                                                     <Typography variant="caption" color="textSecondary">
                                                         {i18n.language === 'vi' ? 'Kỳ doanh thu cao nhất' : 'Best period'}
@@ -2409,7 +2375,7 @@ const Dashboard = () => {
                                                                     />
                                                                 </TableCell>
                                                                 <TableCell align="right">
-                                                                    <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                                                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
                                                                         <LinearProgress
                                                                             variant="determinate"
                                                                             value={percentage}
@@ -2477,7 +2443,7 @@ const Dashboard = () => {
                                         {/* (THÊM PHẦN 5) Chi tiết đơn của kỳ được chọn */}
                                         {selectedRevenuePeriod && (
                                             <Paper id="revenue-period-detail" variant="outlined" sx={{ p: 2, mt: 3, borderRadius: 3, bgcolor: '#fbfdfc' }}>
-                                                <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} mb={1.5}>
+                                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
                                                     <Typography variant="subtitle1" fontWeight={700}>
                                                         🧾 {i18n.language === 'vi' ? 'Chi tiết kỳ' : 'Period detail'}: {selectedRevenuePeriod}
                                                         <Chip size="small" label={`${revenueDetailBookings.length} ${i18n.language === 'vi' ? 'đơn' : 'bookings'}`} sx={{ ml: 1 }} />
@@ -2580,7 +2546,7 @@ const Dashboard = () => {
                 fullWidth
             >
                 <DialogTitle sx={{ bgcolor: '#007bff', color: 'white' }}>
-                    <Box display="flex" alignItems="center" gap={1}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                         <Support /> {i18n.language === 'vi' ? 'Hỗ trợ khách hàng' : 'Customer Support'}
                     </Box>
                 </DialogTitle>
@@ -2592,7 +2558,7 @@ const Dashboard = () => {
                     </Typography>
 
                     <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                        <Box display="flex" alignItems="center" gap={2} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2,  mb: 1.5 }}>
                             <Phone sx={{ color: '#007bff' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary">
@@ -2603,7 +2569,7 @@ const Dashboard = () => {
                                 </Typography>
                             </Box>
                         </Box>
-                        <Box display="flex" alignItems="center" gap={2} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2,  mb: 1.5 }}>
                             <Email sx={{ color: '#007bff' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary">
@@ -2614,7 +2580,7 @@ const Dashboard = () => {
                                 </Typography>
                             </Box>
                         </Box>
-                        <Box display="flex" alignItems="center" gap={2}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                             <LocationOn sx={{ color: '#007bff' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary">
@@ -2632,7 +2598,7 @@ const Dashboard = () => {
                     </Typography>
                     <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
                         <Grid container spacing={1}>
-                            <Grid item xs={6}>
+                            <Grid size={{ xs: 6 }}>
                                 <Typography variant="caption" color="textSecondary">
                                     {i18n.language === 'vi' ? 'Thứ 2 - Thứ 6' : 'Mon - Fri'}
                                 </Typography>
@@ -2640,7 +2606,7 @@ const Dashboard = () => {
                                     {supportSettings.supportHours.split(',')[0]?.trim() || '8:00 - 22:00'}
                                 </Typography>
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={{ xs: 6 }}>
                                 <Typography variant="caption" color="textSecondary">
                                     {i18n.language === 'vi' ? 'Thứ 7 - Chủ nhật' : 'Sat - Sun'}
                                 </Typography>
@@ -2651,7 +2617,7 @@ const Dashboard = () => {
                         </Grid>
                     </Paper>
 
-                    <Box mt={2}>
+                    <Box sx={{ mt: 2 }}>
                         <Button
                             fullWidth
                             variant="contained"
@@ -2678,7 +2644,7 @@ const Dashboard = () => {
                 fullWidth
             >
                 <DialogTitle>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Typography variant="h6">
                             🔔 {i18n.language === 'vi' ? 'Thông báo' : 'Notifications'}
                         </Typography>
@@ -2692,7 +2658,7 @@ const Dashboard = () => {
                 </DialogTitle>
                 <DialogContent>
                     {notifications.length === 0 ? (
-                        <Box textAlign="center" py={4}>
+                        <Box sx={{ textAlign: "center", py: 4 }}>
                             <Typography variant="body2" color="textSecondary">
                                 {i18n.language === 'vi' ? 'Không có thông báo nào' : 'No notifications'}
                             </Typography>

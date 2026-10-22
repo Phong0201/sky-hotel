@@ -19,7 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+import { API_BASE_URL } from '../api/config';
 
 const AdminPromotions = () => {
     const { t, i18n } = useTranslation();
@@ -162,9 +162,6 @@ const AdminPromotions = () => {
                 status: formData.status || 'ACTIVE',
                 targetAudience: formData.targetAudience || 'ALL'
             };
-
-            console.log('📤 Sending promotion data:', data);
-
             let response;
             if (editingPromotion) {
                 response = await axios.put(`${API_BASE_URL}/promotions/${editingPromotion.id}`, data, auth);
@@ -173,8 +170,6 @@ const AdminPromotions = () => {
                 response = await axios.post(`${API_BASE_URL}/promotions`, data, auth);
                 toast.success('✅ Tạo khuyến mãi thành công!');
             }
-            
-            console.log('✅ Response:', response.data);
             handleCloseDialog();
             fetchPromotions();
         } catch (error) {
@@ -277,7 +272,7 @@ const AdminPromotions = () => {
 
     if (!isAdmin) {
         return (
-            <Box textAlign="center" py={8}>
+            <Box sx={{ textAlign: "center", py: 8 }}>
                 <Typography variant="h5" color="error">
                     ⛔ Không có quyền truy cập
                 </Typography>
@@ -302,7 +297,7 @@ const AdminPromotions = () => {
 
     return (
         <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={600}>
                         🎉 Quản lý khuyến mãi
@@ -329,7 +324,7 @@ const AdminPromotions = () => {
                     { label: '⏰ Đã hết hạn', value: promoStats.expired, color: '#d9534f', filter: 'EXPIRED' },
                     { label: '🎟️ Tổng lượt đã dùng', value: promoStats.used, color: '#e07f2e' },
                 ].map((item) => (
-                    <Grid item xs={6} md={3} key={item.label}>
+                    <Grid size={{ xs: 6, md: 3 }} key={item.label}>
                         <Paper
                             onClick={item.filter ? () => setPromoFilter(item.filter) : undefined}
                             sx={{
@@ -345,7 +340,7 @@ const AdminPromotions = () => {
                 ))}
             </Grid>
             <Paper sx={{ p: 2, mb: 3, borderRadius: 4, border: '1px solid #e4ece7' }}>
-                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+                <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
                     <TextField
                         size="small" placeholder="Tìm theo mã, tên chương trình..."
                         value={promoSearch} onChange={(e) => setPromoSearch(e.target.value)}
@@ -370,7 +365,7 @@ const AdminPromotions = () => {
 
             <Grid container spacing={3}>
                 {displayPromotions.map((promo) => (
-                    <Grid item xs={12} md={6} lg={4} key={promo.id}>
+                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={promo.id}>
                         <Card sx={{
                             borderRadius: 4, height: '100%', position: 'relative', border: '1px solid #e4ece7',
                             borderTop: `4px solid ${promo._eff === 'ACTIVE' ? '#1f9d63' : promo._eff === 'EXPIRED' ? '#d9534f' : '#bdbdbd'}`,
@@ -379,7 +374,7 @@ const AdminPromotions = () => {
                             '&:hover': { boxShadow: '0 12px 28px rgba(14,36,27,.10)', transform: 'translateY(-3px)' },
                         }}>
                             <CardContent>
-                                <Box display="flex" justifyContent="space-between" alignItems="start">
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
                                     <Box>
                                         <Typography variant="h6" fontWeight={600}>
                                             {promo.name}
@@ -409,7 +404,7 @@ const AdminPromotions = () => {
                                 <Divider sx={{ my: 2 }} />
 
                                 <Grid container spacing={1}>
-                                    <Grid item xs={6}>
+                                    <Grid size={{ xs: 6 }}>
                                         <Typography variant="caption" color="textSecondary">
                                             Giảm giá
                                         </Typography>
@@ -419,7 +414,7 @@ const AdminPromotions = () => {
                                                 : `${promo.discountValue.toLocaleString()}đ`}
                                         </Typography>
                                     </Grid>
-                                    <Grid item xs={6}>
+                                    <Grid size={{ xs: 6 }}>
                                         <Typography variant="caption" color="textSecondary">
                                             Loại
                                         </Typography>
@@ -427,7 +422,7 @@ const AdminPromotions = () => {
                                             {getDiscountTypeLabel(promo.discountType)}
                                         </Typography>
                                     </Grid>
-                                    <Grid item xs={6}>
+                                    <Grid size={{ xs: 6 }}>
                                         <Typography variant="caption" color="textSecondary">
                                             Đã sử dụng
                                         </Typography>
@@ -442,7 +437,7 @@ const AdminPromotions = () => {
                                             />
                                         )}
                                     </Grid>
-                                    <Grid item xs={6}>
+                                    <Grid size={{ xs: 6 }}>
                                         <Typography variant="caption" color="textSecondary">
                                             Đơn tối thiểu
                                         </Typography>
@@ -454,13 +449,13 @@ const AdminPromotions = () => {
 
                                 <Divider sx={{ my: 2 }} />
 
-                                <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <Box>
                                         <Typography variant="caption" color="textSecondary">
                                             {new Date(promo.startDate).toLocaleDateString()} → {new Date(promo.endDate).toLocaleDateString()}
                                         </Typography>
                                     </Box>
-                                    <Box display="flex" gap={0.5}>
+                                    <Box sx={{ display: "flex", gap: 0.5 }}>
                                         <Tooltip title={promo.status === 'ACTIVE' ? 'Vô hiệu hóa' : 'Kích hoạt'}>
                                             <IconButton
                                                 size="small"
@@ -557,88 +552,36 @@ const AdminPromotions = () => {
                             </Select>
                         </FormControl>
                         
-                        <TextField
-                            label={formData.discountType === 'PERCENTAGE' ? 'Giá trị giảm (%) *' : 'Giá trị giảm (VND) *'}
-                            type="number"
-                            value={formData.discountValue}
-                            onChange={(e) => {
+                        <TextField label={formData.discountType === 'PERCENTAGE' ? 'Giá trị giảm (%) *' : 'Giá trị giảm (VND) *'} type="number" value={formData.discountValue} onChange={(e) => {
                                 const val = e.target.value;
                                 setFormData({ ...formData, discountValue: val });
-                            }}
-                            fullWidth
-                            required
-                            error={!formData.discountValue && formData.discountValue !== ''}
-                            InputProps={{
+                            }} fullWidth required error={!formData.discountValue && formData.discountValue !== ''} helperText={formData.discountType === 'PERCENTAGE' ? 'Nhập số từ 1-100' : 'Nhập số tiền giảm'} slotProps={{ input: {
                                 inputProps: { min: 0, step: formData.discountType === 'PERCENTAGE' ? 1 : 1000 }
-                            }}
-                            helperText={formData.discountType === 'PERCENTAGE' ? 'Nhập số từ 1-100' : 'Nhập số tiền giảm'}
-                        />
+                            } }} />
                         
-                        <TextField
-                            label="Đơn hàng tối thiểu (VND)"
-                            type="number"
-                            value={formData.minOrderValue}
-                            onChange={(e) => {
+                        <TextField label="Đơn hàng tối thiểu (VND)" type="number" value={formData.minOrderValue} onChange={(e) => {
                                 const val = e.target.value;
                                 setFormData({ ...formData, minOrderValue: val });
-                            }}
-                            fullWidth
-                            InputProps={{
+                            }} fullWidth helperText="Để trống nếu không có" slotProps={{ input: {
                                 inputProps: { min: 0, step: 1000 }
-                            }}
-                            helperText="Để trống nếu không có"
-                        />
+                            } }} />
                         
-                        <TextField
-                            label="Giảm tối đa (VND)"
-                            type="number"
-                            value={formData.maxDiscount}
-                            onChange={(e) => {
+                        <TextField label="Giảm tối đa (VND)" type="number" value={formData.maxDiscount} onChange={(e) => {
                                 const val = e.target.value;
                                 setFormData({ ...formData, maxDiscount: val });
-                            }}
-                            fullWidth
-                            InputProps={{
+                            }} fullWidth helperText="Chỉ áp dụng cho giảm giá phần trăm. Để trống nếu không có" slotProps={{ input: {
                                 inputProps: { min: 0, step: 1000 }
-                            }}
-                            helperText="Chỉ áp dụng cho giảm giá phần trăm. Để trống nếu không có"
-                        />
+                            } }} />
                         
-                        <TextField
-                            label="Ngày bắt đầu *"
-                            type="datetime-local"
-                            value={formData.startDate}
-                            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                            fullWidth
-                            required
-                            InputLabelProps={{ shrink: true }}
-                            error={!formData.startDate && formData.startDate !== ''}
-                        />
-                        <TextField
-                            label="Ngày kết thúc *"
-                            type="datetime-local"
-                            value={formData.endDate}
-                            onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                            fullWidth
-                            required
-                            InputLabelProps={{ shrink: true }}
-                            error={!formData.endDate && formData.endDate !== ''}
-                        />
+                        <TextField label="Ngày bắt đầu *" type="datetime-local" value={formData.startDate} onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} fullWidth required error={!formData.startDate && formData.startDate !== ''} slotProps={{ inputLabel: { shrink: true } }} />
+                        <TextField label="Ngày kết thúc *" type="datetime-local" value={formData.endDate} onChange={(e) => setFormData({ ...formData, endDate: e.target.value })} fullWidth required error={!formData.endDate && formData.endDate !== ''} slotProps={{ inputLabel: { shrink: true } }} />
                         
-                        <TextField
-                            label="Giới hạn số lần sử dụng"
-                            type="number"
-                            value={formData.usageLimit}
-                            onChange={(e) => {
+                        <TextField label="Giới hạn số lần sử dụng" type="number" value={formData.usageLimit} onChange={(e) => {
                                 const val = e.target.value;
                                 setFormData({ ...formData, usageLimit: val });
-                            }}
-                            fullWidth
-                            InputProps={{
+                            }} fullWidth helperText="Để trống là không giới hạn" slotProps={{ input: {
                                 inputProps: { min: 0 }
-                            }}
-                            helperText="Để trống là không giới hạn"
-                        />
+                            } }} />
                         
                         <FormControl fullWidth>
                             <InputLabel>Trạng thái</InputLabel>

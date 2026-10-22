@@ -161,12 +161,7 @@ const Register = () => {
                             autoComplete="tel"
                             sx={{ ...fieldSx, mb: 3 }}
                         />
-                        <TextField
-                            fullWidth variant="standard" label="Mật khẩu" type={showPassword ? 'text' : 'password'}
-                            value={form.password}
-                            onChange={(e) => setForm({ ...form, password: e.target.value })}
-                            required autoComplete="new-password"
-                            InputProps={{
+                        <TextField fullWidth variant="standard" label="Mật khẩu" type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="new-password" sx={{ ...fieldSx, mb: 3 }} slotProps={{ input: {
                                 endAdornment: (
                                     <InputAdornment position="end">
                                         <IconButton size="small" onClick={() => setShowPassword(!showPassword)} sx={{ color: '#B98A46' }}>
@@ -174,15 +169,8 @@ const Register = () => {
                                         </IconButton>
                                     </InputAdornment>
                                 ),
-                            }}
-                            sx={{ ...fieldSx, mb: 3 }}
-                        />
-                        <TextField
-                            fullWidth variant="standard" label="Xác nhận mật khẩu" type={showConfirm ? 'text' : 'password'}
-                            value={form.confirmPassword}
-                            onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                            required autoComplete="new-password"
-                            InputProps={{
+                            } }} />
+                        <TextField fullWidth variant="standard" label="Xác nhận mật khẩu" type={showConfirm ? 'text' : 'password'} value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} required autoComplete="new-password" sx={fieldSx} slotProps={{ input: {
                                 endAdornment: (
                                     <InputAdornment position="end">
                                         <IconButton size="small" onClick={() => setShowConfirm(!showConfirm)} sx={{ color: '#B98A46' }}>
@@ -190,9 +178,7 @@ const Register = () => {
                                         </IconButton>
                                     </InputAdornment>
                                 ),
-                            }}
-                            sx={fieldSx}
-                        />
+                            } }} />
 
                         <Button type="submit" fullWidth disabled={loading} sx={btnSx}>
                             {loading && <CircularProgress size={16} sx={{ color: '#F6EFE2', mr: 1 }} />}

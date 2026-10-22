@@ -93,7 +93,6 @@ const Bookings = () => {
             if (status && status !== 'ALL') {
                 data = data.filter(b => b.status === status);
             }
-            console.log('📥 Fetched bookings:', data.length, 'status:', status);
             setBookings(data);
             setFiltered(data);
         } catch (error) {
@@ -322,7 +321,7 @@ const Bookings = () => {
 
     if (!canManage) {
         return (
-            <Box textAlign="center" py={8}>
+            <Box sx={{ textAlign: "center", py: 8 }}>
                 <Typography variant="h5" color="error">
                     ⛔ {i18n.language === 'vi' ? 'Không có quyền truy cập' : 'Access Denied'}
                 </Typography>
@@ -335,7 +334,7 @@ const Bookings = () => {
     return (
         <Box>
             {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={600}>
                         📋 {i18n.language === 'vi' ? 'Quản lý đặt phòng' : 'Manage Bookings'}
@@ -354,7 +353,7 @@ const Bookings = () => {
                         )}
                     </Typography>
                 </Box>
-                <Box display="flex" gap={1}>
+                <Box sx={{ display: "flex", gap: 1 }}>
                     {selectedIds.length > 0 && (
                         <Button
                             variant="contained"
@@ -401,7 +400,7 @@ const Bookings = () => {
                     { label: i18n.language === 'vi' ? '🛎️ Nhận phòng hôm nay' : '🛎️ Arrivals today', value: _arrToday, color: '#2f7fd1' },
                     { label: i18n.language === 'vi' ? '🧳 Trả phòng hôm nay' : '🧳 Departures today', value: _depToday, color: '#7a5fd0' },
                 ].map((item) => (
-                    <Grid item xs={6} md={3} key={item.label}>
+                    <Grid size={{ xs: 6, md: 3 }} key={item.label}>
                         <Paper
                             onClick={item.onClick}
                             sx={{
@@ -464,25 +463,18 @@ const Bookings = () => {
 
             {/* Filters */}
             <Paper sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                        <TextField
-                            fullWidth
-                            size="small"
-                            placeholder={i18n.language === 'vi' ? '🔍 Tìm theo tên, SĐT, phòng...' : '🔍 Search by name, phone, room...'}
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            InputProps={{
+                <Grid sx={{ alignItems: "center" }} container spacing={2}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                        <TextField fullWidth size="small" placeholder={i18n.language === 'vi' ? '🔍 Tìm theo tên, SĐT, phòng...' : '🔍 Search by name, phone, room...'} value={search} onChange={(e) => setSearch(e.target.value)} slotProps={{ input: {
                                 startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>,
                                 endAdornment: search && (
                                     <IconButton size="small" onClick={() => setSearch('')}>
                                         <Close fontSize="small" />
                                     </IconButton>
                                 )
-                            }}
-                        />
+                            } }} />
                     </Grid>
-                    <Grid item xs={6} md={2}>
+                    <Grid size={{ xs: 6, md: 2 }}>
                         <FormControl fullWidth size="small">
                             <InputLabel>{i18n.language === 'vi' ? 'Sắp xếp' : 'Sort'}</InputLabel>
                             <Select value={sort} onChange={(e) => setSort(e.target.value)} label={i18n.language === 'vi' ? 'Sắp xếp' : 'Sort'}>
@@ -495,7 +487,7 @@ const Bookings = () => {
                             </Select>
                         </FormControl>
                     </Grid>
-                    <Grid item xs={6} md={4}>
+                    <Grid size={{ xs: 6, md: 4 }}>
                         <Button
                             fullWidth
                             variant="outlined"
@@ -510,7 +502,7 @@ const Bookings = () => {
                             {i18n.language === 'vi' ? 'Xóa lọc' : 'Clear filters'}
                         </Button>
                     </Grid>
-                    <Grid item xs={12} md={2}>
+                    <Grid size={{ xs: 12, md: 2 }}>
                         <Typography variant="caption" color="textSecondary" align="center" display="block">
                             {i18n.language === 'vi'
                                 ? `Hiển thị ${filtered.length} đặt phòng`
@@ -567,7 +559,7 @@ const Bookings = () => {
                                 </TableCell>
                                 <TableCell>#{b.id}</TableCell>
                                 <TableCell>
-                                    <Box display="flex" alignItems="center" gap={1}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                         <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
                                             {(b.guestFullName || b.user?.fullName || b.user?.username || 'U').charAt(0)}
                                         </Avatar>
@@ -609,7 +601,7 @@ const Bookings = () => {
                                     />
                                 </TableCell>
                                 <TableCell align="center">
-                                    <Box display="flex" justifyContent="center" gap={0.5}>
+                                    <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5 }}>
                                         <Tooltip title={i18n.language === 'vi' ? 'Chi tiết' : 'Details'}>
                                             <IconButton
                                                 size="small"
@@ -711,7 +703,7 @@ const Bookings = () => {
 
             {/* Pagination */}
             {filtered.length > rowsPerPage && (
-                <Box display="flex" justifyContent="center" sx={{ mt: 3 }}>
+                <Box sx={{ display: "flex", justifyContent: "center",  mt: 3 }}>
                     <Pagination
                         count={Math.ceil(filtered.length / rowsPerPage)}
                         page={page}
@@ -734,11 +726,11 @@ const Bookings = () => {
                             ? `Bạn có chắc muốn xóa ${selectedIds.length} đặt phòng đã chọn? Hành động này không thể hoàn tác!`
                             : `Are you sure you want to delete ${selectedIds.length} selected bookings? This action cannot be undone!`}
                     </Alert>
-                    <Box mt={2}>
+                    <Box sx={{ mt: 2 }}>
                         <Typography variant="body2" color="textSecondary">
                             {i18n.language === 'vi' ? 'Các đặt phòng sẽ bị xóa:' : 'Bookings to be deleted:'}
                         </Typography>
-                        <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}>
                             {selectedIds.map(id => (
                                 <Chip key={id} label={`#${id}`} size="small" color="error" variant="outlined" />
                             ))}

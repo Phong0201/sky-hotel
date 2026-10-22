@@ -223,19 +223,8 @@ const ForgotPassword = () => {
                                 Mã có hiệu lực trong 10 phút
                             </Typography>
 
-                            <TextField
-                                fullWidth variant="standard" label="Mã xác nhận (OTP)"
-                                value={otp}
-                                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                inputProps={{ maxLength: 6, style: { letterSpacing: '0.5em', fontSize: '1.3rem', textAlign: 'center', fontWeight: 600 } }}
-                                autoFocus required sx={{ ...fieldSx, mb: 2.5 }}
-                            />
-                            <TextField
-                                fullWidth variant="standard" label="Mật khẩu mới" type={showPassword ? 'text' : 'password'}
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                required autoComplete="new-password"
-                                InputProps={{
+                            <TextField fullWidth variant="standard" label="Mã xác nhận (OTP)" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus required sx={{ ...fieldSx, mb: 2.5 }} slotProps={{ htmlInput: { maxLength: 6, style: { letterSpacing: '0.5em', fontSize: '1.3rem', textAlign: 'center', fontWeight: 600 } } }} />
+                            <TextField fullWidth variant="standard" label="Mật khẩu mới" type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required autoComplete="new-password" sx={{ ...fieldSx, mb: 3 }} slotProps={{ input: {
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton size="small" onClick={() => setShowPassword(!showPassword)} sx={{ color: '#B98A46' }}>
@@ -243,15 +232,8 @@ const ForgotPassword = () => {
                                             </IconButton>
                                         </InputAdornment>
                                     ),
-                                }}
-                                sx={{ ...fieldSx, mb: 3 }}
-                            />
-                            <TextField
-                                fullWidth variant="standard" label="Xác nhận mật khẩu mới" type={showConfirm ? 'text' : 'password'}
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required autoComplete="new-password"
-                                InputProps={{
+                                } }} />
+                            <TextField fullWidth variant="standard" label="Xác nhận mật khẩu mới" type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password" sx={fieldSx} slotProps={{ input: {
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton size="small" onClick={() => setShowConfirm(!showConfirm)} sx={{ color: '#B98A46' }}>
@@ -259,9 +241,7 @@ const ForgotPassword = () => {
                                             </IconButton>
                                         </InputAdornment>
                                     ),
-                                }}
-                                sx={fieldSx}
-                            />
+                                } }} />
 
                             <Button type="submit" fullWidth disabled={loading} sx={btnSx}>
                                 {loading && <CircularProgress size={16} sx={{ color: '#F6EFE2', mr: 1 }} />}

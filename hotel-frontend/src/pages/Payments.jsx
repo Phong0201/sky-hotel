@@ -165,7 +165,7 @@ const Payments = () => {
     const StatCard = ({ icon, title, value, color, sub }) => (
         <Card sx={{ borderRadius: 3, height: '100%' }} elevation={2}>
             <CardContent>
-                <Box display="flex" alignItems="center" gap={1.5}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                     {icon}
                     <Typography variant="body2" color="textSecondary">{title}</Typography>
                 </Box>
@@ -179,7 +179,7 @@ const Payments = () => {
 
     return (
         <Box>
-            <Box display="flex" gap={1}>
+            <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                     variant="outlined" startIcon={<Download />}
                     onClick={handleExportPaymentsCsv}
@@ -196,7 +196,7 @@ const Payments = () => {
 
             {/* Thống kê */}
             <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         icon={<AttachMoney color="success" />}
                         title="Tổng tiền đã thu"
@@ -205,7 +205,7 @@ const Payments = () => {
                         color="success.main"
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         icon={<Today color="primary" />}
                         title="Thu hôm nay"
@@ -213,7 +213,7 @@ const Payments = () => {
                         color="primary.main"
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         icon={<CalendarMonth color="info" />}
                         title="Tháng này"
@@ -221,7 +221,7 @@ const Payments = () => {
                         color="info.main"
                     />
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <StatCard
                         icon={<HourglassEmpty color="warning" />}
                         title="Chờ xác nhận"
@@ -234,17 +234,12 @@ const Payments = () => {
 
             {/* Bộ lọc — (SỬA PHẦN 11) ô rộng tối thiểu 180px, hết đè chữ/đè ngày */}
             <Paper sx={{ p: 2, borderRadius: 4, mb: 3, border: '1px solid #e4ece7' }}>
-                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
-                    <TextField
-                        size="small" placeholder="Tìm mã GD, mã booking, tên khách..."
-                        value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-                        sx={{ flex: '2 1 280px', minWidth: 240 }}
-                        InputProps={{
+                <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+                    <TextField size="small" placeholder="Tìm mã GD, mã booking, tên khách..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} sx={{ flex: '2 1 280px', minWidth: 240 }} slotProps={{ input: {
                             startAdornment: (
                                 <InputAdornment position="start"><Search /></InputAdornment>
                             )
-                        }}
-                    />
+                        } }} />
                     <TextField select size="small" label="Trạng thái"
                         value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
                         sx={{ flex: '1 1 180px', minWidth: 180 }}>
@@ -263,16 +258,10 @@ const Payments = () => {
                         <MenuItem value="BANK_TRANSFER">🏧 Chuyển khoản</MenuItem>
                         <MenuItem value="CASH">💵 Tiền mặt</MenuItem>
                     </TextField>
-                    <TextField type="date" size="small" label="Từ ngày"
-                        value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }}
-                        InputLabelProps={{ shrink: true }} inputProps={{ lang: 'vi-VN' }}
-                        sx={{ flex: '1 1 180px', minWidth: 180 }} />
-                    <TextField type="date" size="small" label="Đến ngày"
-                        value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }}
-                        InputLabelProps={{ shrink: true }} inputProps={{ lang: 'vi-VN' }}
-                        sx={{ flex: '1 1 180px', minWidth: 180 }} />
+                    <TextField type="date" size="small" label="Từ ngày" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} sx={{ flex: '1 1 180px', minWidth: 180 }} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
+                    <TextField type="date" size="small" label="Đến ngày" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} sx={{ flex: '1 1 180px', minWidth: 180 }} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
                 </Box>
-                <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" mt={1.5}>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center", mt: 1.5 }}>
                     <Typography variant="caption" fontWeight={700} color="textSecondary">Lọc nhanh:</Typography>
                     {[
                         { key: 'ALL', label: 'Tất cả' },

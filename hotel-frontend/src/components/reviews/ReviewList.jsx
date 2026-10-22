@@ -72,7 +72,7 @@ const ReviewList = () => {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
                 <CircularProgress size={40} />
             </Box>
         );
@@ -80,7 +80,7 @@ const ReviewList = () => {
 
     if (reviews.length === 0) {
         return (
-            <Box textAlign="center" py={4}>
+            <Box sx={{ textAlign: "center", py: 4 }}>
                 <Typography variant="h6" color="textSecondary">No reviews yet</Typography>
                 <Typography variant="body2" color="textSecondary">
                     {canManage ? 'No reviews from customers' : 'You haven\'t written any reviews'}
@@ -97,11 +97,11 @@ const ReviewList = () => {
 
             <Grid container spacing={3}>
                 {reviews.map((review) => (
-                    <Grid item xs={12} key={review.id}>
+                    <Grid size={{ xs: 12 }} key={review.id}>
                         <Card sx={{ borderRadius: 3, '&:hover': { boxShadow: 6 } }}>
                             <CardContent>
-                                <Box display="flex" justifyContent="space-between" alignItems="start">
-                                    <Box display="flex" alignItems="center" gap={2}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                                         <Avatar sx={{ bgcolor: 'primary.main' }}>
                                             <Person />
                                         </Avatar>
@@ -109,7 +109,7 @@ const ReviewList = () => {
                                             <Typography variant="subtitle1" fontWeight={600}>
                                                 {review.user?.fullName || review.user?.username}
                                             </Typography>
-                                            <Box display="flex" alignItems="center" gap={1}>
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                                 <Rating value={review.rating} readOnly size="small" />
                                                 <Typography variant="caption" color="textSecondary">
                                                     {review.rating} ★
@@ -117,7 +117,7 @@ const ReviewList = () => {
                                             </Box>
                                         </Box>
                                     </Box>
-                                    <Box display="flex" gap={1}>
+                                    <Box sx={{ display: "flex", gap: 1 }}>
                                         {canManage && (
                                             <Tooltip title="Reply">
                                                 <IconButton 

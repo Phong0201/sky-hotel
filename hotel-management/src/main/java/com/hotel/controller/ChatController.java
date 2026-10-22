@@ -230,13 +230,18 @@ public class ChatController {
     }
 
     private Long getAdminId() {
-        // Co dinh id=1 (tai khoan "admin" that su) de dong bo voi ADMIN_ID
-        // hardcode ben frontend (ChatContext.jsx). KHONG dung
-        // userService.getUsersByRole("ADMIN") nua vi neu he thong co nhieu
-        // hon 1 tai khoan mang role ADMIN (vi du: nhan vien le tan bi gan
-        // nham role ADMIN), ham do se co the chon nham tai khoan khac,
-        // lam sai lech toan bo tinh nang dem tin chua doc / lich su chat.
-        return 1L;
+        // (SỬA) Tìm tài khoản ADMIN thật (id nhỏ nhất trong các tài khoản ADMIN)
+        // thay vì ghim cứng id = 1. Ghim cứng chỉ đúng khi admin tình cờ là
+        // user đầu tiên; khác id là phòng chat lệch nhau, tin chưa đọc
+        // không bao giờ đếm được.
+        try {
+            return userRepository.findByRole("ADMIN").stream()
+                    .map(User::getId)
+                    .min(Long::compareTo)
+                    .orElse(1L);
+        } catch (Exception e) {
+            return 1L;
+        }
     }
 
     private User me(Authentication auth) {

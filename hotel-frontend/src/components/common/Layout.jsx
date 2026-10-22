@@ -126,31 +126,31 @@ const Layout = () => {
     };
 
     const userMenuItems = [
-        { text: `🏠 ${t('nav.home')}`, icon: <HomeIcon />, path: '/' },
-        { text: `📊 ${t('nav.dashboard')}`, icon: <Dashboard />, path: '/dashboard' },
-        { text: `💬 ${t('nav.chat')}`, icon: <ChatIcon />, path: '/chat' },
-        { text: `🔔 ${t('nav.notifications')}`, icon: <NotificationsIcon />, path: '/notifications' },
-        { text: `📋 ${t('nav.myBookings')}`, icon: <Hotel />, path: '/my-bookings' },
-        { text: `🏨 ${t('nav.rooms')}`, icon: <MeetingRoom />, path: '/rooms' },
+        { text: `${t('nav.home')}`, icon: <HomeIcon />, path: '/' },
+        { text: `${t('nav.dashboard')}`, icon: <Dashboard />, path: '/dashboard' },
+        { text: `${t('nav.chat')}`, icon: <ChatIcon />, path: '/chat' },
+        { text: `${t('nav.notifications')}`, icon: <NotificationsIcon />, path: '/notifications' },
+        { text: `${t('nav.myBookings')}`, icon: <Hotel />, path: '/my-bookings' },
+        { text: `${t('nav.rooms')}`, icon: <MeetingRoom />, path: '/rooms' },
     ];
 
     const adminMenuItems = [
-        { text: `📊 ${t('nav.dashboard')}`, icon: <Dashboard />, path: '/dashboard' },
-        { text: '💰 Doanh thu', icon: <AttachMoney />, path: '/revenue' },
-        { text: '🛎️ Nhận / trả phòng', icon: <EventAvailable />, path: '/operations' },
-        { text: `💬 ${t('nav.chat')}`, icon: <ChatIcon />, path: '/chat' },
-        { text: `🔔 ${t('nav.notifications')}`, icon: <NotificationsIcon />, path: '/notifications' },
-        { text: `⭐ ${t('nav.reviews')}`, icon: <RateReview />, path: '/admin/reviews' },
-        { text: `📋 ${t('nav.bookings')}`, icon: <Hotel />, path: '/bookings' },
-        { text: `🛏️ ${t('nav.manageRooms')}`, icon: <MeetingRoom />, path: '/admin/rooms' },
-        { text: `💳 ${t('nav.payments')}`, icon: <PaymentsIcon />, path: '/payments' },
-        { text: `👤 ${t('nav.users')}`, icon: <People />, path: '/users' },
+        { text: `${t('nav.dashboard')}`, icon: <Dashboard />, path: '/dashboard' },
+        { text: 'Doanh thu', icon: <AttachMoney />, path: '/revenue' },
+        { text: 'Nhận / trả phòng', icon: <EventAvailable />, path: '/operations' },
+        { text: `${t('nav.chat')}`, icon: <ChatIcon />, path: '/chat' },
+        { text: `${t('nav.notifications')}`, icon: <NotificationsIcon />, path: '/notifications' },
+        { text: `${t('nav.reviews')}`, icon: <RateReview />, path: '/admin/reviews' },
+        { text: `${t('nav.bookings')}`, icon: <Hotel />, path: '/bookings' },
+        { text: `${t('nav.manageRooms')}`, icon: <MeetingRoom />, path: '/admin/rooms' },
+        { text: `${t('nav.payments')}`, icon: <PaymentsIcon />, path: '/payments' },
+        { text: `${t('nav.users')}`, icon: <People />, path: '/users' },
     ];
 
     const superAdminMenuItems = [
-        { text: `🎉 ${t('nav.promotions')}`, icon: <LocalOffer />, path: '/admin/promotions' },
-        { text: '⭐ Khách hàng thân thiết', icon: <WorkspacePremium />, path: '/admin/loyalty' },
-        { text: `⚙️ ${t('nav.settings')}`, icon: <SettingsIcon />, path: '/settings' },
+        { text: `${t('nav.promotions')}`, icon: <LocalOffer />, path: '/admin/promotions' },
+        { text: 'Khách hàng thân thiết', icon: <WorkspacePremium />, path: '/admin/loyalty' },
+        { text: `${t('nav.settings')}`, icon: <SettingsIcon />, path: '/settings' },
     ];
 
     let menuItems = userMenuItems;

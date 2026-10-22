@@ -749,7 +749,7 @@ const RoomDetail = () => {
         </Paper>
 
         <Grid container spacing={2.5} sx={{ mt: { xs: 1, md: 1.5 } }}>
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Paper sx={{ p: { xs: 2.5, md: 3.5 }, borderRadius: 3.5, bgcolor: '#fff', border: '1px solid #ebe9e2', boxShadow: '0 8px 30px rgba(40,52,46,0.045)' }}>
               <Typography variant="overline" sx={{ color: '#a18a65', fontWeight: 800, letterSpacing: '0.14em' }}>THE SPACE</Typography>
               <Typography variant="h5" sx={{ mt: 0.25, mb: 1.5, fontWeight: 750, letterSpacing: '-0.03em', color: '#20342d' }}>
@@ -765,7 +765,7 @@ const RoomDetail = () => {
                   { icon: <Bed sx={{ fontSize: 21 }} />, label: 'Vị trí', value: `Tầng ${room.floor}` },
                   { icon: <Hotel sx={{ fontSize: 21 }} />, label: 'Hạng phòng', value: roomTypeLabel }
                 ].map((item) => (
-                  <Grid item xs={12} sm={4} key={item.label}>
+                  <Grid size={{ xs: 12, sm: 4 }} key={item.label}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, height: '100%', p: 1.5, borderRadius: 2.5, bgcolor: '#f7f8f5', border: '1px solid #eff0eb' }}>
                       <Avatar sx={{ bgcolor: '#e8eee8', color: '#315f53', width: 42, height: 42 }}>{item.icon}</Avatar>
                       <Box sx={{ minWidth: 0 }}>
@@ -790,7 +790,7 @@ const RoomDetail = () => {
                 {roomAmenities.map((name, index) => {
                   const color = AMENITY_COLORS[index % AMENITY_COLORS.length];
                   return (
-                    <Grid item xs={6} sm={4} key={`${name}-${index}`}>
+                    <Grid size={{ xs: 6, sm: 4 }} key={`${name}-${index}`}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, p: 1.5, height: '100%', borderRadius: 2.5, border: '1px solid #eff0eb', transition: 'all 180ms ease', '&:hover': { bgcolor: '#f8f9f6', borderColor: '#dce5dd', transform: 'translateY(-2px)' } }}>
                         <Avatar sx={{ bgcolor: `${color}16`, color, width: 40, height: 40 }}>{amenityMeta(name)}</Avatar>
                         <Typography variant="body2" sx={{ color: '#44534c', fontWeight: 600 }}>{name}</Typography>
@@ -802,7 +802,7 @@ const RoomDetail = () => {
             </Paper>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ position: { md: 'sticky' }, top: { md: 94 } }}>
               <Paper sx={{ overflow: 'hidden', borderRadius: 3.5, bgcolor: '#fff', border: '1px solid #e5e7df', boxShadow: '0 18px 48px rgba(31,55,45,0.10)' }}>
                 <Box sx={{ p: { xs: 2.5, md: 3 }, bgcolor: '#173f36', color: '#fff', backgroundImage: 'radial-gradient(circle at 100% 0%, rgba(211,182,126,0.24), transparent 42%)' }}>

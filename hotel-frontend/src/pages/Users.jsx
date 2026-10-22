@@ -129,33 +129,26 @@ const Users = () => {
       />
 
       <Grid container spacing={2.5} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <StatCard icon={<span>👥</span>} label="Tổng người dùng" value={users.length} accent="#1f9d63" />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <StatCard icon={<span>🧑</span>} label="Khách hàng" value={users.filter(u => u.role === 'GUEST').length} accent="#2f7fd1" />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <StatCard icon={<span>🛎️</span>} label="Lễ tân" value={users.filter(u => u.role === 'RECEPTIONIST').length} accent="#e07f2e" />
         </Grid>
-        <Grid item xs={12} sm={6} lg={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
           <StatCard icon={<span>🛡️</span>} label="Quản trị viên" value={users.filter(u => u.role === 'ADMIN').length} accent="#d9534f" />
         </Grid>
       </Grid>
 
       <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7', display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <TextField
-          size="small"
-          placeholder="Tìm theo tên, username, email, số điện thoại..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          sx={{ flex: '1 1 280px' }}
-          InputProps={{
+        <TextField size="small" placeholder="Tìm theo tên, username, email, số điện thoại..." value={search} onChange={(e) => setSearch(e.target.value)} sx={{ flex: '1 1 280px' }} slotProps={{ input: {
             startAdornment: (
               <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>
             ),
-          }}
-        />
+          } }} />
         <TextField
           select size="small" label="Vai trò" value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}

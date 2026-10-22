@@ -31,7 +31,6 @@ const PaymentResult = () => {
                 const res = await paymentAPI.getById(paymentId);
                 setPayment(res.data);
             } catch (e) {
-                console.log('Không lấy được chi tiết giao dịch:', e?.message);
             } finally {
                 setLoading(false);
             }
@@ -44,10 +43,10 @@ const PaymentResult = () => {
     const isPaid = payment?.paymentStatus === 'COMPLETED';
 
     return (
-        <Box display="flex" justifyContent="center" alignItems="flex-start" minHeight="80vh" py={6}>
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "flex-start", minHeight: "80vh", py: 6 }}>
             <Paper sx={{ width: '100%', maxWidth: 520, borderRadius: 3, p: 4, textAlign: 'center' }} elevation={4}>
                 {loading ? (
-                    <Box py={4}>
+                    <Box sx={{ py: 4 }}>
                         <CircularProgress />
                         <Typography color="textSecondary" sx={{ mt: 2 }}>Đang cập nhật kết quả...</Typography>
                     </Box>
@@ -72,19 +71,19 @@ const PaymentResult = () => {
                         {payment && (
                             <Box sx={{ mt: 3, textAlign: 'left' }}>
                                 <Divider sx={{ mb: 2 }} />
-                                <Box display="flex" justifyContent="space-between" py={0.5}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.5 }}>
                                     <Typography color="textSecondary">Mã giao dịch</Typography>
                                     <Typography fontWeight={500}>{payment.transactionId || ('#' + payment.id)}</Typography>
                                 </Box>
-                                <Box display="flex" justifyContent="space-between" py={0.5}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.5 }}>
                                     <Typography color="textSecondary">Phương thức</Typography>
                                     <Typography fontWeight={500}>{payment.paymentMethod}</Typography>
                                 </Box>
-                                <Box display="flex" justifyContent="space-between" py={0.5}>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.5 }}>
                                     <Typography color="textSecondary">Số tiền</Typography>
                                     <Typography fontWeight={700} color="primary">{formatCurrency(payment.amount)}</Typography>
                                 </Box>
-                                <Box display="flex" justifyContent="space-between" py={0.5} alignItems="center">
+                                <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.5, alignItems: "center" }}>
                                     <Typography color="textSecondary">Trạng thái</Typography>
                                     <Chip
                                         size="small"

@@ -120,7 +120,7 @@ const PaymentDialog = ({ open, onClose, booking, onUpdated }) => {
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box display="flex" alignItems="center" gap={1}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <span>💳</span>
                     <Typography variant="h6" fontWeight={600}>
                         {L(`Thanh toán đặt phòng #${booking?.id}`, `Payment for booking #${booking?.id}`)}
@@ -147,12 +147,12 @@ const PaymentDialog = ({ open, onClose, booking, onUpdated }) => {
                 )}
 
                 {loading ? (
-                    <Box display="flex" justifyContent="center" py={3}><CircularProgress /></Box>
+                    <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}><CircularProgress /></Box>
                 ) : (
                     <>
                         {/* Danh sách giao dịch đã có */}
                         {payments.length > 0 && (
-                            <Box mb={2}>
+                            <Box sx={{ mb: 2 }}>
                                 <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                                     📜 {L('Lịch sử giao dịch', 'Transaction history')}
                                 </Typography>
@@ -193,7 +193,7 @@ const PaymentDialog = ({ open, onClose, booking, onUpdated }) => {
                                         label={L('💵 Tiền mặt tại quầy lễ tân', '💵 Cash at reception desk')} />
                                 </RadioGroup>
 
-                                <Box mt={2}>
+                                <Box sx={{ mt: 2 }}>
                                     {method === 'VNPAY' && (
                                         <>
                                             <Alert severity="info" icon={<Info />} sx={{ mb: 2 }}>

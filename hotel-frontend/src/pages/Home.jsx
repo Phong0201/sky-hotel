@@ -31,6 +31,7 @@ import { reviewAPI } from '../api/review';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/common/Logo';
 import ContactBubble from '../components/common/ContactBubble';
+import RoomTypeCarousel, { groupRoomsForDisplay } from '../components/rooms/RoomTypeCarousel';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
@@ -120,6 +121,11 @@ const Home = () => {
   const [reviews, setReviews] = useState([]);
   const [filteredReviews, setFilteredReviews] = useState([]);
   const [amenityDetails, setAmenityDetails] = useState([]);
+  // Tên nhóm loại phòng do admin đặt trong Cài đặt (trống = dùng tên mặc định)
+  const [roomTypeLabels, setRoomTypeLabels] = useState({});
+  // Danh sách nhóm phòng tạo trong Cài đặt (thứ tự hiển thị nhóm)
+  const [roomGroupOptions, setRoomGroupOptions] = useState([]);
+  const typeLabel = (type) => roomTypeLabels[type] || getRoomTypeLabel(type, isVietnamese);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState(null);
   const [mobileNavAnchor, setMobileNavAnchor] = useState(null);
 
@@ -142,6 +148,13 @@ const Home = () => {
   });
 
   const [filteredRooms, setFilteredRooms] = useState([]);
+  // Trang chủ chỉ xem trước: tối đa 4 nhóm, mỗi nhóm 8 phòng (đầy đủ ở trang /rooms)
+  const HOME_MAX_GROUPS = 4;
+  const HOME_MAX_ROOMS_PER_GROUP = 8;
+  const homeGroups = groupRoomsForDisplay(filteredRooms, roomGroupOptions)
+    .slice(0, HOME_MAX_GROUPS)
+    .map((g) => ({ ...g, total: g.rooms.length, rooms: g.rooms.slice(0, HOME_MAX_ROOMS_PER_GROUP) }));
+  const homeShownRooms = homeGroups.reduce((sum, g) => sum + g.rooms.length, 0);
   const [roomSearchPool, setRoomSearchPool] = useState(null);
   const [reviewData, setReviewData] = useState({
     rating: 0,
@@ -236,6 +249,21 @@ const Home = () => {
       }
 
       setAmenityDetails(parsedAmenities);
+
+      const labelOverrides = {};
+      Object.keys(settingsMap).forEach((key) => {
+        if (key.startsWith('roomTypeLabel_') && settingsMap[key]) {
+          labelOverrides[key.replace('roomTypeLabel_', '')] = settingsMap[key];
+        }
+      });
+      setRoomTypeLabels(labelOverrides);
+
+      try {
+        const parsedGroups = JSON.parse(settingsMap.roomGroups || '[]');
+        if (Array.isArray(parsedGroups)) {
+          setRoomGroupOptions(parsedGroups.filter((g) => typeof g === 'string' && g.trim()));
+        }
+      } catch { /* bỏ qua nếu JSON lỗi */ }
 
       setSupportSettings((previous) => ({
         ...previous,
@@ -368,9 +396,7 @@ const Home = () => {
   // ============ FETCH REVIEWS ============
   const fetchReviews = async () => {
     try {
-      console.log('🔍 Fetching reviews...');
       const res = await axios.get(`${API_BASE_URL}/api/reviews`);
-      console.log('📥 Response data:', res.data);
 
       let data = [];
       if (Array.isArray(res.data)) {
@@ -393,8 +419,6 @@ const Home = () => {
         }
       }
 
-      console.log('✅ Processed reviews:', data);
-      console.log('✅ Number of reviews:', data.length);
 
       setReviews(data);
       setFilteredReviews(data);
@@ -805,7 +829,7 @@ const Home = () => {
               boxShadow: '0 20px 55px rgba(0,0,0,.2)'
             }}
           >
-            <Grid container spacing={1.5} alignItems="flex-end">
+            <Grid sx={{ alignItems: "flex-end" }} container spacing={1.5}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <Typography
                   variant="caption"
@@ -894,25 +918,18 @@ const Home = () => {
                 >
                   Số khách
                 </Typography>
-                <TextField
-                  fullWidth
-                  type="number"
-                  value={searchParams.guests}
-                  inputProps={{ min: 1, max: 10 }}
-                  onChange={(event) =>
+                <TextField fullWidth type="number" value={searchParams.guests} onChange={(event) =>
                     setSearchParams({
                       ...searchParams,
                       guests: Math.max(1, Number(event.target.value) || 1)
                     })
-                  }
-                  sx={{
+                  } sx={{
                     '& .MuiOutlinedInput-root': {
                       height: 54,
                       bgcolor: '#fff',
                       borderRadius: 2
                     }
-                  }}
-                />
+                  }} slotProps={{ htmlInput: { min: 1, max: 10 } }} />
               </Grid>
 
               <Grid size={{ xs: 6, md: 2 }}>
@@ -1251,9 +1268,15 @@ const Home = () => {
 
       {/* Danh sách phòng - GIỮ NGUYÊN */}
       <Container id="home-rooms" maxWidth="lg" sx={{ py: 4, scrollMarginTop: 80 }}>
-        <Typography variant="h5" fontWeight={700} gutterBottom>🏠 {t('home.roomList') || 'Danh sách phòng'}</Typography>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3, alignItems: 'stretch' }}>
-          {filteredRooms.map((room) => (
+        {homeGroups.map((group) => (
+          <RoomTypeCarousel
+            key={group.key}
+            title={group.groupName || typeLabel(group.type)}
+            countLabel={`${group.total ?? group.rooms.length} ${isVietnamese ? 'phòng' : 'rooms'}`}
+            rooms={group.rooms}
+            onViewAll={() => navigate(group.groupName ? `/rooms?group=${encodeURIComponent(group.groupName)}` : `/rooms?type=${group.type}`)}
+            viewAllLabel={isVietnamese ? 'Xem tất cả' : 'View all'}
+            renderRoom={(room) => (
               <Card
                 key={room.id}
                 onClick={() => navigate(`/rooms/${room.id}`)}
@@ -1333,7 +1356,7 @@ const Home = () => {
                 </Box>
 
                 <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <Typography variant="h6" fontWeight={700}>
                       {t('home.room') || 'Phòng'} {room.roomNumber}
                     </Typography>
@@ -1380,7 +1403,7 @@ const Home = () => {
                     />
                   </Box>
 
-                  <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 'auto', pt: 2 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center",  mt: 'auto', pt: 2 }}>
                     <Button
                       variant="contained"
                       disabled={room.status === 'MAINTENANCE'}
@@ -1405,10 +1428,22 @@ const Home = () => {
                   </Box>
                 </CardContent>
               </Card>
-          ))}
-        </Box>
+            )}
+          />
+        ))}
+        {homeShownRooms < filteredRooms.length && (
+          <Box sx={{ textAlign: 'center', mt: 0.5, mb: 2 }}>
+            <Button
+              variant="contained"
+              onClick={() => navigate('/rooms')}
+              sx={{ bgcolor: '#174c40', borderRadius: 999, px: 4, py: 1.2, textTransform: 'none', fontWeight: 700, '&:hover': { bgcolor: '#103c32' } }}
+            >
+              {isVietnamese ? `Xem tất cả ${filteredRooms.length} phòng` : `View all ${filteredRooms.length} rooms`}
+            </Button>
+          </Box>
+        )}
         {filteredRooms.length === 0 && (
-          <Box textAlign="center" py={8}>
+          <Box sx={{ textAlign: "center", py: 8 }}>
             <Typography variant="h6" color="textSecondary">{t('home.noRoomsFound') || 'Không tìm thấy phòng phù hợp'}</Typography>
           </Box>
         )}
@@ -1422,11 +1457,11 @@ const Home = () => {
             <Typography variant="body2" color="textSecondary" gutterBottom>{t('home.shareExperience') || 'Chia sẻ trải nghiệm của bạn về khách sạn'}</Typography>
             <Box component="form" onSubmit={handleReviewSubmit} sx={{ mt: 3 }}>
               <Grid container spacing={3}>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Typography variant="body2" fontWeight={500} gutterBottom>{t('home.overallRating') || 'Đánh giá tổng quan'} *</Typography>
                   <Rating value={reviewData.rating} onChange={(e, newValue) => setReviewData({ ...reviewData, rating: newValue })} size="large" />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <TextField
                     fullWidth
                     multiline
@@ -1437,17 +1472,17 @@ const Home = () => {
                     required
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Typography variant="body2" fontWeight={500} gutterBottom>{t('home.detailedRating') || 'Đánh giá chi tiết'}</Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={6} md={4}><Typography variant="caption" color="textSecondary">{t('home.service') || 'Phục vụ'}</Typography><Rating value={reviewData.serviceRating} onChange={(e, newValue) => setReviewData({ ...reviewData, serviceRating: newValue })} size="small" /></Grid>
-                    <Grid item xs={6} md={4}><Typography variant="caption" color="textSecondary">{t('home.food') || 'Đồ ăn'}</Typography><Rating value={reviewData.foodRating} onChange={(e, newValue) => setReviewData({ ...reviewData, foodRating: newValue })} size="small" /></Grid>
-                    <Grid item xs={6} md={4}><Typography variant="caption" color="textSecondary">{t('home.cleanliness') || 'Vệ sinh'}</Typography><Rating value={reviewData.cleanlinessRating} onChange={(e, newValue) => setReviewData({ ...reviewData, cleanlinessRating: newValue })} size="small" /></Grid>
-                    <Grid item xs={6} md={4}><Typography variant="caption" color="textSecondary">{t('home.location') || 'Vị trí'}</Typography><Rating value={reviewData.locationRating} onChange={(e, newValue) => setReviewData({ ...reviewData, locationRating: newValue })} size="small" /></Grid>
-                    <Grid item xs={6} md={4}><Typography variant="caption" color="textSecondary">{t('home.value') || 'Giá trị'}</Typography><Rating value={reviewData.valueRating} onChange={(e, newValue) => setReviewData({ ...reviewData, valueRating: newValue })} size="small" /></Grid>
+                    <Grid size={{ xs: 6, md: 4 }}><Typography variant="caption" color="textSecondary">{t('home.service') || 'Phục vụ'}</Typography><Rating value={reviewData.serviceRating} onChange={(e, newValue) => setReviewData({ ...reviewData, serviceRating: newValue })} size="small" /></Grid>
+                    <Grid size={{ xs: 6, md: 4 }}><Typography variant="caption" color="textSecondary">{t('home.food') || 'Đồ ăn'}</Typography><Rating value={reviewData.foodRating} onChange={(e, newValue) => setReviewData({ ...reviewData, foodRating: newValue })} size="small" /></Grid>
+                    <Grid size={{ xs: 6, md: 4 }}><Typography variant="caption" color="textSecondary">{t('home.cleanliness') || 'Vệ sinh'}</Typography><Rating value={reviewData.cleanlinessRating} onChange={(e, newValue) => setReviewData({ ...reviewData, cleanlinessRating: newValue })} size="small" /></Grid>
+                    <Grid size={{ xs: 6, md: 4 }}><Typography variant="caption" color="textSecondary">{t('home.location') || 'Vị trí'}</Typography><Rating value={reviewData.locationRating} onChange={(e, newValue) => setReviewData({ ...reviewData, locationRating: newValue })} size="small" /></Grid>
+                    <Grid size={{ xs: 6, md: 4 }}><Typography variant="caption" color="textSecondary">{t('home.value') || 'Giá trị'}</Typography><Rating value={reviewData.valueRating} onChange={(e, newValue) => setReviewData({ ...reviewData, valueRating: newValue })} size="small" /></Grid>
                   </Grid>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Button type="submit" variant="contained" disabled={reviewSubmitting || !reviewData.rating || !reviewData.comment.trim()} sx={{ bgcolor: '#007bff', '&:hover': { bgcolor: '#103c32' } }}>
                     {reviewSubmitting ? <CircularProgress size={24} color="inherit" /> : (t('home.submitReview') || 'Gửi đánh giá')}
                   </Button>
@@ -2335,7 +2370,7 @@ const Home = () => {
               <Grid container spacing={3}>
                 {/* Brand */}
                 <Grid size={{ xs: 12, sm: 5 }}>
-                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
                     <Typography variant="h5" fontWeight={700} sx={{ color: '#E8C48A' }}>
                       🏨 SkyHotel
                     </Typography>
@@ -2343,7 +2378,7 @@ const Home = () => {
                   <Typography variant="body2" sx={{ color: '#9AA1B5', lineHeight: 1.8, maxWidth: 320 }}>
                     {supportSettings.brandDescription}
                   </Typography>
-                  <Box display="flex" gap={1.5} mt={2.5}>
+                  <Box sx={{ display: "flex", gap: 1.5, mt: 2.5 }}>
                     {[
                       { icon: <Phone sx={{ fontSize: 18 }} />, label: 'Gọi điện', action: () => window.open(`tel:${(supportSettings.supportPhone || '').replace(/\s/g, '')}`, '_self') },
                       { icon: <Email sx={{ fontSize: 18 }} />, label: 'Gửi email', action: () => window.open(`mailto:${supportSettings.supportEmail}`, '_self') },
@@ -2400,15 +2435,7 @@ const Home = () => {
                     { icon: <Language sx={{ fontSize: 16 }} />, text: (supportSettings.fanpageUrl || '').replace(/^https?:\/\/(www\.)?/, '') || 'fb.com/skyhotel', action: () => window.open(supportSettings.fanpageUrl, '_blank') },
                     { icon: <SupportAgent sx={{ fontSize: 16 }} />, text: 'Chat với chúng tôi', action: () => navigate(isAuthenticated ? '/chat' : '/login') },
                   ].map((c, i) => (
-                    <Box
-                      key={i}
-                      display="flex"
-                      alignItems="center"
-                      gap={1}
-                      py={0.4}
-                      sx={{ cursor: 'pointer', transition: 'opacity 0.2s', '&:hover': { opacity: 0.75 } }}
-                      onClick={c.action}
-                    >
+                    <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.4,  cursor: 'pointer', transition: 'opacity 0.2s', '&:hover': { opacity: 0.75 } }} onClick={c.action}>
                       <Box sx={{ color: '#E8C48A', display: 'flex' }}>{c.icon}</Box>
                       <Typography variant="body2" sx={{ color: '#9AA1B5' }}>{c.text}</Typography>
                     </Box>
@@ -2423,7 +2450,7 @@ const Home = () => {
               <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#fff' }}>
                 Vị trí của chúng tôi
               </Typography>
-              <Box display="flex" gap={1} mb={1.5}>
+              <Box sx={{ display: "flex", gap: 1, mb: 1.5 }}>
                 <Box sx={{ color: '#E8C48A', mt: 0.3, display: 'flex' }}><LocationOnIcon sx={{ fontSize: 18 }} /></Box>
                 <Typography variant="body2" sx={{ color: '#9AA1B5', lineHeight: 1.7 }}>
                   {addressText}

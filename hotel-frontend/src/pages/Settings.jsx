@@ -48,6 +48,22 @@ const Settings = () => {
     const [amenitySettings, setAmenitySettings] = useState(DEFAULT_HOME_AMENITIES);
     const [amenityUploadingKey, setAmenityUploadingKey] = useState(null);
 
+    // Các loại phòng để admin tự đặt tên nhóm hiển thị (def = tên mặc định)
+    const ROOM_TYPE_LABEL_FIELDS = [
+        { type: 'SINGLE', def: 'Phòng đơn' },
+        { type: 'DOUBLE', def: 'Phòng đôi' },
+        { type: 'TWIN', def: 'Phòng 2 giường' },
+        { type: 'SUITE', def: 'Phòng Suite' },
+        { type: 'DELUXE', def: 'Phòng Deluxe' },
+        { type: 'FAMILY', def: 'Phòng gia đình' },
+        { type: 'VIP', def: 'Phòng VIP' },
+        { type: 'STANDARD', def: 'Phòng tiêu chuẩn' },
+        { type: 'EXECUTIVE', def: 'Phòng Executive' }
+    ];
+
+    // Danh sách nhóm phòng để chọn khi thêm/sửa phòng
+    const [roomGroups, setRoomGroups] = useState([]);
+
     // Settings state
     const [settings, setSettings] = useState({
         supportPhone: '+84 123 456 789',
@@ -58,7 +74,16 @@ const Settings = () => {
         zaloUrl: 'https://zalo.me/0987654321',
         messengerUrl: 'https://m.me/skyhotel',
         fanpageUrl: 'https://facebook.com/skyhotel',
-        contactTagline: 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7'
+        contactTagline: 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7',
+        roomTypeLabel_SINGLE: '',
+        roomTypeLabel_DOUBLE: '',
+        roomTypeLabel_TWIN: '',
+        roomTypeLabel_SUITE: '',
+        roomTypeLabel_DELUXE: '',
+        roomTypeLabel_FAMILY: '',
+        roomTypeLabel_VIP: '',
+        roomTypeLabel_STANDARD: '',
+        roomTypeLabel_EXECUTIVE: ''
     });
 
     // Backgrounds state
@@ -133,8 +158,26 @@ const Settings = () => {
                 zaloUrl: settingsMap.zaloUrl || 'https://zalo.me/0987654321',
                 messengerUrl: settingsMap.messengerUrl || 'https://m.me/skyhotel',
                 fanpageUrl: settingsMap.fanpageUrl || 'https://facebook.com/skyhotel',
-                contactTagline: settingsMap.contactTagline || 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7'
+                contactTagline: settingsMap.contactTagline || 'SkyHotel luôn sẵn sàng phục vụ quý khách 24/7',
+                roomTypeLabel_SINGLE: settingsMap.roomTypeLabel_SINGLE || '',
+                roomTypeLabel_DOUBLE: settingsMap.roomTypeLabel_DOUBLE || '',
+                roomTypeLabel_TWIN: settingsMap.roomTypeLabel_TWIN || '',
+                roomTypeLabel_SUITE: settingsMap.roomTypeLabel_SUITE || '',
+                roomTypeLabel_DELUXE: settingsMap.roomTypeLabel_DELUXE || '',
+                roomTypeLabel_FAMILY: settingsMap.roomTypeLabel_FAMILY || '',
+                roomTypeLabel_VIP: settingsMap.roomTypeLabel_VIP || '',
+                roomTypeLabel_STANDARD: settingsMap.roomTypeLabel_STANDARD || '',
+                roomTypeLabel_EXECUTIVE: settingsMap.roomTypeLabel_EXECUTIVE || ''
             });
+
+            try {
+                const parsedGroups = JSON.parse(settingsMap.roomGroups || '[]');
+                if (Array.isArray(parsedGroups)) {
+                    setRoomGroups(parsedGroups.filter((g) => typeof g === 'string'));
+                }
+            } catch {
+                setRoomGroups([]);
+            }
         } catch (error) {
             console.error('Fetch settings error:', error);
             toast.error('Không thể tải cài đặt');
@@ -193,7 +236,8 @@ const Settings = () => {
                         'fanpageUrl',
                         'contactTagline'
                     ],
-                    1: ['welcomeMessage']
+                    1: ['welcomeMessage'],
+                    4: ROOM_TYPE_LABEL_FIELDS.map((f) => `roomTypeLabel_${f.type}`)
                 };
 
                 for (const key of keysByTab[tabValue] || []) {
@@ -204,6 +248,19 @@ const Settings = () => {
                             value: settings[key],
                             type: 'TEXT',
                             description: `Setting for ${key}`
+                        },
+                        { headers }
+                    );
+                }
+
+                if (tabValue === 4) {
+                    await axios.post(
+                        `${API_BASE_URL}/settings`,
+                        {
+                            key: 'roomGroups',
+                            value: JSON.stringify(roomGroups.map((g) => g.trim()).filter(Boolean)),
+                            type: 'JSON',
+                            description: 'Danh sách nhóm phòng để chọn khi thêm/sửa phòng'
                         },
                         { headers }
                     );
@@ -421,7 +478,7 @@ const Settings = () => {
 
     if (!isAdmin) {
         return (
-            <Box textAlign="center" py={8}>
+            <Box sx={{ textAlign: "center", py: 8 }}>
                 <Typography variant="h5" color="error">
                     ⛔ Không có quyền truy cập
                 </Typography>
@@ -431,7 +488,7 @@ const Settings = () => {
 
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
                 <CircularProgress size={60} />
             </Box>
         );
@@ -439,7 +496,7 @@ const Settings = () => {
 
     return (
         <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={600}>
                         ⚙️ Quản lý cài đặt
@@ -450,7 +507,7 @@ const Settings = () => {
                             : 'Manage system settings'}
                     </Typography>
                 </Box>
-                <Box display="flex" gap={1}>
+                <Box sx={{ display: "flex", gap: 1 }}>
                     <Button
                         variant="outlined"
                         startIcon={<Refresh />}
@@ -483,7 +540,9 @@ const Settings = () => {
                                     ? 'Lưu thông tin hỗ trợ'
                                     : tabValue === 1
                                         ? 'Lưu thông điệp'
-                                        : 'Lưu tiện ích'}
+                                        : tabValue === 4
+                                            ? 'Lưu tên nhóm phòng'
+                                            : 'Lưu tiện ích'}
                         </Button>
                     )}
                 </Box>
@@ -501,6 +560,7 @@ const Settings = () => {
                 <Tab label="💬 Thông điệp" />
                 <Tab label="🏨 Tiện ích" />
                 <Tab label="🖼️ Background" />
+                <Tab label="🏷️ Tên nhóm phòng" />
             </Tabs>
 
             {/* TAB 0: Liên hệ & hỗ trợ */}
@@ -521,7 +581,7 @@ const Settings = () => {
                             ['fanpageUrl', 'Link Fanpage'],
                             ['contactTagline', 'Thông điệp hỗ trợ']
                         ].map(([key, label]) => (
-                            <Grid item xs={12} md={6} key={key}>
+                            <Grid size={{ xs: 12, md: 6 }} key={key}>
                                 <TextField
                                     fullWidth
                                     label={label}
@@ -562,7 +622,7 @@ const Settings = () => {
             {tabValue === 2 && (
                 <Grid container spacing={2}>
                     {amenitySettings.map((amenity) => (
-                        <Grid item xs={12} md={6} key={amenity.key}>
+                        <Grid size={{ xs: 12, md: 6 }} key={amenity.key}>
                             <Paper variant="outlined" sx={{ p: 2, height: '100%' }}>
                                 <Typography variant="h6" fontWeight={600} gutterBottom>
                                     {amenity.name}
@@ -694,6 +754,61 @@ const Settings = () => {
                 </Grid>
             )
             }
+            {/* TAB 4: Tên nhóm loại phòng */}
+            {tabValue === 4 && (
+                <Paper sx={{ p: 3, borderRadius: 3 }}>
+                    <Typography variant="h6" fontWeight={600} gutterBottom>
+                        🏷️ Tên nhóm loại phòng
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 2.5 }}>
+                        Tên hiển thị cho từng nhóm phòng ở Trang chủ và trang Danh sách phòng. Để trống = dùng tên mặc định.
+                    </Typography>
+                    <Grid container spacing={2}>
+                        {ROOM_TYPE_LABEL_FIELDS.map((f) => (
+                            <Grid size={{ xs: 12, md: 6 }} key={f.type}>
+                                <TextField
+                                    fullWidth
+                                    label={`${f.def} (${f.type})`}
+                                    value={settings[`roomTypeLabel_${f.type}`] || ''}
+                                    onChange={(e) => handleChange(`roomTypeLabel_${f.type}`, e.target.value)}
+                                    placeholder={f.def}
+                                />
+                            </Grid>
+                        ))}
+                    </Grid>
+
+                    <Divider sx={{ my: 3 }} />
+                    <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                        🧩 Danh sách nhóm phòng
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                        Các nhóm này hiện trong ô "Tên nhóm" khi thêm/sửa phòng. Phòng đã chọn nhóm sẽ hiển thị theo nhóm đó ở Trang chủ và trang Danh sách phòng; phòng không chọn nhóm thì xếp theo loại phòng ở trên.
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        {roomGroups.map((g, idx) => (
+                            <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label={`Nhóm ${idx + 1}`}
+                                    value={g}
+                                    onChange={(e) => setRoomGroups((prev) => prev.map((x, i) => (i === idx ? e.target.value : x)))}
+                                />
+                                <IconButton color="error" onClick={() => setRoomGroups((prev) => prev.filter((_, i) => i !== idx))}>
+                                    <Delete fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        ))}
+                        {roomGroups.length === 0 && (
+                            <Typography variant="body2" color="textSecondary">Chưa có nhóm nào. Bấm "Thêm nhóm" để tạo, ví dụ: Hướng biển, Gần hồ bơi, Tầng cao yên tĩnh...</Typography>
+                        )}
+                    </Box>
+                    <Button variant="outlined" startIcon={<Add />} sx={{ mt: 2 }} onClick={() => setRoomGroups((prev) => [...prev, ''])}>
+                        Thêm nhóm
+                    </Button>
+                </Paper>
+            )}
+
             {/* TAB 3: Background Management */}
             {
                 tabValue === 3 && (
@@ -761,7 +876,7 @@ const Settings = () => {
                         </Paper>
 
                         {/* Nút thao tác */}
-                        <Box display="flex" gap={1} mb={3}>
+                        <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
                             <Button
                                 variant="contained"
                                 startIcon={<Add />}
@@ -783,7 +898,7 @@ const Settings = () => {
                         {/* Danh sách background */}
                         <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
                             {backgrounds.length === 0 ? (
-                                <Box p={4} textAlign="center">
+                                <Box sx={{ p: 4, textAlign: "center" }}>
                                     <Typography variant="body1" color="textSecondary">
                                         📭 Chưa có ảnh background nào
                                     </Typography>
@@ -825,7 +940,7 @@ const Settings = () => {
                                             }}
                                         />
 
-                                        <Box flex={1} minWidth={0}>
+                                        <Box sx={{ flex: 1, minWidth: 0 }}>
                                             <Typography variant="body2" fontWeight={500}>
                                                 {bg.name || `Background ${index + 1}`}
                                                 {bg.link && (
@@ -847,7 +962,7 @@ const Settings = () => {
                                             </Typography>
                                         </Box>
 
-                                        <Box display="flex" gap={0.5}>
+                                        <Box sx={{ display: "flex", gap: 0.5 }}>
                                             <IconButton
                                                 size="small"
                                                 onClick={() => handleMoveUp(index)}
@@ -903,7 +1018,7 @@ const Settings = () => {
                             <Typography variant="subtitle2" gutterBottom>
                                 📤 Upload ảnh lên server
                             </Typography>
-                            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                            <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                                 <Button
                                     variant="outlined"
                                     component="label"
@@ -971,7 +1086,7 @@ const Settings = () => {
                         />
 
                         {bgForm.url && (
-                            <Box mt={2}>
+                            <Box sx={{ mt: 2 }}>
                                 <Typography variant="caption" color="textSecondary">Preview:</Typography>
                                 <Box
                                     sx={{

@@ -72,7 +72,6 @@ const Notifications = () => {
             });
 
             const data = res.data || [];
-            console.log('📥 Notifications from API:', data);
 
             // Map dữ liệu từ API sang format hiển thị
             const mappedData = data.map(item => ({
@@ -285,7 +284,7 @@ const Notifications = () => {
     return (
         <Box>
             {/* Header */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
                 <Box>
                     <Typography variant="h4" fontWeight={600}>
                         🔔 {i18n.language === 'vi' ? 'Thông báo' : 'Notifications'}
@@ -296,7 +295,7 @@ const Notifications = () => {
                             : `Total ${notifications.length} notifications, ${unreadCount} unread`}
                     </Typography>
                 </Box>
-                <Box display="flex" gap={1}>
+                <Box sx={{ display: "flex", gap: 1 }}>
                     <Button
                         variant="outlined"
                         startIcon={<Refresh />}
@@ -397,8 +396,9 @@ const Notifications = () => {
                                         </Avatar>
                                     </ListItemAvatar>
                                     <ListItemText
+                                        slotProps={{ primary: { component: 'div' }, secondary: { component: 'div' } }}
                                         primary={
-                                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                                                 <Typography variant="body1" fontWeight={notif.read ? 400 : 600}>
                                                     {notif.title}
                                                 </Typography>
@@ -433,7 +433,7 @@ const Notifications = () => {
                                             </Box>
                                         }
                                     />
-                                    <Box display="flex" gap={0.5} sx={{ flexShrink: 0 }}>
+                                    <Box sx={{ display: "flex", gap: 0.5,  flexShrink: 0 }}>
                                         {!notif.read && (
                                             <Tooltip title={i18n.language === 'vi' ? 'Đánh dấu đã đọc' : 'Mark as read'}>
                                                 <IconButton
@@ -487,7 +487,7 @@ const Notifications = () => {
                                 {selectedNotification.message}
                             </Typography>
                             <Divider sx={{ my: 2 }} />
-                            <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
                                 <Typography variant="caption" color="textSecondary">
                                     {i18n.language === 'vi' ? 'Thời gian:' : 'Time:'} {selectedNotification.time}
                                 </Typography>
@@ -582,7 +582,7 @@ const Notifications = () => {
                             </Box>
                         ))}
                     </Box>
-                    <Box display="flex" gap={1}>
+                    <Box sx={{ display: "flex", gap: 1 }}>
                         <TextField
                             fullWidth
                             size="small"

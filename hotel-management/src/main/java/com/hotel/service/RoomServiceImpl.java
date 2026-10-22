@@ -36,7 +36,9 @@ public class RoomServiceImpl implements RoomService {
         if (room.getStatus() == null) {
             room.setStatus("AVAILABLE");
         }
-        // room.getImages() (nếu FE gửi kèm) sẽ tự được cascade lưu cùng room mới
+        if (room.getGroupName() != null) {
+            room.setGroupName(room.getGroupName().isBlank() ? null : room.getGroupName().trim());
+        }
         return roomRepository.save(room);
     }
 
@@ -59,6 +61,9 @@ public class RoomServiceImpl implements RoomService {
 
             if (room.getRoomType() != null) {
                 existingRoom.setRoomType(room.getRoomType());
+            }
+            if (room.getGroupName() != null) {
+                existingRoom.setGroupName(room.getGroupName().isBlank() ? null : room.getGroupName().trim());
             }
             if (room.getPricePerNight() != null) {
                 existingRoom.setPricePerNight(room.getPricePerNight());

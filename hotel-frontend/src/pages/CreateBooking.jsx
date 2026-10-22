@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { formatHotelCurrency } from '../utils/currency';
 import { useTranslation } from 'react-i18next';
@@ -8,13 +8,13 @@ import {
     Select, Chip, Alert, Stepper, Step, StepLabel,
     CircularProgress, Divider, Avatar, List, ListItem,
     ListItemText, ListItemAvatar, IconButton, Tooltip,
-    LinearProgress, Radio, RadioGroup, FormControlLabel
+    LinearProgress, Radio, RadioGroup, FormControlLabel, InputAdornment
 } from '@mui/material';
 import {
     ArrowBack, CheckCircle, CalendarToday,
     Person, Room, AttachMoney, Bed, People,
     Event, Info, Cancel, Phone, Email, LocalOffer,
-    Check, Close, CreditCard
+    Check, Close, CreditCard, Search
 } from '@mui/icons-material';
 import { bookingAPI } from '../api/booking';
 import { roomAPI } from '../api/room';
@@ -23,7 +23,8 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:9981/api';
+import { API_BASE_URL } from '../api/config'; // (SỬA) hết hardcode localhost — chạy được cả qua IP LAN
+import { groupRoomsForDisplay } from '../components/rooms/RoomTypeCarousel';
 
 const CreateBooking = () => {
     const { t, i18n } = useTranslation();
@@ -33,7 +34,41 @@ const CreateBooking = () => {
     const [loading, setLoading] = useState(false);
     const [rooms, setRooms] = useState([]);
     const [selectedRoom, setSelectedRoom] = useState(null);
+    // Tìm kiếm + lọc + sắp xếp ở bước Chọn phòng
+    const [roomSearch, setRoomSearch] = useState('');
+    const [roomFilter, setRoomFilter] = useState('ALL');
+    const [roomSort, setRoomSort] = useState('default');
+    const BOOKING_TYPE_LABELS = { SINGLE: 'Phòng đơn', DOUBLE: 'Phòng đôi', TWIN: 'Phòng 2 giường', SUITE: 'Phòng Suite', DELUXE: 'Phòng Deluxe', FAMILY: 'Phòng gia đình', VIP: 'Phòng VIP', STANDARD: 'Phòng tiêu chuẩn', EXECUTIVE: 'Phòng Executive' };
+    const bookingTypeLabel = (type) => (i18n.language === 'vi' ? (BOOKING_TYPE_LABELS[type] || type) : type);
+    const bookingAllGroups = groupRoomsForDisplay(rooms);
+    const searchedRooms = rooms.filter((room) => {
+        const q = roomSearch.trim().toLowerCase();
+        if (!q) return true;
+        return `${room.roomNumber} ${room.roomType} ${room.groupName || ''} ${room.description || ''} ${room.amenities || ''}`.toLowerCase().includes(q);
+    });
+    const sortedRooms = [...searchedRooms].sort((a, b) => {
+        if (roomSort === 'priceAsc') return Number(a.pricePerNight || 0) - Number(b.pricePerNight || 0);
+        if (roomSort === 'priceDesc') return Number(b.pricePerNight || 0) - Number(a.pricePerNight || 0);
+        if (roomSort === 'capacity') return Number(b.capacity || 0) - Number(a.capacity || 0);
+        return 0;
+    });
+    const visibleBookingGroups = groupRoomsForDisplay(sortedRooms)
+        .filter((g) => roomFilter === 'ALL' || g.key === roomFilter);
     const [activeStep, setActiveStep] = useState(0);
+    // Thanh nút Quay lại/Tiếp theo: cuộn xuống thì trồi lên, cuộn lên thì lặn xuống
+    const [showNavBar, setShowNavBar] = useState(true);
+    const lastScrollYRef = useRef(0);
+    useEffect(() => {
+        lastScrollYRef.current = window.scrollY;
+        const onScroll = () => {
+            const y = window.scrollY;
+            if (y > lastScrollYRef.current + 4) setShowNavBar(true);
+            else if (y < lastScrollYRef.current - 4) setShowNavBar(false);
+            lastScrollYRef.current = y;
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
     const [applyingPromotion, setApplyingPromotion] = useState(false);
     const [formData, setFormData] = useState({
         roomId: '',
@@ -338,10 +373,8 @@ const CreateBooking = () => {
                 promotionCode: appliedPromotion?.code || null
             };
 
-            console.log('📤 Sending booking data:', bookingData);
 
             const response = await bookingAPI.create(bookingData);
-            console.log('✅ Booking response:', response.data);
             const createdBooking = response.data;
 
             // ===== Thanh toán ngay qua VNPay =====
@@ -387,6 +420,7 @@ const CreateBooking = () => {
     const handleRoomSelect = (room) => {
         setSelectedRoom(room);
         setFormData(prev => ({ ...prev, roomId: room.id }));
+        setShowNavBar(true); // vừa chọn phòng thì cho thanh nút hiện lên
         // Reset promotion when room changes
         if (appliedPromotion) {
             handleRemovePromotion();
@@ -418,6 +452,46 @@ const CreateBooking = () => {
                                 : `${rooms.length} rooms available — click a room to select it.`}
                         </Typography>
 
+                        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+                            <TextField
+                                size="small"
+                                placeholder={i18n.language === 'vi' ? 'Tìm số phòng, loại phòng, tiện nghi...' : 'Search room number, type, amenities...'}
+                                value={roomSearch}
+                                onChange={(e) => setRoomSearch(e.target.value)}
+                                sx={{ flex: '1 1 230px', bgcolor: '#fff' }}
+                                slotProps={{ input: { startAdornment: (<InputAdornment position="start"><Search fontSize="small" /></InputAdornment>) } }}
+                            />
+                            <FormControl size="small" sx={{ minWidth: 180, bgcolor: '#fff' }}>
+                                <InputLabel>{i18n.language === 'vi' ? 'Sắp xếp' : 'Sort'}</InputLabel>
+                                <Select value={roomSort} label={i18n.language === 'vi' ? 'Sắp xếp' : 'Sort'} onChange={(e) => setRoomSort(e.target.value)}>
+                                    <MenuItem value="default">{i18n.language === 'vi' ? 'Mặc định' : 'Default'}</MenuItem>
+                                    <MenuItem value="priceAsc">{i18n.language === 'vi' ? 'Giá: thấp đến cao' : 'Price: low to high'}</MenuItem>
+                                    <MenuItem value="priceDesc">{i18n.language === 'vi' ? 'Giá: cao đến thấp' : 'Price: high to low'}</MenuItem>
+                                    <MenuItem value="capacity">{i18n.language === 'vi' ? 'Sức chứa lớn nhất' : 'Largest capacity'}</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Box>
+
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
+                            <Chip
+                                label={`${i18n.language === 'vi' ? 'Tất cả' : 'All'} · ${rooms.length}`}
+                                clickable
+                                color={roomFilter === 'ALL' ? 'primary' : 'default'}
+                                variant={roomFilter === 'ALL' ? 'filled' : 'outlined'}
+                                onClick={() => setRoomFilter('ALL')}
+                            />
+                            {bookingAllGroups.map((g) => (
+                                <Chip
+                                    key={g.key}
+                                    label={`${g.groupName || bookingTypeLabel(g.type)} · ${g.rooms.length}`}
+                                    clickable
+                                    color={roomFilter === g.key ? 'primary' : 'default'}
+                                    variant={roomFilter === g.key ? 'filled' : 'outlined'}
+                                    onClick={() => setRoomFilter(g.key)}
+                                />
+                            ))}
+                        </Box>
+
                         {selectedRoom && (
                             <Alert severity="info" sx={{ mb: 2.5, borderRadius: 2.5, bgcolor: '#eff7f3', color: '#244f3f', '& .MuiAlert-icon': { color: '#28745c' } }}>
                                 {i18n.language === 'vi'
@@ -433,8 +507,17 @@ const CreateBooking = () => {
                                 {i18n.language === 'vi' ? 'Không có phòng trống' : 'No rooms available'}
                             </Alert>
                         ) : (
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3, alignItems: 'stretch' }}>
-                                {rooms.map((room) => {
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {visibleBookingGroups.map((group) => (
+                                    <Box key={group.key}>
+                                        <Typography variant="h6" fontWeight={750} sx={{ mb: 1.5, color: '#243a30' }}>
+                                            {group.groupName || bookingTypeLabel(group.type)}
+                                            <Typography component="span" variant="body2" color="textSecondary" sx={{ ml: 1, fontWeight: 500 }}>
+                                                {group.rooms.length} {i18n.language === 'vi' ? 'phòng' : 'rooms'}
+                                            </Typography>
+                                        </Typography>
+                                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 3, alignItems: 'stretch' }}>
+                                            {group.rooms.map((room) => {
                                     const img = roomMainImage(room);
                                     const isSelected = selectedRoom?.id === room.id;
                                     const vi = i18n.language === 'vi';
@@ -539,8 +622,16 @@ const CreateBooking = () => {
                                                     </Box>
                                                 </CardContent>
                                             </Card>
-                                    );
-                                })}
+                                            );
+                                            })}
+                                        </Box>
+                                    </Box>
+                                ))}
+                                {visibleBookingGroups.length === 0 && (
+                                    <Alert severity="info">
+                                        {i18n.language === 'vi' ? 'Không tìm thấy phòng phù hợp — thử đổi từ khóa hoặc bộ lọc.' : 'No rooms match your search or filters.'}
+                                    </Alert>
+                                )}
                             </Box>
                         )}
                     </Box>
@@ -795,19 +886,9 @@ const CreateBooking = () => {
                                     flexDirection: { xs: 'column', sm: 'row' },
                                     gap: 1
                                 }}>
-                                    <TextField
-                                        fullWidth
-                                        size="small"
-                                        label={i18n.language === 'vi' ? 'Nhập mã giảm giá' : 'Enter promo code'}
-                                        value={promotionCode}
-                                        onChange={(e) => setPromotionCode(e.target.value.toUpperCase())}
-                                        placeholder={i18n.language === 'vi' ? 'VD: SUMMER20' : 'E.g. SUMMER20'}
-                                        disabled={!!appliedPromotion}
-                                        InputProps={{
+                                    <TextField fullWidth size="small" label={i18n.language === 'vi' ? 'Nhập mã giảm giá' : 'Enter promo code'} value={promotionCode} onChange={(e) => setPromotionCode(e.target.value.toUpperCase())} placeholder={i18n.language === 'vi' ? 'VD: SUMMER20' : 'E.g. SUMMER20'} disabled={!!appliedPromotion} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }} slotProps={{ input: {
                                             startAdornment: <LocalOffer sx={{ mr: 1, color: 'text.secondary' }} />
-                                        }}
-                                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#fff' } }}
-                                    />
+                                        } }} />
                                     {!appliedPromotion ? (
                                         <Button
                                             variant="contained"
@@ -890,7 +971,7 @@ const CreateBooking = () => {
                         </Typography>
                         <Paper variant="outlined" sx={{ p: 3, bgcolor: '#f8f9fa' }}>
                             <Grid container spacing={2}>
-                                <Grid item xs={12} md={6}>
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                                         {i18n.language === 'vi' ? 'Thông tin phòng' : 'Room Information'}
                                     </Typography>
@@ -924,7 +1005,7 @@ const CreateBooking = () => {
                                         </ListItem>
                                     </List>
                                 </Grid>
-                                <Grid item xs={12} md={6}>
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <Typography variant="subtitle2" fontWeight={600} gutterBottom>
                                         {i18n.language === 'vi' ? 'Thông tin khách hàng' : 'Customer Information'}
                                     </Typography>
@@ -980,7 +1061,7 @@ const CreateBooking = () => {
 
                             {/* Total with promotion - chỉ hiển thị */}
                             <Divider sx={{ my: 2 }} />
-                            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 2 }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center",  mt: 2 }}>
                                 <Box>
                                     <Typography variant="body2" color="textSecondary">
                                         {i18n.language === 'vi' ? 'Tổng tiền' : 'Total'}
@@ -991,7 +1072,7 @@ const CreateBooking = () => {
                                         </Typography>
                                     )}
                                 </Box>
-                                <Box textAlign="right">
+                                <Box sx={{ textAlign: "right" }}>
                                     {appliedPromotion && (
                                         <Typography variant="caption" color="textSecondary" sx={{ textDecoration: 'line-through' }}>
                                             {formatCurrency(calculateTotal() + promotionDiscount)}
@@ -1016,7 +1097,7 @@ const CreateBooking = () => {
 
                             {/* ===== Chọn phương thức thanh toán ===== */}
                             <Divider sx={{ my: 3 }} />
-                            <Box display="flex" alignItems="center" gap={1} mb={1}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                                 <CreditCard color="primary" />
                                 <Typography variant="subtitle1" fontWeight={600}>
                                     {i18n.language === 'vi' ? '💳 Phương thức thanh toán' : '💳 Payment Method'}
@@ -1056,6 +1137,8 @@ const CreateBooking = () => {
         }
     };
 
+    const navBarVisible = showNavBar;
+
     return (
         <Box>
             <Button
@@ -1083,11 +1166,11 @@ const CreateBooking = () => {
                     {getStepContent(activeStep)}
                 </Box>
 
-                <Box display="flex" justifyContent="space-between">
+                <Box sx={{ display: "flex", justifyContent: "space-between", position: 'sticky', bottom: 12, mt: 3, zIndex: 5, pr: { xs: '84px', sm: '96px' }, transform: navBarVisible ? 'translateY(0)' : 'translateY(180%)', opacity: navBarVisible ? 1 : 0, transition: 'transform 0.35s ease, opacity 0.35s ease', pointerEvents: navBarVisible ? 'auto' : 'none' }}>
                     <Button
-                        disabled={activeStep === 0}
-                        onClick={handleBack}
+                        onClick={activeStep === 0 ? () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/dashboard')) : handleBack}
                         variant="outlined"
+                        sx={{ bgcolor: '#ffffff', boxShadow: '0 4px 14px rgba(23,64,48,0.12)' }}
                     >
                         {i18n.language === 'vi' ? 'Quay lại' : 'Back'}
                     </Button>

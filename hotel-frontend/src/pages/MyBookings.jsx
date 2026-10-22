@@ -534,7 +534,7 @@ const MyBookings = () => {
                             }[booking.status] || '#829087';
 
                             return (
-                                <Grid item xs={12} sm={6} lg={4} key={booking.id}>
+                                <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={booking.id}>
                                     <Card
                                         elevation={0}
                                         role="link"
@@ -633,7 +633,7 @@ const MyBookings = () => {
                                             <Divider sx={{ my: 2 }} />
 
                                             <Grid container spacing={1.5}>
-                                                <Grid item xs={6}>
+                                                <Grid size={{ xs: 6 }}>
                                                     <Box
                                                         sx={{
                                                             display: 'flex',
@@ -656,7 +656,7 @@ const MyBookings = () => {
                                                     </Typography>
                                                 </Grid>
 
-                                                <Grid item xs={6}>
+                                                <Grid size={{ xs: 6 }}>
                                                     <Box
                                                         sx={{
                                                             display: 'flex',
@@ -679,7 +679,7 @@ const MyBookings = () => {
                                                     </Typography>
                                                 </Grid>
 
-                                                <Grid item xs={6}>
+                                                <Grid size={{ xs: 6 }}>
                                                     <Box
                                                         sx={{
                                                             display: 'flex',
@@ -702,7 +702,7 @@ const MyBookings = () => {
                                                     </Typography>
                                                 </Grid>
 
-                                                <Grid item xs={6}>
+                                                <Grid size={{ xs: 6 }}>
                                                     <Typography
                                                         variant="caption"
                                                         sx={{ color: '#829087', fontWeight: 700 }}

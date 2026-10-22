@@ -66,7 +66,7 @@ const PaymentMock = () => {
     };
 
     return (
-        <Box display="flex" justifyContent="center" alignItems="flex-start" minHeight="90vh" py={5} sx={{ bgcolor: '#e8eaf6' }}>
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "flex-start", minHeight: "90vh", py: 5,  bgcolor: '#e8eaf6' }}>
             <Paper sx={{ width: '100%', maxWidth: 460, borderRadius: 3, overflow: 'hidden' }} elevation={6}>
                 {/* Header giả lập VNPay */}
                 <Box sx={{ bgcolor: '#0d2d87', color: '#fff', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -112,7 +112,7 @@ const PaymentMock = () => {
 
                     <Divider sx={{ my: 3 }} />
 
-                    <Box display="flex" gap={2}>
+                    <Box sx={{ display: "flex", gap: 2 }}>
                         <Button
                             fullWidth variant="outlined" color="error" size="large"
                             onClick={handleCancel} disabled={processing}

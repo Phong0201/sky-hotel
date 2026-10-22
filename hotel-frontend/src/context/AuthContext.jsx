@@ -6,6 +6,7 @@ import React, {
     useCallback
 } from 'react';
 import { authAPI } from '../api/auth';
+import { userAPI } from '../api/user'; // (THÊM) tải lại thông tin user mới nhất
 import api from '../api/axiosConfig';
 
 // Tạo context
@@ -28,15 +29,20 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         const userStr = localStorage.getItem('user');
-
-        console.log('🔐 AuthProvider - Token:', token ? '✅ exists' : '❌ none');
-
         if (token && userStr) {
             try {
                 const user = JSON.parse(userStr);
-                console.log('🔐 User loaded:', user.username);
                 setUser(user);
                 api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+                // (THÊM) Tải lại thông tin mới nhất (hạng thân thiết, avatar...)
+                userAPI.getCurrentUser(user.username)
+                    .then((res) => {
+                        if (res.data) {
+                            setUser(res.data);
+                            localStorage.setItem('user', JSON.stringify(res.data));
+                        }
+                    })
+                    .catch(() => { });
             } catch (e) {
                 console.error('Error parsing user:', e);
             }
@@ -46,18 +52,13 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (username, password) => {
         try {
-            console.log('📤 Login request:', username);
             const response = await authAPI.login(username, password);
-            console.log('📥 Login response:', response.data);
-
             const { token, user } = response.data;
 
             localStorage.setItem('token', token);
             localStorage.setItem('user', JSON.stringify(user));
             localStorage.setItem('username', username);
             api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-            console.log('✅ Login successful - User:', user.username);
             setUser(user);
             return { success: true };
         } catch (error) {
@@ -82,7 +83,6 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
-        console.log('🔓 Logging out...');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('username');

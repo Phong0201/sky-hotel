@@ -211,7 +211,7 @@ const SupportChatFab = () => {
                                 flexShrink: 0
                             }}
                         >
-                            <Box display="flex" alignItems="center" gap={1}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                 <Avatar sx={{ width: 32, height: 32, bgcolor: 'rgba(255,255,255,0.2)' }}>
                                     {user?.role === 'ADMIN' ? <Person /> : <Chat />}
                                 </Avatar>
@@ -260,11 +260,11 @@ const SupportChatFab = () => {
                             }}
                         >
                             {loading ? (
-                                <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
                                     <CircularProgress size={24} />
                                 </Box>
                             ) : messages.length === 0 ? (
-                                <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" color="textSecondary">
+                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "textSecondary" }}>
                                     <Chat sx={{ fontSize: 40, opacity: 0.3 }} />
                                     <Typography variant="body2">Chưa có tin nhắn</Typography>
                                     <Typography variant="caption">Hãy bắt đầu trò chuyện!</Typography>
@@ -412,7 +412,7 @@ const SupportChatFab = () => {
                             animation: 'slideUp 0.3s ease-out'
                         }}
                     >
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
                             <Typography variant="subtitle1" fontWeight={600}>
                                 📞 Hỗ trợ
                             </Typography>
@@ -422,7 +422,7 @@ const SupportChatFab = () => {
                         </Box>
                         <Divider sx={{ mb: 2 }} />
 
-                        <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5,  mb: 1.5 }}>
                             <Phone sx={{ fontSize: 18, color: '#007bff' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary" display="block">
@@ -434,7 +434,7 @@ const SupportChatFab = () => {
                             </Box>
                         </Box>
 
-                        <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5,  mb: 1.5 }}>
                             <Email sx={{ fontSize: 18, color: '#28a745' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary" display="block">
@@ -446,7 +446,7 @@ const SupportChatFab = () => {
                             </Box>
                         </Box>
 
-                        <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5,  mb: 1.5 }}>
                             <LocationOn sx={{ fontSize: 18, color: '#dc3545' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary" display="block">
@@ -458,7 +458,7 @@ const SupportChatFab = () => {
                             </Box>
                         </Box>
 
-                        <Box display="flex" alignItems="center" gap={1.5} sx={{ mb: 1.5 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5,  mb: 1.5 }}>
                             <AccessTime sx={{ fontSize: 18, color: '#ffc107' }} />
                             <Box>
                                 <Typography variant="caption" color="textSecondary" display="block">

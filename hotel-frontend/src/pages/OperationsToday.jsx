@@ -215,7 +215,7 @@ const OperationsToday = () => {
                                     <TableCell>{statusChip(b)}</TableCell>
                                     <TableCell>{money(b.finalPrice ?? b.totalPrice)}</TableCell>
                                     <TableCell align="right">
-                                        <Box display="flex" gap={1} justifyContent="flex-end">
+                                        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
                                             <Button size="small" variant="outlined" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', borderRadius: 2 }}>
                                                 Xem đơn
                                             </Button>
@@ -241,13 +241,7 @@ const OperationsToday = () => {
                 actions={(
                     <>
                         <Button variant="outlined" onClick={() => setDate(shiftDate(date, -1))} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, bgcolor: '#fff' }}>← Hôm qua</Button>
-                        <TextField
-                            size="small" type="date" value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            sx={{ width: 180, bgcolor: '#fff' }}
-                            InputLabelProps={{ shrink: true }}
-                            inputProps={{ lang: 'vi-VN' }}
-                        />
+                        <TextField size="small" type="date" value={date} onChange={(e) => setDate(e.target.value)} sx={{ width: 180, bgcolor: '#fff' }} slotProps={{ inputLabel: { shrink: true }, htmlInput: { lang: 'vi-VN' } }} />
                         <Button variant="outlined" onClick={() => setDate(shiftDate(date, 1))} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, bgcolor: '#fff' }}>Ngày mai →</Button>
                         <Button variant="contained" onClick={() => setDate(todayKey())} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 700, bgcolor: '#174c40', '&:hover': { bgcolor: '#123f35' } }}>Hôm nay</Button>
                         <Button variant="outlined" startIcon={<Refresh />} onClick={fetchData} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 600, bgcolor: '#fff' }}>Làm mới</Button>
@@ -264,36 +258,30 @@ const OperationsToday = () => {
             )}
 
             <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7' }}>
-                <TextField
-                    size="small" fullWidth
-                    placeholder="Tìm khách, số điện thoại, phòng, mã đơn..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    InputProps={{
+                <TextField size="small" fullWidth placeholder="Tìm khách, số điện thoại, phòng, mã đơn..." value={search} onChange={(e) => setSearch(e.target.value)} slotProps={{ input: {
                         startAdornment: (
                             <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>
                         ),
-                    }}
-                />
+                    } }} />
             </Paper>
 
             <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
-                <Grid item xs={12} sm={6} lg={3}>
+                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                     <Box onClick={() => scrollToId('ops-latest')} sx={{ cursor: 'pointer', height: '100%' }} title="Bấm để tới mục Đơn đặt phòng mới nhất">
                         <StatCard icon={<ReceiptLong />} label="Đơn mới hôm nay" value={newTodayCount} accent="#7b61b8" sub="Bấm để xem ↓" />
                     </Box>
                 </Grid>
-                <Grid item xs={12} sm={6} lg={3}>
+                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                     <Box onClick={() => { setDate(todayKey()); setTimeout(() => scrollToId('ops-arrivals'), 350); }} sx={{ cursor: 'pointer', height: '100%' }} title="Bấm để xem khách đến hôm nay">
                         <StatCard icon={<LoginRounded />} label="Khách đến hôm nay" value={arrivals.length} accent="#2f7fd1" sub="Bấm để xem ↓" />
                     </Box>
                 </Grid>
-                <Grid item xs={12} sm={6} lg={3}>
+                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                     <Box onClick={() => { setDate(todayKey()); setTimeout(() => scrollToId('ops-departures'), 350); }} sx={{ cursor: 'pointer', height: '100%' }} title="Bấm để xem khách đi hôm nay">
                         <StatCard icon={<LogoutRounded />} label="Khách đi hôm nay" value={departures.length} accent="#e07f2e" sub="Bấm để xem ↓" />
                     </Box>
                 </Grid>
-                <Grid item xs={12} sm={6} lg={3}>
+                <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
                     <Box onClick={() => scrollToId('ops-inhouse')} sx={{ cursor: 'pointer', height: '100%' }} title="Bấm để tới mục Đang ở">
                         <StatCard icon={<Hotel />} label="Đang ở" value={inHouse.length} accent="#1f9d63" sub="Bấm để xem ↓" />
                     </Box>
@@ -302,9 +290,9 @@ const OperationsToday = () => {
 
             {/* (THÊM) Đơn mới nhất + hoạt động gần đây: khách đặt/huỷ/trả là thấy tại đây */}
             <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
-                <Grid item xs={12} lg={7}>
+                <Grid size={{ xs: 12, lg: 7 }}>
                     <Paper id="ops-latest" elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', height: '100%', scrollMarginTop: 90 }}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between",  mb: 1 }}>
                             <Typography variant="h6" fontWeight={700}>🆕 Đơn đặt phòng mới nhất</Typography>
                             <Chip size="small" label={`Hôm nay: ${newTodayCount} đơn`} sx={{ fontWeight: 700, bgcolor: '#f0ebfa', color: '#5b4a9e' }} />
                         </Box>
@@ -335,7 +323,7 @@ const OperationsToday = () => {
                                                     </TableCell>
                                                     <TableCell>{money(b.finalPrice ?? b.totalPrice)}</TableCell>
                                                     <TableCell align="right">
-                                                        <Box display="flex" gap={1} justifyContent="flex-end">
+                                                        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
                                                             <Button size="small" variant="outlined" onClick={() => navigate(`/my-bookings/${b.id}`)} sx={{ textTransform: 'none', borderRadius: 2 }}>Xem đơn</Button>
                                                             {b.status === 'PENDING' && (
                                                                 <Button size="small" variant="contained" color="primary" onClick={() => quickStatus(b, 'CONFIRMED')} sx={{ textTransform: 'none', borderRadius: 2 }}>Xác nhận</Button>
@@ -354,7 +342,7 @@ const OperationsToday = () => {
                         )}
                     </Paper>
                 </Grid>
-                <Grid item xs={12} lg={5}>
+                <Grid size={{ xs: 12, lg: 5 }}>
                     <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', height: '100%' }}>
                         <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5 }}>📜 Hoạt động gần đây</Typography>
                         {activityEvents.length === 0 ? (
@@ -386,20 +374,20 @@ const OperationsToday = () => {
             </Grid>
 
             <Grid container spacing={2.5}>
-                <Grid item xs={12} lg={6}>
+                <Grid size={{ xs: 12, lg: 6 }}>
                     <Paper id="ops-arrivals" elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', height: '100%', scrollMarginTop: 90 }}>
                         <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Khách đến</Typography>
                         {renderRows(arrivals, 'arrivals')}
                     </Paper>
                 </Grid>
-                <Grid item xs={12} lg={6}>
+                <Grid size={{ xs: 12, lg: 6 }}>
                     <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', height: '100%' }}>
                         <Paper id="ops-departures" elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', height: '100%', scrollMarginTop: 90 }}></Paper>
                         <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Khách đi</Typography>
                         {renderRows(departures, 'departures')}
                     </Paper>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={{ xs: 12 }}>
                     <Paper id="ops-inhouse" elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #e4ece7', scrollMarginTop: 90 }}>
                         <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Đang ở tại khách sạn</Typography>
                         {renderRows(inHouse, 'inHouse')}

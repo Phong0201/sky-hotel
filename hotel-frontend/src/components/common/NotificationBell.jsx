@@ -49,13 +49,11 @@ const NotificationBell = () => {
             const token = localStorage.getItem('token');
             if (!token) return;
 
-            console.log('📤 Fetching notifications for user:', user.id);
 
             const res = await axios.get(`${API_BASE_URL}/notifications/user/${user.id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
-            console.log('📥 Notifications from API:', res.data);
 
             const data = Array.isArray(res.data) ? res.data : [];
             setNotifications(data);
@@ -153,7 +151,6 @@ const NotificationBell = () => {
 
         handleClose();
 
-        console.log('📤 Click notification:', notif);
 
         if (notif.link) {
             navigate(notif.link);
@@ -354,7 +351,7 @@ const NotificationBell = () => {
                 }}
             >
                 <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0', flexShrink: 0 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Typography variant="subtitle1" fontWeight={600}>
                             {t('notifications.title')}
                             {unreadCount > 0 && (
@@ -412,7 +409,7 @@ const NotificationBell = () => {
                                 key={category}
                                 value={category}
                                 label={
-                                    <Box component="span" display="flex" alignItems="center" gap={0.65}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.65 }} component="span">
                                         {t(`notifications.categories.${category}`)}
                                         {count > 0 && (
                                             <Box
@@ -469,13 +466,14 @@ const NotificationBell = () => {
                                     }}
                                     onClick={() => handleNotificationClick(notif)}
                                 >
-                                    <Box display="flex" width="100%" alignItems="center">
+                                    <Box sx={{ display: "flex", width: "100%", alignItems: "center" }}>
                                         <ListItemAvatar>
                                             <Avatar sx={{ bgcolor: notif.color || getNotificationColor(notif.type) }}>
                                                 {notif.icon || getNotificationIcon(notif.type)}
                                             </Avatar>
                                         </ListItemAvatar>
                                         <ListItemText
+                                            slotProps={{ primary: { component: 'div' }, secondary: { component: 'div' } }}
                                             primary={
                                                 <Typography variant="body2" fontWeight={notif.isRead ? 400 : 600}>
                                                     {localizeNotification(notif, i18n.language).title}
@@ -506,7 +504,7 @@ const NotificationBell = () => {
 
                                     {/* ============ ACTION CHO ADMIN ============ */}
                                     {canManage && notif.type === 'booking' && notif.message?.includes('#BK') && (
-                                        <Box display="flex" gap={1} mt={1}>
+                                        <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
                                             <Button
                                                 size="small"
                                                 color="success"
@@ -536,7 +534,7 @@ const NotificationBell = () => {
                                         </Box>
                                     )}
 
-                                    <Box display="flex" justifyContent="flex-end" width="100%" mt={0.5}>
+                                    <Box sx={{ display: "flex", justifyContent: "flex-end", width: "100%", mt: 0.5 }}>
                                         <Button
                                             size="small"
                                             variant="text"
@@ -591,7 +589,7 @@ const NotificationBell = () => {
                             justifyContent: 'space-between',
                             alignItems: 'center'
                         }}>
-                            <Box display="flex" alignItems="center" gap={1}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                                 {selectedNotification.icon || getNotificationIcon(selectedNotification.type)}
                                 {localizeNotification(selectedNotification, i18n.language).title}
                             </Box>
@@ -604,7 +602,7 @@ const NotificationBell = () => {
                                 {localizeNotification(selectedNotification, i18n.language).message}
                             </Typography>
                             <Divider sx={{ my: 2 }} />
-                            <Box display="flex" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
                                 <Typography variant="caption" color="textSecondary">
                                     📅 {formatDateTime(selectedNotification.createdAt)}
                                 </Typography>
@@ -616,7 +614,7 @@ const NotificationBell = () => {
                                     📂 {t(`notifications.categories.${getNotificationCategory(selectedNotification)}`)}
                                 </Typography>
                             </Box>
-                            <Box mt={2} display="flex" gap={1}>
+                            <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
                                 <Button
                                     fullWidth
                                     variant="contained"

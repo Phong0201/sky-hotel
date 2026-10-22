@@ -18,6 +18,7 @@ import { roomAPI } from '../api/room';
 import { bookingAPI } from '../api/booking';
 import { useAuth } from '../context/AuthContext';
 import CustomerHeader from '../components/common/CustomerHeader';
+import RoomTypeCarousel, { groupRoomsForDisplay } from '../components/rooms/RoomTypeCarousel';
 import toast from 'react-hot-toast';
 // ❌ Đã xóa: import axios from 'axios';
 // ✅ Dùng instance đã có sẵn interceptor gắn token
@@ -47,6 +48,7 @@ const Rooms = () => {
     const [formData, setFormData] = useState({
         roomNumber: '',
         roomType: 'SINGLE',
+        groupName: '',
         floor: 1,
         capacity: 1,
         pricePerNight: 0,
@@ -61,7 +63,8 @@ const Rooms = () => {
     // ===== GUEST VIEW: tìm kiếm + lọc loại phòng =====
     const roomsManagementPath = '/admin/rooms';
     const [guestSearch, setGuestSearch] = useState('');
-    const [guestTypeFilter, setGuestTypeFilter] = useState('ALL');
+    const [guestTypeFilter, setGuestTypeFilter] = useState(() => new URLSearchParams(location.search).get('type') || 'ALL');
+    const [guestGroupFilter, setGuestGroupFilter] = useState(() => new URLSearchParams(location.search).get('group') || '');
 
     const ROOM_TYPE_LABELS = {
         SINGLE: 'Phòng đơn',
@@ -74,6 +77,34 @@ const Rooms = () => {
         STANDARD: 'Phòng tiêu chuẩn',
         EXECUTIVE: 'Phòng Executive',
     };
+
+    // Tên nhóm loại phòng do admin đặt trong Cài đặt (trống = dùng tên mặc định)
+    const [roomTypeLabels, setRoomTypeLabels] = useState({});
+    // Danh sách nhóm phòng tạo trong Cài đặt (để chọn trong form thêm/sửa phòng)
+    const [roomGroupOptions, setRoomGroupOptions] = useState([]);
+    const typeLabel = (type) => roomTypeLabels[type] || ROOM_TYPE_LABELS[type] || type;
+
+    useEffect(() => {
+        api.get('/settings/public')
+            .then((res) => {
+                const overrides = {};
+                (res.data || []).forEach((item) => {
+                    if (item.key?.startsWith('roomTypeLabel_') && item.value) {
+                        overrides[item.key.replace('roomTypeLabel_', '')] = item.value;
+                    }
+                });
+                setRoomTypeLabels(overrides);
+
+                const groupsItem = (res.data || []).find((item) => item.key === 'roomGroups');
+                if (groupsItem?.value) {
+                    try {
+                        const parsed = JSON.parse(groupsItem.value);
+                        if (Array.isArray(parsed)) setRoomGroupOptions(parsed.filter((g) => typeof g === 'string' && g.trim()));
+                    } catch { /* bỏ qua nếu JSON lỗi */ }
+                }
+            })
+            .catch(() => { /* dùng tên mặc định */ });
+    }, []);
 
     const roomMainImage = (room) => {
         if (room.imageUrl) return `${API_BASE_URL}${room.imageUrl}`;
@@ -92,6 +123,10 @@ const Rooms = () => {
     };
 
     const guestFilteredRooms = rooms.filter((room) => {
+        if (guestGroupFilter && (room.groupName || '').trim() !== guestGroupFilter) {
+            return false;
+        }
+
         if (guestTypeFilter !== 'ALL' && room.roomType !== guestTypeFilter) {
             return false;
         }
@@ -254,6 +289,7 @@ const Rooms = () => {
             setFormData({
                 roomNumber: room.roomNumber || '',
                 roomType: room.roomType || 'SINGLE',
+                groupName: room.groupName || '',
                 floor: room.floor || 1,
                 capacity: room.capacity || 1,
                 pricePerNight: room.pricePerNight || 0,
@@ -277,6 +313,7 @@ const Rooms = () => {
             setFormData({
                 roomNumber: '',
                 roomType: 'SINGLE',
+                groupName: '',
                 floor: 1,
                 capacity: 1,
                 pricePerNight: 0,
@@ -476,6 +513,7 @@ const Rooms = () => {
             const roomData = {
                 roomNumber: trimmedRoomNumber,
                 roomType: formData.roomType || 'SINGLE',
+                groupName: (formData.groupName || '').trim(),
                 floor: Number(formData.floor),
                 capacity: Number(formData.capacity),
                 pricePerNight: Number(formData.pricePerNight),
@@ -486,7 +524,6 @@ const Rooms = () => {
                 images: finalGalleryUrls.map((url, idx) => ({ imageUrl: url, displayOrder: idx }))
             };
 
-            console.log('📤 Sending room data:', roomData);
 
             if (editingRoom) {
                 await roomAPI.update(editingRoom.id, roomData);
@@ -545,7 +582,7 @@ const Rooms = () => {
         return (
             <Box sx={!canManage ? { bgcolor: '#f7f6f2', minHeight: '100vh' } : undefined}>
                 {!canManage && <CustomerHeader activePage="rooms" />}
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
                     <CircularProgress size={60} sx={!canManage ? { color: '#174c40' } : undefined} />
                 </Box>
             </Box>
@@ -694,20 +731,7 @@ const Rooms = () => {
                                     boxShadow: '0 12px 32px rgba(30,63,49,0.055)',
                                 }}
                             >
-                                <TextField
-                                    fullWidth
-                                    placeholder="Tìm theo số phòng, loại phòng hoặc tiện nghi..."
-                                    value={guestSearch}
-                                    onChange={(event) => setGuestSearch(event.target.value)}
-                                    inputProps={{ 'aria-label': 'Tìm phòng' }}
-                                    InputProps={{
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <SearchRounded sx={{ color: '#839188' }} />
-                                            </InputAdornment>
-                                        ),
-                                    }}
-                                    sx={{
+                                <TextField fullWidth placeholder="Tìm theo số phòng, loại phòng hoặc tiện nghi..." value={guestSearch} onChange={(event) => setGuestSearch(event.target.value)} sx={{
                                         '& .MuiOutlinedInput-root': {
                                             minHeight: 54,
                                             borderRadius: 2.5,
@@ -719,8 +743,13 @@ const Rooms = () => {
                                                 borderWidth: 1.5,
                                             },
                                         },
-                                    }}
-                                />
+                                    }} slotProps={{ htmlInput: { 'aria-label': 'Tìm phòng' }, input: {
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchRounded sx={{ color: '#839188' }} />
+                                            </InputAdornment>
+                                        ),
+                                    } }} />
 
                                 <Box
                                     sx={{
@@ -748,6 +777,15 @@ const Rooms = () => {
                                     <Typography variant="body2" sx={{ color: '#829087' }}>
                                         {guestFilteredRooms.length} phòng phù hợp
                                     </Typography>
+                                    {guestGroupFilter && (
+                                        <Chip
+                                            label={`Đang xem nhóm: ${guestGroupFilter}`}
+                                            color="primary"
+                                            size="small"
+                                            sx={{ mt: 1 }}
+                                            onDelete={() => setGuestGroupFilter('')}
+                                        />
+                                    )}
                                 </Box>
 
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -764,7 +802,7 @@ const Rooms = () => {
                                             <Chip
                                                 key={type}
                                                 label={`${type === 'ALL' ? 'Tất cả' : ROOM_TYPE_LABELS[type]} · ${count}`}
-                                                onClick={() => setGuestTypeFilter(type)}
+                                                onClick={() => { setGuestTypeFilter(type); setGuestGroupFilter(''); }}
                                                 variant={active ? 'filled' : 'outlined'}
                                                 sx={{
                                                     minHeight: 36,
@@ -786,7 +824,7 @@ const Rooms = () => {
                                 </Box>
                             </Paper>
 
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)', xl: 'repeat(4, 1fr)' }, gap: { xs: 2, md: 2.5 }, alignItems: 'stretch' }}>
+                            <Box id="guest-room-list">
                                 {guestFilteredRooms.length === 0 && (
                                     <Box sx={{ gridColumn: '1 / -1' }}>
                                         <Paper
@@ -810,7 +848,23 @@ const Rooms = () => {
                                     </Box>
                                 )}
 
-                                {guestFilteredRooms.map((room) => {
+                                {groupRoomsForDisplay(guestFilteredRooms, roomGroupOptions).map((group) => (
+                                    <RoomTypeCarousel
+                                        key={group.type}
+                                        title={group.groupName || typeLabel(group.type)}
+                                        layout={(guestTypeFilter === 'ALL' && !guestGroupFilter) ? 'carousel' : 'grid'}
+                                        countLabel={`${group.rooms.length} phòng`}
+                                        rooms={group.rooms}
+                                        onViewAll={() => {
+                                            if (group.groupName) {
+                                                setGuestGroupFilter(group.groupName);
+                                            } else {
+                                                setGuestGroupFilter('');
+                                                setGuestTypeFilter(group.type);
+                                            }
+                                            document.getElementById('guest-room-list')?.scrollIntoView({ behavior: 'smooth' });
+                                        }}
+                                        renderRoom={(room) => {
                                     const img = roomMainImage(room);
                                     // (SỬA) Phía khách chỉ có 2 trạng thái: Bảo trì và Còn trống.
                                     // Phòng đang có khách/đã đặt trước vẫn đặt được cho ngày khác
@@ -1015,8 +1069,10 @@ const Rooms = () => {
                                                     </Box>
                                                 </CardContent>
                                             </Card>
-                                    );
-                                })}
+                                        );
+                                        }}
+                                    />
+                                ))}
                             </Box>
                         </Box>
                     )}
@@ -1024,15 +1080,8 @@ const Rooms = () => {
                         <>
                         {/* (PHẦN 10) Thanh thống kê + lọc cho bảng quản lý phòng */}
                         <Paper sx={{ p: 2, mb: 2.5, borderRadius: 4, border: '1px solid #e4ece7' }}>
-                            <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
-                                <TextField
-                                    size="small"
-                                    placeholder={i18n.language === 'vi' ? 'Tìm số phòng, loại, tầng...' : 'Search room, type, floor...'}
-                                    value={adminRoomSearch}
-                                    onChange={(e) => setAdminRoomSearch(e.target.value)}
-                                    sx={{ flex: '1 1 240px', bgcolor: '#fff' }}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> }}
-                                />
+                            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+                                <TextField size="small" placeholder={i18n.language === 'vi' ? 'Tìm số phòng, loại, tầng...' : 'Search room, type, floor...'} value={adminRoomSearch} onChange={(e) => setAdminRoomSearch(e.target.value)} sx={{ flex: '1 1 240px', bgcolor: '#fff' }} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded fontSize="small" /></InputAdornment> } }} />
                                 {[
                                     { key: 'ALL', label: i18n.language === 'vi' ? 'Tất cả' : 'All' },
                                     { key: 'AVAILABLE', label: i18n.language === 'vi' ? 'Còn trống' : 'Available' },
@@ -1055,7 +1104,7 @@ const Rooms = () => {
                             </Box>
                         </Paper>
                         {/* (PHẦN 13) Chuyển chế độ xem: Danh sách | Lịch trống theo phòng */}
-                        <Box display="flex" gap={1} sx={{ mb: 2.5 }}>
+                        <Box sx={{ display: "flex", gap: 1,  mb: 2.5 }}>
                             <Chip clickable label="📋 Danh sách phòng" color={adminView === 'LIST' ? 'primary' : 'default'} variant={adminView === 'LIST' ? 'filled' : 'outlined'} onClick={() => setAdminView('LIST')} sx={{ fontWeight: 700 }} />
                             <Chip clickable label="🗓️ Lịch trống theo phòng" color={adminView === 'SCHEDULE' ? 'primary' : 'default'} variant={adminView === 'SCHEDULE' ? 'filled' : 'outlined'} onClick={() => setAdminView('SCHEDULE')} sx={{ fontWeight: 700 }} />
                         </Box>
@@ -1090,7 +1139,7 @@ const Rooms = () => {
                                             <TableCell>
                                                 <Avatar
                                                     variant="rounded"
-                                                    src={room.imageUrl ? `${API_BASE_URL}${room.imageUrl}` : `https://picsum.photos/seed/${room.id}/50/50`}
+                                                    src={room.imageUrl ? `${API_BASE_URL}${room.imageUrl}` : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50" fill="%23e7f0eb"/><text x="25" y="30" font-size="16" text-anchor="middle" fill="%23748078">🏨</text></svg>'}
                                                     sx={{ width: 50, height: 50 }}
                                                 >
                                                     🏨
@@ -1176,9 +1225,9 @@ const Rooms = () => {
                                 const sch = roomSchedule(room);
                                 const today = _todayKey();
                                 return (
-                                    <Grid item xs={12} md={6} xl={4} key={room.id}>
+                                    <Grid size={{ xs: 12, md: 6, xl: 4 }} key={room.id}>
                                         <Paper sx={{ p: 2.25, borderRadius: 4, border: '1px solid #e4ece7', height: '100%' }}>
-                                            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center",  mb: 0.5 }}>
                                                 <Typography fontWeight={800}>Phòng {room.roomNumber}</Typography>
                                                 <Chip size="small" label={room.roomType} sx={{ fontWeight: 700, bgcolor: '#eef6f1', color: '#1d624b' }} />
                                             </Box>
@@ -1192,9 +1241,9 @@ const Rooms = () => {
                                             {sch.list.length === 0 ? (
                                                 <Typography variant="caption" color="textSecondary">Chưa có đơn nào sắp tới.</Typography>
                                             ) : (
-                                                <Box display="flex" flexDirection="column" gap={0.75}>
+                                                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                                                     {sch.list.slice(0, 5).map((b) => (
-                                                        <Box key={b.id} display="flex" justifyContent="space-between" alignItems="center" sx={{ bgcolor: '#f7faf8', border: '1px solid #e4ece7', borderRadius: 2, px: 1.25, py: 0.75 }}>
+                                                        <Box key={b.id} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center",  bgcolor: '#f7faf8', border: '1px solid #e4ece7', borderRadius: 2, px: 1.25, py: 0.75 }}>
                                                             <Typography variant="body2" fontWeight={600}>
                                                                 {_fmtDay(_dayKey(b.checkInDate))} → {_fmtDay(_dayKey(b.checkOutDate))}
                                                                 <Typography component="span" variant="caption" color="textSecondary"> • {b.guestFullName || b.user?.fullName || 'Khách'}</Typography>
@@ -1226,7 +1275,7 @@ const Rooms = () => {
                 fullWidth
             >
                 <DialogTitle>
-                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Typography variant="h6">
                             {editingRoom ? (i18n.language === 'vi' ? '✏️ Sửa phòng' : '✏️ Edit Room') : (i18n.language === 'vi' ? '➕ Thêm phòng mới' : '➕ Add New Room')}
                         </Typography>
@@ -1277,44 +1326,38 @@ const Rooms = () => {
                                 <MenuItem value="EXECUTIVE">EXECUTIVE</MenuItem>
                             </Select>
                         </FormControl>
-                        <TextField
-                            label={i18n.language === 'vi' ? 'Tầng' : 'Floor'}
-                            name="floor"
-                            type="number"
-                            value={formData.floor}
-                            onChange={handleInputChange}
-                            fullWidth
-                            disabled={uploading}
-                            InputProps={{ inputProps: { min: 0 } }}
-                        />
-                        <TextField
-                            label={i18n.language === 'vi' ? 'Sức chứa' : 'Capacity'}
-                            name="capacity"
-                            type="number"
-                            value={formData.capacity}
-                            onChange={handleInputChange}
-                            fullWidth
-                            disabled={uploading}
-                            InputProps={{ inputProps: { min: 1 } }}
-                        />
-                        <TextField
-                            label={i18n.language === 'vi' ? 'Giá/đêm (VND)' : 'Price/Night (VND)'}
-                            name="pricePerNight"
-                            type="number"
-                            value={formData.pricePerNight}
-                            onChange={handleInputChange}
-                            fullWidth
-                            required
-                            disabled={uploading}
-                            InputProps={{
+                        <FormControl fullWidth disabled={uploading}>
+                            <InputLabel>{i18n.language === 'vi' ? 'Tên nhóm' : 'Group Name'}</InputLabel>
+                            <Select
+                                name="groupName"
+                                value={formData.groupName || ''}
+                                onChange={handleInputChange}
+                                label={i18n.language === 'vi' ? 'Tên nhóm' : 'Group Name'}
+                            >
+                                <MenuItem value="">{i18n.language === 'vi' ? '— Theo loại phòng —' : '— By room type —'}</MenuItem>
+                                {roomGroupOptions.map((g) => (
+                                    <MenuItem key={g} value={g}>{g}</MenuItem>
+                                ))}
+                                {formData.groupName && !roomGroupOptions.includes(formData.groupName) && (
+                                    <MenuItem value={formData.groupName}>{formData.groupName}</MenuItem>
+                                )}
+                            </Select>
+                            <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5 }}>
+                                {i18n.language === 'vi'
+                                    ? 'Danh sách nhóm tạo trong Cài đặt → Tên nhóm phòng. Phòng chọn nhóm sẽ hiển thị theo nhóm đó; để trống thì xếp theo loại phòng.'
+                                    : 'Groups are managed in Settings → Room group names. Empty = grouped by room type.'}
+                            </Typography>
+                        </FormControl>
+                        <TextField label={i18n.language === 'vi' ? 'Tầng' : 'Floor'} name="floor" type="number" value={formData.floor} onChange={handleInputChange} fullWidth disabled={uploading} slotProps={{ input: { inputProps: { min: 0 } } }} />
+                        <TextField label={i18n.language === 'vi' ? 'Sức chứa' : 'Capacity'} name="capacity" type="number" value={formData.capacity} onChange={handleInputChange} fullWidth disabled={uploading} slotProps={{ input: { inputProps: { min: 1 } } }} />
+                        <TextField label={i18n.language === 'vi' ? 'Giá/đêm (VND)' : 'Price/Night (VND)'} name="pricePerNight" type="number" value={formData.pricePerNight} onChange={handleInputChange} fullWidth required disabled={uploading} slotProps={{ input: {
                                 inputProps: { min: 0, step: i18n.language === 'vi' ? 10000 : 1 },
                                 startAdornment: (
                                     <Typography sx={{ mr: 1, color: 'text.secondary' }}>
                                         {i18n.language === 'vi' ? '₫' : '$'}
                                     </Typography>
                                 )
-                            }}
-                        />
+                            } }} />
                         <FormControl fullWidth disabled={uploading}>
                             <InputLabel>{i18n.language === 'vi' ? 'Trạng thái' : 'Status'}</InputLabel>
                             <Select
